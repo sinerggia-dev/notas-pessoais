@@ -191,12 +191,13 @@
     font-size:12px;cursor:pointer;color:var(--text-light);
   }
   .task-filter-tab.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent-light);font-weight:600;}
-  #taskTable{width:100%;border-collapse:collapse;font-size:13px;}
+  #taskTable{width:auto;border-collapse:collapse;font-size:13px;}
   #taskTable th{
     text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
-    padding:8px 10px;border-bottom:1px solid var(--sidebar-border);
+    padding:8px 14px 8px 4px;border-bottom:1px solid var(--sidebar-border);white-space:nowrap;
   }
-  #taskTable td{padding:6px 10px;border-bottom:1px solid var(--sidebar-border);vertical-align:middle;}
+  #taskTable td{padding:6px 14px 6px 4px;border-bottom:1px solid var(--sidebar-border);vertical-align:middle;white-space:nowrap;}
+  #taskTable td:first-child, #taskTable th:first-child{padding-left:2px;}
   .task-title{outline:none;min-width:140px;}
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
@@ -960,7 +961,7 @@ function showKindMenu(parentId, anchorEl){
   });
   const rect = anchorEl.getBoundingClientRect();
   menu.style.left = (rect.left + window.scrollX) + "px";
-  menu.style.top = (rect.bottom + window.scrollY + 4) + "px";
+  menu.style.top = (rect.bottom + window.scrollY + 10) + "px";
   menu.hidden = false;
 }
 
