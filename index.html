@@ -142,17 +142,49 @@
   #addBlockBtn[hidden]{display:none;}
   #addBlockBtn:hover{color:var(--text);}
 
-  /* ---------- Menu "/" ---------- */
-  #slashMenu{
+  /* ---------- Menu "/" e menu de novo tipo de página ---------- */
+  #slashMenu, #kindMenu{
     position:absolute;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
     box-shadow:0 4px 16px rgba(0,0,0,.12);padding:6px;z-index:50;min-width:220px;
   }
-  #slashMenu[hidden]{display:none;}
+  #slashMenu[hidden], #kindMenu[hidden]{display:none;}
   .slash-item{
     padding:7px 10px;font-size:13px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:8px;
   }
   .slash-item:hover, .slash-item.selected{background:var(--accent-light);color:var(--accent);}
   .slash-item .slash-icon{width:18px;text-align:center;}
+
+  /* ---------- Banco de tarefas ---------- */
+  #tasksView{display:none;}
+  #taskFilterTabs{display:flex;gap:6px;margin-bottom:14px;}
+  .task-filter-tab{
+    background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:5px 12px;
+    font-size:12px;cursor:pointer;color:var(--text-light);
+  }
+  .task-filter-tab.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent-light);font-weight:600;}
+  #taskTable{width:100%;border-collapse:collapse;font-size:13px;}
+  #taskTable th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
+    padding:8px 10px;border-bottom:1px solid var(--sidebar-border);
+  }
+  #taskTable td{padding:6px 10px;border-bottom:1px solid var(--sidebar-border);vertical-align:middle;}
+  .task-title{outline:none;min-width:140px;}
+  .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
+  .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
+  .status-pill.a-fazer{background:#efefee;color:#55534d;}
+  .status-pill.em-andamento{background:#fff3d6;color:#8a6d1e;}
+  .status-pill.concluido{background:#dff3e0;color:#2f8132;}
+  .priority-pill.baixa{background:#efefee;color:#55534d;}
+  .priority-pill.media{background:#fff3d6;color:#8a6d1e;}
+  .priority-pill.alta{background:#fde3e3;color:#b23a3a;}
+  #addTaskBtn{
+    margin-top:10px;background:none;border:none;color:var(--text-light);font-size:14px;cursor:pointer;
+    padding:6px 4px;text-align:left;
+  }
+  #addTaskBtn[hidden]{display:none;}
+  #addTaskBtn:hover{color:var(--text);}
+  .del-task{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:14px;}
+  .del-task:hover{color:var(--danger);}
 
   /* ---------- Painel de administração ---------- */
   #adminOverlay{
@@ -223,13 +255,26 @@
     <div id="pageView">
       <div id="readOnlyBanner">👁️ Você tem acesso de visualização — não pode editar esta página.</div>
       <input id="pageTitle" placeholder="Sem título">
-      <div id="blockList"></div>
-      <button id="addBlockBtn">+ Novo bloco</button>
+      <div id="notesView">
+        <div id="blockList"></div>
+        <button id="addBlockBtn">+ Novo bloco</button>
+      </div>
+      <div id="tasksView">
+        <div id="taskFilterTabs"></div>
+        <table id="taskTable">
+          <thead>
+            <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Responsável</th><th></th></tr>
+          </thead>
+          <tbody id="taskTableBody"></tbody>
+        </table>
+        <button id="addTaskBtn">+ Nova tarefa</button>
+      </div>
     </div>
   </main>
 </div>
 
 <div id="slashMenu" hidden></div>
+<div id="kindMenu" hidden></div>
 
 <div id="adminOverlay">
   <div id="adminPanel">
@@ -416,6 +461,7 @@ async function resolveWorkspace(){
     const json = await res.json();
     workspaceFolderId = json.id;
     canEdit = true;
+    await loadUsers();
     return true;
   }
 
@@ -551,14 +597,15 @@ function showNoAccess(){
 /* ==========================================================================
    PÁGINAS — CRUD + ÁRVORE
    ========================================================================== */
-async function addPage(parentId){
+async function addPage(parentId, kind){
   if (!canEdit) return;
+  kind = kind === "tarefas" ? "tarefas" : "notas";
   const id = genId("p");
-  const content = { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+  const content = kind === "tarefas" ? { tasks: [] } : { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
   await putJsonByPath("pagina_" + id + ".json", content);
   pageContentCache[id] = content;
 
-  const meta = { id, parentId: parentId || null, title: "", order: nextOrder++ };
+  const meta = { id, parentId: parentId || null, title: "", order: nextOrder++, kind };
   indexData.pages.push(meta);
   buildTree();
   await openPage(id);
@@ -609,11 +656,13 @@ async function openPage(id){
 
   if (!pageContentCache[id]){
     setStatus("Carregando página…");
+    const kind = meta.kind || "notas";
+    const fallback = kind === "tarefas" ? { tasks: [] } : { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
     try{
       const data = await getJsonByPath("pagina_" + id + ".json");
-      pageContentCache[id] = data && data.blocks ? data : { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+      pageContentCache[id] = data || fallback;
     }catch(e){
-      pageContentCache[id] = { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+      pageContentCache[id] = fallback;
     }
     setStatus("");
   }
@@ -655,27 +704,59 @@ function buildTree(query){
   renderChildren(null, 0);
 }
 
+function pageIcon(page){
+  return page.kind === "tarefas" ? "✅ " : "📝 ";
+}
+
 function renderPageRow(page, depth){
   const row = document.createElement("div");
   row.className = "page-row" + (page.id === currentPageId ? " active" : "");
   row.style.paddingLeft = (10 + depth * 16) + "px";
   row.dataset.id = page.id;
   row.innerHTML = `
-    <span class="page-title-label">${escapeHtml(page.title || "Sem título")}</span>
+    <span class="page-title-label">${pageIcon(page)}${escapeHtml(page.title || "Sem título")}</span>
     <span class="row-actions">
       ${canEdit ? '<button class="icon-btn add-sub" title="Nova subpágina">+</button><button class="icon-btn del-page" title="Excluir">🗑</button>' : ""}
     </span>`;
   row.querySelector(".page-title-label").addEventListener("click", () => openPage(page.id));
   const addSub = row.querySelector(".add-sub");
-  if (addSub) addSub.addEventListener("click", (e) => { e.stopPropagation(); addPage(page.id); });
+  if (addSub) addSub.addEventListener("click", (e) => { e.stopPropagation(); showKindMenu(page.id, addSub); });
   const delBtn = row.querySelector(".del-page");
   if (delBtn) delBtn.addEventListener("click", (e) => { e.stopPropagation(); deletePage(page.id); });
   return row;
 }
 
-document.getElementById("newPageBtn").addEventListener("click", () => addPage(null));
-document.getElementById("emptyCreateBtn").addEventListener("click", () => addPage(null));
+document.getElementById("newPageBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
+document.getElementById("emptyCreateBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
 document.getElementById("searchInput").addEventListener("input", (e) => buildTree(e.target.value));
+
+/* ==========================================================================
+   MENU "NOVA PÁGINA" (escolher tipo)
+   ========================================================================== */
+function showKindMenu(parentId, anchorEl){
+  const menu = document.getElementById("kindMenu");
+  menu.innerHTML = `
+    <div class="slash-item" data-kind="notas"><span class="slash-icon">📝</span><span>Página de notas</span></div>
+    <div class="slash-item" data-kind="tarefas"><span class="slash-icon">✅</span><span>Banco de tarefas</span></div>`;
+  menu.querySelectorAll(".slash-item").forEach(el => {
+    el.onmousedown = (e) => {
+      e.preventDefault();
+      menu.hidden = true;
+      addPage(parentId, el.dataset.kind);
+    };
+  });
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.left = (rect.left + window.scrollX) + "px";
+  menu.style.top = (rect.bottom + window.scrollY + 4) + "px";
+  menu.hidden = false;
+}
+
+document.addEventListener("mousedown", (e) => {
+  const menu = document.getElementById("kindMenu");
+  if (!menu.hidden && !menu.contains(e.target) && !e.target.closest("#newPageBtn, .add-sub, #emptyCreateBtn")){
+    menu.hidden = true;
+  }
+});
 
 /* ==========================================================================
    EDITOR DE PÁGINA (TÍTULO)
@@ -687,16 +768,18 @@ pageTitleEl.addEventListener("input", () => {
   if (!meta) return;
   meta.title = pageTitleEl.value;
   const row = document.querySelector(`.page-row[data-id="${currentPageId}"] .page-title-label`);
-  if (row) row.textContent = meta.title || "Sem título";
+  if (row) row.textContent = pageIcon(meta) + (meta.title || "Sem título");
   scheduleSaveIndex();
 });
 pageTitleEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter"){
     e.preventDefault();
     const content = pageContentCache[currentPageId];
-    if (content && content.blocks.length) focusBlock(content.blocks[0].id, 0);
+    if (content && content.blocks && content.blocks.length) focusBlock(content.blocks[0].id, 0);
   }
 });
+
+let taskFilter = "Todas";
 
 function renderEditor(){
   const meta = getPageMeta(currentPageId);
@@ -704,8 +787,19 @@ function renderEditor(){
   pageTitleEl.value = meta.title || "";
   pageTitleEl.readOnly = !canEdit;
   document.getElementById("readOnlyBanner").style.display = canEdit ? "none" : "block";
-  document.getElementById("addBlockBtn").hidden = !canEdit;
-  renderBlocks();
+
+  const isTasks = meta.kind === "tarefas";
+  document.getElementById("notesView").style.display = isTasks ? "none" : "block";
+  document.getElementById("tasksView").style.display = isTasks ? "block" : "none";
+
+  if (isTasks){
+    taskFilter = "Todas";
+    renderTaskFilterTabs();
+    renderTasks();
+  } else {
+    document.getElementById("addBlockBtn").hidden = !canEdit;
+    renderBlocks();
+  }
 }
 
 /* ==========================================================================
@@ -984,6 +1078,143 @@ document.getElementById("addBlockBtn").addEventListener("click", () => {
   renderBlocks();
   focusBlock(newBlock.id, 0);
   scheduleSavePage(currentPageId);
+});
+
+/* ==========================================================================
+   BANCO DE TAREFAS
+   ========================================================================== */
+function slugify(text){
+  return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
+}
+
+function getAssigneeOptions(){
+  const emails = new Set([OWNER_EMAIL]);
+  usersData.usuarios.forEach(u => emails.add(u.email));
+  return Array.from(emails);
+}
+
+function renderTaskFilterTabs(){
+  const wrap = document.getElementById("taskFilterTabs");
+  const tabs = ["Todas", "A fazer", "Em andamento", "Concluído"];
+  wrap.innerHTML = "";
+  tabs.forEach(t => {
+    const btn = document.createElement("button");
+    btn.className = "task-filter-tab" + (t === taskFilter ? " active" : "");
+    btn.textContent = t;
+    btn.onclick = () => { taskFilter = t; renderTaskFilterTabs(); renderTasks(); };
+    wrap.appendChild(btn);
+  });
+}
+
+function renderTasks(){
+  const content = pageContentCache[currentPageId];
+  const tbody = document.getElementById("taskTableBody");
+  tbody.innerHTML = "";
+  document.getElementById("addTaskBtn").hidden = !canEdit;
+  if (!content || !content.tasks) return;
+  const assigneeOptions = getAssigneeOptions();
+  content.tasks
+    .filter(t => taskFilter === "Todas" || t.status === taskFilter)
+    .forEach(task => tbody.appendChild(renderTaskRow(task, assigneeOptions)));
+}
+
+function buildTaskSelect(task, field, options, pillClass){
+  const sel = document.createElement("select");
+  sel.className = pillClass + " " + slugify(task[field] || options[0]);
+  sel.disabled = !canEdit;
+  options.forEach(opt => {
+    const o = document.createElement("option");
+    o.value = opt;
+    o.textContent = opt;
+    if ((task[field] || options[0]) === opt) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener("change", () => {
+    task[field] = sel.value;
+    sel.className = pillClass + " " + slugify(sel.value);
+    scheduleSavePage(currentPageId);
+  });
+  return sel;
+}
+
+function renderTaskRow(task, assigneeOptions){
+  const tr = document.createElement("tr");
+  tr.dataset.id = task.id;
+
+  const tdTitle = document.createElement("td");
+  const titleEl = document.createElement("div");
+  titleEl.className = "task-title";
+  titleEl.contentEditable = canEdit ? "true" : "false";
+  titleEl.textContent = task.title || "";
+  titleEl.addEventListener("input", () => {
+    task.title = titleEl.textContent;
+    scheduleSavePage(currentPageId);
+  });
+  tdTitle.appendChild(titleEl);
+
+  const tdStatus = document.createElement("td");
+  tdStatus.appendChild(buildTaskSelect(task, "status", ["A fazer", "Em andamento", "Concluído"], "status-pill"));
+
+  const tdPriority = document.createElement("td");
+  tdPriority.appendChild(buildTaskSelect(task, "priority", ["Baixa", "Média", "Alta"], "priority-pill"));
+
+  const tdAssignee = document.createElement("td");
+  const sel = document.createElement("select");
+  sel.disabled = !canEdit;
+  const blankOpt = document.createElement("option");
+  blankOpt.value = "";
+  blankOpt.textContent = "Não atribuído";
+  sel.appendChild(blankOpt);
+  assigneeOptions.forEach(email => {
+    const opt = document.createElement("option");
+    opt.value = email;
+    opt.textContent = email;
+    if (task.assignee === email) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => {
+    task.assignee = sel.value;
+    scheduleSavePage(currentPageId);
+  });
+  tdAssignee.appendChild(sel);
+
+  const tdActions = document.createElement("td");
+  if (canEdit){
+    const delBtn = document.createElement("button");
+    delBtn.className = "del-task";
+    delBtn.textContent = "×";
+    delBtn.title = "Excluir tarefa";
+    delBtn.onclick = () => deleteTask(task.id);
+    tdActions.appendChild(delBtn);
+  }
+
+  tr.appendChild(tdTitle);
+  tr.appendChild(tdStatus);
+  tr.appendChild(tdPriority);
+  tr.appendChild(tdAssignee);
+  tr.appendChild(tdActions);
+  return tr;
+}
+
+function deleteTask(taskId){
+  const content = pageContentCache[currentPageId];
+  content.tasks = content.tasks.filter(t => t.id !== taskId);
+  renderTasks();
+  scheduleSavePage(currentPageId);
+}
+
+document.getElementById("addTaskBtn").addEventListener("click", () => {
+  const content = pageContentCache[currentPageId];
+  if (!content) return;
+  if (!content.tasks) content.tasks = [];
+  content.tasks.push({ id: genId("t"), title: "", status: "A fazer", priority: "Média", assignee: "" });
+  renderTasks();
+  scheduleSavePage(currentPageId);
+  setTimeout(() => {
+    const rows = document.querySelectorAll("#taskTableBody tr");
+    const last = rows[rows.length - 1];
+    if (last) last.querySelector(".task-title").focus();
+  }, 30);
 });
 
 /* ==========================================================================
