@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notas Pessoais</title>
+<script src="https://accounts.google.com/gsi/client" onload="initGoogle()" async defer></script>
+<style>
+  :root{
+    --sidebar-bg:#f7f7f5;
+    --sidebar-border:#e9e9e7;
+    --text:#37352f;
+    --text-light:#8a8a86;
+    --accent:#2383e2;
+    --accent-light:#e8f2fd;
+    --danger:#e03e3e;
+    --divider:#e9e9e7;
+    --hover:#efefee;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);
+    background:#fff;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Login ---------- */
+  #loginScreen{
+    height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:linear-gradient(180deg,#fbfbfa,#f2f2f0);
+  }
+  #loginScreen h1{font-size:28px;margin:0;}
+  #loginScreen p{color:var(--text-light);margin:0;max-width:360px;text-align:center;font-size:14px;}
+  #loginBtn{
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:12px 22px;font-size:15px;font-weight:600;cursor:pointer;
+  }
+  #loginBtn:hover{background:#1a6fc4;}
+  #loginError{color:var(--danger);font-size:13px;max-width:400px;text-align:center;display:none;}
+
+  /* ---------- App shell ---------- */
+  #app{display:none;height:100vh;}
+  #app.visible{display:flex;}
+
+  #sidebar{
+    width:270px;min-width:270px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);
+    display:flex;flex-direction:column;height:100%;
+  }
+  #sidebarHeader{padding:14px 14px 8px;}
+  #sidebarHeader h2{font-size:14px;margin:0 0 10px;font-weight:700;display:flex;align-items:center;gap:6px;}
+  #searchInput{
+    width:100%;padding:7px 10px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;
+    background:#fff;
+  }
+  #newPageBtn{
+    margin:8px 14px;padding:7px 10px;background:transparent;border:1px dashed #c8c8c5;border-radius:6px;
+    cursor:pointer;font-size:13px;color:var(--text);text-align:left;
+  }
+  #newPageBtn:hover{background:var(--hover);border-color:var(--text-light);}
+  #pageTree{flex:1;overflow-y:auto;padding:4px 6px 12px;}
+  .page-row{
+    display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:6px;
+    cursor:pointer;font-size:13px;gap:6px;
+  }
+  .page-row:hover{background:var(--hover);}
+  .page-row.active{background:var(--accent-light);color:var(--accent);font-weight:600;}
+  .page-title-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row-actions{display:none;gap:2px;flex-shrink:0;}
+  .page-row:hover .row-actions{display:flex;}
+  .icon-btn{
+    background:none;border:none;cursor:pointer;color:var(--text-light);font-size:13px;
+    padding:2px 5px;border-radius:4px;line-height:1;
+  }
+  .icon-btn:hover{background:#e2e2e0;color:var(--text);}
+
+  #sidebarFooter{padding:10px 14px;border-top:1px solid var(--sidebar-border);font-size:12px;color:var(--text-light);}
+  #statusText{display:block;margin-bottom:6px;min-height:14px;}
+  #logoutBtn{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;}
+  #logoutBtn:hover{color:var(--text);}
+
+  /* ---------- Editor ---------- */
+  #editor{flex:1;overflow-y:auto;height:100%;}
+  #emptyState{
+    height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--text-light);
+  }
+  #emptyState button{
+    background:var(--accent);color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:14px;cursor:pointer;
+  }
+  #pageView{max-width:760px;margin:0 auto;padding:60px 60px 200px;display:none;}
+  #pageTitle{
+    width:100%;border:none;outline:none;font-size:36px;font-weight:700;color:var(--text);
+    padding:4px 0;margin-bottom:8px;font-family:inherit;
+  }
+  #pageTitle::placeholder{color:#d9d9d6;}
+
+  #blockList{display:flex;flex-direction:column;}
+  .block-row{
+    position:relative;display:flex;align-items:flex-start;gap:4px;padding:2px 0;border-radius:4px;
+  }
+  .block-gutter{
+    display:flex;gap:2px;opacity:0;flex-shrink:0;padding-top:2px;transition:opacity .1s;
+  }
+  .block-row:hover .block-gutter{opacity:1;}
+  .block-gutter button{
+    background:none;border:none;cursor:pointer;color:var(--text-light);font-size:13px;
+    width:22px;height:22px;border-radius:4px;
+  }
+  .block-gutter button:hover{background:var(--hover);color:var(--text);}
+  .block-body{flex:1;min-width:0;display:flex;align-items:flex-start;gap:8px;}
+  .block-content{
+    flex:1;min-width:0;outline:none;font-size:15px;line-height:1.6;padding:3px 2px;white-space:pre-wrap;word-break:break-word;
+  }
+  .block-content:empty::before{content:attr(data-placeholder);color:#c8c8c5;}
+  .block-content.h1{font-size:26px;font-weight:700;padding-top:14px;}
+  .block-content.h2{font-size:21px;font-weight:700;padding-top:10px;}
+  .block-content.h3{font-size:17px;font-weight:700;padding-top:8px;}
+  .block-content.quote{border-left:3px solid var(--divider);padding-left:12px;font-style:italic;color:#55534d;}
+  .bullet-marker{padding:3px 0;color:var(--text);flex-shrink:0;}
+  .number-marker{padding:3px 0;color:var(--text);flex-shrink:0;min-width:20px;}
+  .todo-checkbox{margin-top:8px;flex-shrink:0;width:16px;height:16px;cursor:pointer;}
+  .block-content.todo-done{color:var(--text-light);text-decoration:line-through;}
+  .divider-block{border:none;border-top:1px solid var(--divider);margin:14px 0;flex:1;}
+
+  #addBlockBtn{
+    margin-top:10px;background:none;border:none;color:var(--text-light);font-size:14px;cursor:pointer;
+    padding:6px 4px;text-align:left;
+  }
+  #addBlockBtn:hover{color:var(--text);}
+
+  /* ---------- Slash menu ---------- */
+  #slashMenu{
+    position:absolute;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
+    box-shadow:0 4px 16px rgba(0,0,0,.12);padding:6px;z-index:50;min-width:220px;
+  }
+  #slashMenu[hidden]{display:none;}
+  .slash-item{
+    padding:7px 10px;font-size:13px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:8px;
+  }
+  .slash-item:hover, .slash-item.selected{background:var(--accent-light);color:var(--accent);}
+  .slash-item .slash-icon{width:18px;text-align:center;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <h1>📝 Notas Pessoais</h1>
+  <p>Suas páginas ficam salvas no seu Google Drive, sincronizadas entre dispositivos. Entre com sua conta Google para começar.</p>
+  <button id="loginBtn">Entrar com Google</button>
+  <div id="loginError"></div>
+</div>
+
+<div id="app">
+  <aside id="sidebar">
+    <div id="sidebarHeader">
+      <h2>📝 Notas Pessoais</h2>
+      <input id="searchInput" type="text" placeholder="Buscar páginas...">
+    </div>
+    <button id="newPageBtn">+ Nova página</button>
+    <div id="pageTree"></div>
+    <div id="sidebarFooter">
+      <span id="statusText"></span>
+      <button id="logoutBtn">Sair</button>
+    </div>
+  </aside>
+
+  <main id="editor">
+    <div id="emptyState">
+      <div>Selecione uma página ao lado ou crie uma nova</div>
+      <button id="emptyCreateBtn">+ Criar primeira página</button>
+    </div>
+    <div id="pageView">
+      <input id="pageTitle" placeholder="Sem título">
+      <div id="blockList"></div>
+      <button id="addBlockBtn">+ Novo bloco</button>
+    </div>
+  </main>
+</div>
+
+<div id="slashMenu" hidden></div>
+
+<script>
+/* ==========================================================================
+   CONFIG
+   ========================================================================== */
+const GOOGLE_CLIENT_ID = "964653200657-fs0h4t99s0cal68mdo0iml8skbhi78cb.apps.googleusercontent.com";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DATA_FILENAME = "notas-pessoais-dados.json";
+
+/* ==========================================================================
+   ESTADO
+   ========================================================================== */
+let state = { pages: [], lastOpenedPageId: null };
+let currentPageId = null;
+let nextOrder = 0;
+
+let accessToken = null;
+let tokenExpiresAt = 0;
+let driveFileId = null;
+let tokenClient = null;
+let pendingResolve = null, pendingReject = null;
+
+let saveTimer = null;
+let retryTimer = null;
+
+let slashMenuTargetBlockId = null;
+
+const BLOCK_TYPES = [
+  { type: "paragraph", label: "Texto", icon: "¶" },
+  { type: "heading1",  label: "Título 1", icon: "H1" },
+  { type: "heading2",  label: "Título 2", icon: "H2" },
+  { type: "heading3",  label: "Título 3", icon: "H3" },
+  { type: "bulleted",  label: "Lista com marcadores", icon: "•" },
+  { type: "numbered",  label: "Lista numerada", icon: "1." },
+  { type: "todo",      label: "Caixa de seleção", icon: "☑" },
+  { type: "quote",     label: "Citação", icon: "❝" },
+  { type: "divider",   label: "Divisória", icon: "—" },
+];
+
+/* ==========================================================================
+   HELPERS
+   ========================================================================== */
+function genId(prefix){
+  return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+function escapeHtml(str){
+  return (str || "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+function setStatus(text){
+  document.getElementById("statusText").textContent = text;
+}
+function getPage(id){
+  return state.pages.find(p => p.id === id);
+}
+function saveLocalCache(){
+  try{ localStorage.setItem("npx_cache_v1", JSON.stringify(state)); }catch(e){}
+}
+
+/* ==========================================================================
+   GOOGLE LOGIN / TOKEN
+   ========================================================================== */
+function initGoogle(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: (resp) => {
+      if (resp.error){
+        if (pendingReject) pendingReject(resp);
+        return;
+      }
+      accessToken = resp.access_token;
+      tokenExpiresAt = Date.now() + (Number(resp.expires_in || 3600) * 1000);
+      if (pendingResolve) pendingResolve(resp);
+    }
+  });
+}
+
+function requestToken(prompt){
+  return new Promise((resolve, reject) => {
+    pendingResolve = resolve;
+    pendingReject = reject;
+    tokenClient.requestAccessToken({ prompt });
+  });
+}
+
+async function ensureToken(){
+  if (!accessToken || Date.now() > tokenExpiresAt - 60000){
+    await requestToken(accessToken ? "" : "consent");
+  }
+}
+
+async function driveFetch(url, options = {}){
+  await ensureToken();
+  const headers = Object.assign({}, options.headers, { Authorization: "Bearer " + accessToken });
+  let res = await fetch(url, Object.assign({}, options, { headers }));
+  if (res.status === 401){
+    await requestToken("");
+    headers.Authorization = "Bearer " + accessToken;
+    res = await fetch(url, Object.assign({}, options, { headers }));
+  }
+  return res;
+}
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const errEl = document.getElementById("loginError");
+  errEl.style.display = "none";
+  try{
+    await requestToken("consent");
+    await afterLogin();
+  }catch(err){
+    errEl.textContent = "Não foi possível entrar com o Google. Verifique se o Client ID está configurado corretamente e tente novamente.";
+    errEl.style.display = "block";
+  }
+});
+
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  if (accessToken){
+    google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  accessToken = null;
+  driveFileId = null;
+  state = { pages: [], lastOpenedPageId: null };
+  currentPageId = null;
+  document.getElementById("app").classList.remove("visible");
+  document.getElementById("loginScreen").style.display = "flex";
+});
+
+/* ==========================================================================
+   GOOGLE DRIVE — ARQUIVO DE DADOS
+   ========================================================================== */
+async function findOrCreateFile(){
+  const q = encodeURIComponent(`name='${DATA_FILENAME}' and trashed=false`);
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`);
+  const json = await res.json();
+  if (json.files && json.files.length > 0){
+    driveFileId = json.files[0].id;
+    await loadDataFromDrive();
+  } else {
+    await createDataFile();
+  }
+}
+
+async function createDataFile(){
+  const boundary = "-------npx" + Date.now();
+  const metadata = { name: DATA_FILENAME, mimeType: "application/json" };
+  const defaultContent = JSON.stringify({ pages: [], lastOpenedPageId: null });
+  const body =
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) + `\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: application/json\r\n\r\n` +
+    defaultContent + `\r\n` +
+    `--${boundary}--`;
+
+  const res = await driveFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+    method: "POST",
+    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+    body
+  });
+  const json = await res.json();
+  driveFileId = json.id;
+  state = { pages: [], lastOpenedPageId: null };
+}
+
+async function loadDataFromDrive(){
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`);
+  const text = await res.text();
+  try{
+    state = text ? JSON.parse(text) : { pages: [], lastOpenedPageId: null };
+  }catch(e){
+    state = { pages: [], lastOpenedPageId: null };
+  }
+  if (!state.pages) state.pages = [];
+  nextOrder = state.pages.reduce((max, p) => Math.max(max, (p.order || 0) + 1), 0);
+}
+
+async function doSave(){
+  if (!driveFileId) return;
+  setStatus("Salvando…");
+  try{
+    const body = JSON.stringify(state);
+    const res = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body
+    });
+    if (!res.ok) throw new Error("status " + res.status);
+    saveLocalCache();
+    setStatus("Salvo às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }catch(err){
+    setStatus("Erro ao salvar — tentando de novo…");
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(doSave, 5000);
+  }
+}
+
+function scheduleSave(){
+  setStatus("Editando…");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 1200);
+}
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s"){
+    e.preventDefault();
+    clearTimeout(saveTimer);
+    doSave();
+  }
+});
+
+/* ==========================================================================
+   INICIALIZAÇÃO APÓS LOGIN
+   ========================================================================== */
+async function afterLogin(){
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("app").classList.add("visible");
+  setStatus("Carregando suas notas…");
+  await findOrCreateFile();
+  buildTree();
+  if (state.lastOpenedPageId && getPage(state.lastOpenedPageId)){
+    openPage(state.lastOpenedPageId);
+  } else if (state.pages.length){
+    const firstRoot = state.pages.filter(p => !p.parentId).sort((a,b) => a.order - b.order)[0];
+    openPage(firstRoot ? firstRoot.id : state.pages[0].id);
+  } else {
+    showEmptyState();
+  }
+  setStatus("");
+}
+
+/* ==========================================================================
+   PÁGINAS — CRUD + ÁRVORE
+   ========================================================================== */
+function addPage(parentId){
+  const page = {
+    id: genId("p"),
+    parentId: parentId || null,
+    title: "",
+    blocks: [{ id: genId("b"), type: "paragraph", content: "" }],
+    order: nextOrder++,
+    createdAt: Date.now()
+  };
+  state.pages.push(page);
+  buildTree();
+  openPage(page.id);
+  scheduleSave();
+  setTimeout(() => document.getElementById("pageTitle").focus(), 30);
+}
+
+function deletePage(id){
+  const page = getPage(id);
+  if (!page) return;
+  if (!confirm(`Excluir "${page.title || "Sem título"}" e todas as subpáginas dela?`)) return;
+
+  const toDelete = new Set([id]);
+  let changed = true;
+  while (changed){
+    changed = false;
+    state.pages.forEach(p => {
+      if (p.parentId && toDelete.has(p.parentId) && !toDelete.has(p.id)){
+        toDelete.add(p.id);
+        changed = true;
+      }
+    });
+  }
+  state.pages = state.pages.filter(p => !toDelete.has(p.id));
+  if (toDelete.has(currentPageId)){
+    currentPageId = null;
+    showEmptyState();
+  }
+  buildTree();
+  scheduleSave();
+}
+
+function openPage(id){
+  currentPageId = id;
+  state.lastOpenedPageId = id;
+  document.getElementById("emptyState").style.display = "none";
+  document.getElementById("pageView").style.display = "block";
+  renderEditor();
+  highlightActivePage();
+  scheduleSave();
+}
+
+function showEmptyState(){
+  document.getElementById("emptyState").style.display = "flex";
+  document.getElementById("pageView").style.display = "none";
+}
+
+function highlightActivePage(){
+  document.querySelectorAll(".page-row").forEach(el => {
+    el.classList.toggle("active", el.dataset.id === currentPageId);
+  });
+}
+
+function buildTree(query){
+  const container = document.getElementById("pageTree");
+  container.innerHTML = "";
+  const q = (query || "").trim().toLowerCase();
+
+  if (q){
+    const matches = state.pages.filter(p => (p.title || "sem título").toLowerCase().includes(q));
+    matches.forEach(p => container.appendChild(renderPageRow(p, 0)));
+    return;
+  }
+
+  function renderChildren(parentId, depth){
+    const children = state.pages.filter(p => (p.parentId || null) === parentId).sort((a,b) => a.order - b.order);
+    children.forEach(p => {
+      container.appendChild(renderPageRow(p, depth));
+      renderChildren(p.id, depth + 1);
+    });
+  }
+  renderChildren(null, 0);
+}
+
+function renderPageRow(page, depth){
+  const row = document.createElement("div");
+  row.className = "page-row" + (page.id === currentPageId ? " active" : "");
+  row.style.paddingLeft = (10 + depth * 16) + "px";
+  row.dataset.id = page.id;
+  row.innerHTML = `
+    <span class="page-title-label">${escapeHtml(page.title || "Sem título")}</span>
+    <span class="row-actions">
+      <button class="icon-btn add-sub" title="Nova subpágina">+</button>
+      <button class="icon-btn del-page" title="Excluir">🗑</button>
+    </span>`;
+  row.querySelector(".page-title-label").addEventListener("click", () => openPage(page.id));
+  row.querySelector(".add-sub").addEventListener("click", (e) => { e.stopPropagation(); addPage(page.id); });
+  row.querySelector(".del-page").addEventListener("click", (e) => { e.stopPropagation(); deletePage(page.id); });
+  return row;
+}
+
+document.getElementById("newPageBtn").addEventListener("click", () => addPage(null));
+document.getElementById("emptyCreateBtn").addEventListener("click", () => addPage(null));
+document.getElementById("searchInput").addEventListener("input", (e) => buildTree(e.target.value));
+
+/* ==========================================================================
+   EDITOR DE PÁGINA (TÍTULO)
+   ========================================================================== */
+const pageTitleEl = document.getElementById("pageTitle");
+pageTitleEl.addEventListener("input", () => {
+  const page = getPage(currentPageId);
+  if (!page) return;
+  page.title = pageTitleEl.value;
+  const row = document.querySelector(`.page-row[data-id="${currentPageId}"] .page-title-label`);
+  if (row) row.textContent = page.title || "Sem título";
+  scheduleSave();
+});
+pageTitleEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter"){
+    e.preventDefault();
+    const page = getPage(currentPageId);
+    if (page && page.blocks.length) focusBlock(page.blocks[0].id, 0);
+  }
+});
+
+function renderEditor(){
+  const page = getPage(currentPageId);
+  if (!page) return;
+  pageTitleEl.value = page.title || "";
+  renderBlocks();
+}
+
+/* ==========================================================================
+   BLOCOS
+   ========================================================================== */
+function renderBlocks(){
+  const page = getPage(currentPageId);
+  const list = document.getElementById("blockList");
+  list.innerHTML = "";
+  if (!page) return;
+
+  let numberCounter = 0;
+
+  page.blocks.forEach((block, index) => {
+    numberCounter = block.type === "numbered" ? numberCounter + 1 : 0;
+    list.appendChild(renderBlockRow(page, block, index, numberCounter));
+  });
+}
+
+function renderBlockRow(page, block, index, numberValue){
+  const row = document.createElement("div");
+  row.className = "block-row";
+  row.dataset.id = block.id;
+
+  const gutter = document.createElement("div");
+  gutter.className = "block-gutter";
+  gutter.innerHTML = `
+    <button class="add-below" title="Adicionar bloco abaixo">+</button>
+    <button class="move-up" title="Mover para cima">↑</button>
+    <button class="move-down" title="Mover para baixo">↓</button>
+    <button class="del-block" title="Excluir bloco">×</button>`;
+  gutter.querySelector(".add-below").onclick = () => insertBlockAfter(index);
+  gutter.querySelector(".move-up").onclick = () => moveBlock(index, -1);
+  gutter.querySelector(".move-down").onclick = () => moveBlock(index, 1);
+  gutter.querySelector(".del-block").onclick = () => deleteBlock(index);
+
+  const body = document.createElement("div");
+  body.className = "block-body";
+
+  if (block.type === "divider"){
+    body.innerHTML = `<hr class="divider-block">`;
+    row.appendChild(gutter);
+    row.appendChild(body);
+    return row;
+  }
+
+  if (block.type === "bulleted"){
+    const marker = document.createElement("span");
+    marker.className = "bullet-marker";
+    marker.textContent = "•";
+    body.appendChild(marker);
+  } else if (block.type === "numbered"){
+    const marker = document.createElement("span");
+    marker.className = "number-marker";
+    marker.textContent = numberValue + ".";
+    body.appendChild(marker);
+  } else if (block.type === "todo"){
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "todo-checkbox";
+    checkbox.checked = !!block.checked;
+    checkbox.addEventListener("change", () => {
+      block.checked = checkbox.checked;
+      content.classList.toggle("todo-done", block.checked);
+      scheduleSave();
+    });
+    body.appendChild(checkbox);
+  }
+
+  const content = document.createElement("div");
+  content.className = "block-content" + (block.type === "heading1" ? " h1" : "")
+                                      + (block.type === "heading2" ? " h2" : "")
+                                      + (block.type === "heading3" ? " h3" : "")
+                                      + (block.type === "quote" ? " quote" : "")
+                                      + (block.type === "todo" && block.checked ? " todo-done" : "");
+  content.contentEditable = "true";
+  content.dataset.placeholder = index === 0 ? "Digite '/' para comandos" : "";
+  content.textContent = block.content || "";
+
+  content.addEventListener("input", () => onBlockInput(block, content));
+  content.addEventListener("keydown", (e) => onBlockKeydown(e, page, block, index, content));
+  content.addEventListener("blur", () => hideSlashMenu());
+
+  body.appendChild(content);
+  row.appendChild(gutter);
+  row.appendChild(body);
+  return row;
+}
+
+function getCaretOffset(el){
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return 0;
+  const range = sel.getRangeAt(0);
+  if (!el.contains(range.startContainer)) return 0;
+  const preRange = range.cloneRange();
+  preRange.selectNodeContents(el);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  return preRange.toString().length;
+}
+
+function focusBlock(blockId, offset){
+  const row = document.querySelector(`.block-row[data-id="${blockId}"]`);
+  if (!row) return;
+  const el = row.querySelector(".block-content");
+  if (!el) return;
+  el.focus();
+  const sel = window.getSelection();
+  const range = document.createRange();
+  const textNode = el.firstChild;
+  const pos = Math.min(offset == null ? (textNode ? textNode.length : 0) : offset, textNode ? textNode.length : 0);
+  if (textNode){
+    range.setStart(textNode, pos);
+  } else {
+    range.selectNodeContents(el);
+  }
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function onBlockInput(block, contentEl){
+  block.content = contentEl.textContent;
+  scheduleSave();
+  checkSlashTrigger(block, contentEl);
+  checkMarkdownShortcuts(block, contentEl);
+}
+
+function checkSlashTrigger(block, contentEl){
+  if (block.content === "/"){
+    showSlashMenu(block.id, contentEl);
+  } else {
+    hideSlashMenu();
+  }
+}
+
+function checkMarkdownShortcuts(block, contentEl){
+  const text = block.content;
+  const rules = [
+    { re: /^# $/,   type: "heading1" },
+    { re: /^## $/,  type: "heading2" },
+    { re: /^### $/, type: "heading3" },
+    { re: /^[-*] $/, type: "bulleted" },
+    { re: /^1\. $/, type: "numbered" },
+    { re: /^\[\] $/, type: "todo" },
+    { re: /^\[ \] $/, type: "todo" },
+    { re: /^> $/,   type: "quote" },
+  ];
+  for (const rule of rules){
+    if (rule.re.test(text)){
+      block.type = rule.type;
+      block.content = "";
+      renderBlocks();
+      focusBlock(block.id, 0);
+      return;
+    }
+  }
+  if (text === "---"){
+    block.type = "divider";
+    block.content = "";
+    const page = getPage(currentPageId);
+    const idx = page.blocks.findIndex(b => b.id === block.id);
+    const newBlock = { id: genId("b"), type: "paragraph", content: "" };
+    page.blocks.splice(idx + 1, 0, newBlock);
+    renderBlocks();
+    focusBlock(newBlock.id, 0);
+  }
+}
+
+function onBlockKeydown(e, page, block, index, contentEl){
+  if (e.key === "Enter" && !e.shiftKey){
+    const sel = window.getSelection();
+    if (!sel.isCollapsed){ return; } // deixa comportamento padrão em seleção de texto
+    e.preventDefault();
+    hideSlashMenu();
+    const offset = getCaretOffset(contentEl);
+    const before = block.content.slice(0, offset);
+    const after = block.content.slice(offset);
+
+    const isListType = block.type === "bulleted" || block.type === "numbered" || block.type === "todo";
+    if (isListType && block.content === ""){
+      block.type = "paragraph";
+      renderBlocks();
+      focusBlock(block.id, 0);
+      return;
+    }
+
+    block.content = before;
+    const newBlock = {
+      id: genId("b"),
+      type: isListType ? block.type : "paragraph",
+      content: after,
+      checked: false
+    };
+    page.blocks.splice(index + 1, 0, newBlock);
+    renderBlocks();
+    focusBlock(newBlock.id, 0);
+    return;
+  }
+
+  if (e.key === "Backspace"){
+    const sel = window.getSelection();
+    if (!sel.isCollapsed) return;
+    const offset = getCaretOffset(contentEl);
+    if (offset !== 0) return;
+    e.preventDefault();
+    if (index === 0){
+      if (block.content === "" && page.blocks.length > 1){
+        page.blocks.splice(index, 1);
+        renderBlocks();
+        focusBlock(page.blocks[0].id, 0);
+        scheduleSave();
+      }
+      return;
+    }
+    const prev = page.blocks[index - 1];
+    if (prev.type === "divider"){
+      page.blocks.splice(index - 1, 1);
+      renderBlocks();
+      focusBlock(block.id, 0);
+      scheduleSave();
+      return;
+    }
+    const caretPos = (prev.content || "").length;
+    prev.content = (prev.content || "") + block.content;
+    page.blocks.splice(index, 1);
+    renderBlocks();
+    focusBlock(prev.id, caretPos);
+    scheduleSave();
+    return;
+  }
+
+  if (e.key === "Escape"){
+    hideSlashMenu();
+  }
+}
+
+function insertBlockAfter(index){
+  const page = getPage(currentPageId);
+  const newBlock = { id: genId("b"), type: "paragraph", content: "" };
+  page.blocks.splice(index + 1, 0, newBlock);
+  renderBlocks();
+  focusBlock(newBlock.id, 0);
+  scheduleSave();
+}
+
+function moveBlock(index, dir){
+  const page = getPage(currentPageId);
+  const newIndex = index + dir;
+  if (newIndex < 0 || newIndex >= page.blocks.length) return;
+  const [block] = page.blocks.splice(index, 1);
+  page.blocks.splice(newIndex, 0, block);
+  renderBlocks();
+  scheduleSave();
+}
+
+function deleteBlock(index){
+  const page = getPage(currentPageId);
+  page.blocks.splice(index, 1);
+  if (page.blocks.length === 0){
+    page.blocks.push({ id: genId("b"), type: "paragraph", content: "" });
+  }
+  renderBlocks();
+  scheduleSave();
+}
+
+document.getElementById("addBlockBtn").addEventListener("click", () => {
+  const page = getPage(currentPageId);
+  if (!page) return;
+  const newBlock = { id: genId("b"), type: "paragraph", content: "" };
+  page.blocks.push(newBlock);
+  renderBlocks();
+  focusBlock(newBlock.id, 0);
+  scheduleSave();
+});
+
+/* ==========================================================================
+   MENU "/"
+   ========================================================================== */
+function showSlashMenu(blockId, contentEl){
+  slashMenuTargetBlockId = blockId;
+  const menu = document.getElementById("slashMenu");
+  menu.innerHTML = "";
+  BLOCK_TYPES.forEach(bt => {
+    const item = document.createElement("div");
+    item.className = "slash-item";
+    item.innerHTML = `<span class="slash-icon">${bt.icon}</span><span>${bt.label}</span>`;
+    item.onmousedown = (e) => {
+      e.preventDefault();
+      applySlashChoice(bt.type);
+    };
+    menu.appendChild(item);
+  });
+  const rect = contentEl.getBoundingClientRect();
+  menu.style.left = (rect.left + window.scrollX) + "px";
+  menu.style.top = (rect.bottom + window.scrollY + 4) + "px";
+  menu.hidden = false;
+}
+
+function hideSlashMenu(){
+  slashMenuTargetBlockId = null;
+  document.getElementById("slashMenu").hidden = true;
+}
+
+function applySlashChoice(type){
+  const page = getPage(currentPageId);
+  const block = page.blocks.find(b => b.id === slashMenuTargetBlockId);
+  if (!block) return;
+  block.type = type;
+  block.content = "";
+  hideSlashMenu();
+
+  if (type === "divider"){
+    const idx = page.blocks.findIndex(b => b.id === block.id);
+    const newBlock = { id: genId("b"), type: "paragraph", content: "" };
+    page.blocks.splice(idx + 1, 0, newBlock);
+    renderBlocks();
+    focusBlock(newBlock.id, 0);
+  } else {
+    renderBlocks();
+    focusBlock(block.id, 0);
+  }
+  scheduleSave();
+}
+
+document.addEventListener("mousedown", (e) => {
+  const menu = document.getElementById("slashMenu");
+  if (!menu.hidden && !menu.contains(e.target)){
+    hideSlashMenu();
+  }
+});
+</script>
+</body>
+</html>
