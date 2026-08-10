@@ -26,19 +26,23 @@
     -webkit-font-smoothing:antialiased;
   }
 
-  /* ---------- Login ---------- */
-  #loginScreen{
+  /* ---------- Telas de login / bloqueio ---------- */
+  #loginScreen, #noAccessScreen{
     height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
     background:linear-gradient(180deg,#fbfbfa,#f2f2f0);
   }
-  #loginScreen h1{font-size:28px;margin:0;}
-  #loginScreen p{color:var(--text-light);margin:0;max-width:360px;text-align:center;font-size:14px;}
+  #noAccessScreen{display:none;}
+  #loginScreen h1, #noAccessScreen h1{font-size:28px;margin:0;}
+  #loginScreen p, #noAccessScreen p{color:var(--text-light);margin:0;max-width:380px;text-align:center;font-size:14px;}
   #loginBtn{
     background:var(--accent);color:#fff;border:none;border-radius:8px;
     padding:12px 22px;font-size:15px;font-weight:600;cursor:pointer;
   }
   #loginBtn:hover{background:#1a6fc4;}
   #loginError{color:var(--danger);font-size:13px;max-width:400px;text-align:center;display:none;}
+  #noAccessScreen button{
+    background:none;border:1px solid #c8c8c5;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--text);
+  }
 
   /* ---------- App shell ---------- */
   #app{display:none;height:100vh;}
@@ -59,6 +63,7 @@
     cursor:pointer;font-size:13px;color:var(--text);text-align:left;
   }
   #newPageBtn:hover{background:var(--hover);border-color:var(--text-light);}
+  #newPageBtn[hidden]{display:none;}
   #pageTree{flex:1;overflow-y:auto;padding:4px 6px 12px;}
   .page-row{
     display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:6px;
@@ -77,6 +82,8 @@
 
   #sidebarFooter{padding:10px 14px;border-top:1px solid var(--sidebar-border);font-size:12px;color:var(--text-light);}
   #statusText{display:block;margin-bottom:6px;min-height:14px;}
+  #userLine{display:block;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #adminBtn{background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;margin-right:10px;}
   #logoutBtn{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;}
   #logoutBtn:hover{color:var(--text);}
 
@@ -88,7 +95,12 @@
   #emptyState button{
     background:var(--accent);color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:14px;cursor:pointer;
   }
+  #emptyState button[hidden]{display:none;}
   #pageView{max-width:760px;margin:0 auto;padding:60px 60px 200px;display:none;}
+  #readOnlyBanner{
+    display:none;background:#fff8e6;border:1px solid #f0dca0;color:#8a6d1e;font-size:12px;
+    padding:6px 10px;border-radius:6px;margin-bottom:14px;
+  }
   #pageTitle{
     width:100%;border:none;outline:none;font-size:36px;font-weight:700;color:var(--text);
     padding:4px 0;margin-bottom:8px;font-family:inherit;
@@ -127,9 +139,10 @@
     margin-top:10px;background:none;border:none;color:var(--text-light);font-size:14px;cursor:pointer;
     padding:6px 4px;text-align:left;
   }
+  #addBlockBtn[hidden]{display:none;}
   #addBlockBtn:hover{color:var(--text);}
 
-  /* ---------- Slash menu ---------- */
+  /* ---------- Menu "/" ---------- */
   #slashMenu{
     position:absolute;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
     box-shadow:0 4px 16px rgba(0,0,0,.12);padding:6px;z-index:50;min-width:220px;
@@ -140,15 +153,50 @@
   }
   .slash-item:hover, .slash-item.selected{background:var(--accent-light);color:var(--accent);}
   .slash-item .slash-icon{width:18px;text-align:center;}
+
+  /* ---------- Painel de administração ---------- */
+  #adminOverlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;
+    align-items:center;justify-content:center;
+  }
+  #adminOverlay.visible{display:flex;}
+  #adminPanel{
+    background:#fff;border-radius:10px;width:560px;max-width:92vw;max-height:86vh;overflow-y:auto;
+    padding:24px;
+  }
+  #adminPanel h2{margin:0 0 4px;font-size:18px;}
+  #adminPanel .sub{color:var(--text-light);font-size:12px;margin-bottom:18px;}
+  #adminPanel h3{font-size:13px;margin:18px 0 8px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
+  #adminCloseBtn{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-light);}
+  .admin-user-row{
+    display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--sidebar-border);font-size:13px;
+  }
+  .admin-user-row .u-email{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .admin-user-row select{font-size:12px;padding:3px 6px;border-radius:5px;border:1px solid var(--sidebar-border);}
+  .admin-user-row button{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;}
+  #adminInviteForm{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+  #adminInviteForm input[type=email]{flex:1;min-width:180px;padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;}
+  #adminInviteForm select{padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;}
+  #adminInviteForm button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;}
+  #adminNote{font-size:11px;color:var(--text-light);margin-top:10px;line-height:1.5;}
+  #adminMsg{font-size:12px;margin-top:8px;min-height:16px;}
+  #adminMsg.err{color:var(--danger);}
+  #adminMsg.ok{color:#2f8132;}
 </style>
 </head>
 <body>
 
 <div id="loginScreen">
   <h1>📝 Notas Pessoais</h1>
-  <p>Suas páginas ficam salvas no seu Google Drive, sincronizadas entre dispositivos. Entre com sua conta Google para começar.</p>
+  <p>Espaço de notas compartilhado. Entre com a conta Google que recebeu acesso para continuar.</p>
   <button id="loginBtn">Entrar com Google</button>
   <div id="loginError"></div>
+</div>
+
+<div id="noAccessScreen">
+  <h1>🔒 Sem acesso</h1>
+  <p id="noAccessMsg">Sua conta ainda não tem acesso a este espaço de notas. Peça para o administrador te adicionar.</p>
+  <button id="noAccessLogoutBtn">Trocar de conta</button>
 </div>
 
 <div id="app">
@@ -160,7 +208,9 @@
     <button id="newPageBtn">+ Nova página</button>
     <div id="pageTree"></div>
     <div id="sidebarFooter">
+      <span id="userLine"></span>
       <span id="statusText"></span>
+      <button id="adminBtn" hidden>Administração</button>
       <button id="logoutBtn">Sair</button>
     </div>
   </aside>
@@ -171,6 +221,7 @@
       <button id="emptyCreateBtn">+ Criar primeira página</button>
     </div>
     <div id="pageView">
+      <div id="readOnlyBanner">👁️ Você tem acesso de visualização — não pode editar esta página.</div>
       <input id="pageTitle" placeholder="Sem título">
       <div id="blockList"></div>
       <button id="addBlockBtn">+ Novo bloco</button>
@@ -180,29 +231,64 @@
 
 <div id="slashMenu" hidden></div>
 
+<div id="adminOverlay">
+  <div id="adminPanel">
+    <button id="adminCloseBtn">×</button>
+    <h2>Administração</h2>
+    <div class="sub">Gerencie quem tem acesso a este espaço de notas.</div>
+
+    <h3>Pessoas com acesso</h3>
+    <div id="adminUserList"></div>
+
+    <h3>Convidar alguém</h3>
+    <form id="adminInviteForm">
+      <input type="email" id="inviteEmail" placeholder="email@gmail.com" required>
+      <select id="inviteRole">
+        <option value="writer">Editor</option>
+        <option value="reader">Visualizador</option>
+      </select>
+      <button type="submit">Conceder acesso</button>
+    </form>
+    <div id="adminMsg"></div>
+    <div id="adminNote">
+      Depois de conceder acesso aqui, é preciso também adicionar o e-mail da pessoa como <strong>"Usuário de teste"</strong>
+      no Google Cloud Console (Google Auth Platform → Público-alvo → Usuários de teste) — sem isso, a pessoa não
+      consegue nem fazer login no app, mesmo já com a pasta compartilhada.
+    </div>
+  </div>
+</div>
+
 <script>
 /* ==========================================================================
    CONFIG
    ========================================================================== */
 const GOOGLE_CLIENT_ID = "964653200657-fs0h4t99s0cal68mdo0iml8skbhi78cb.apps.googleusercontent.com";
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const DATA_FILENAME = "notas-pessoais-dados.json";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email";
+const OWNER_EMAIL = "natanaelvieiradasilva@gmail.com";
+const SHARED_FOLDER_NAME = "Notas Pessoais - Dados";
+const INDEX_FILENAME = "_indice.json";
 
 /* ==========================================================================
    ESTADO
    ========================================================================== */
-let state = { pages: [], lastOpenedPageId: null };
+let indexData = { pages: [] };     // { pages: [{id,parentId,title,order,fileId}] }
+let pageContentCache = {};         // pageId -> { blocks: [...] }
 let currentPageId = null;
 let nextOrder = 0;
 
 let accessToken = null;
 let tokenExpiresAt = 0;
-let driveFileId = null;
 let tokenClient = null;
 let pendingResolve = null, pendingReject = null;
 
-let saveTimer = null;
-let retryTimer = null;
+let currentUserEmail = null;
+let sharedFolderId = null;
+let indexFileId = null;
+let canEdit = false;
+let isOwner = false;
+
+const saveTimers = {};   // key ('index' ou pageId) -> timeoutId
+const retryTimers = {};
 
 let slashMenuTargetBlockId = null;
 
@@ -232,11 +318,8 @@ function escapeHtml(str){
 function setStatus(text){
   document.getElementById("statusText").textContent = text;
 }
-function getPage(id){
-  return state.pages.find(p => p.id === id);
-}
-function saveLocalCache(){
-  try{ localStorage.setItem("npx_cache_v1", JSON.stringify(state)); }catch(e){}
+function getPageMeta(id){
+  return indexData.pages.find(p => p.id === id);
 }
 
 /* ==========================================================================
@@ -291,49 +374,85 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
     await requestToken("consent");
     await afterLogin();
   }catch(err){
-    errEl.textContent = "Não foi possível entrar com o Google. Verifique se o Client ID está configurado corretamente e tente novamente.";
+    errEl.textContent = "Não foi possível entrar com o Google. Tente novamente.";
     errEl.style.display = "block";
   }
 });
 
-document.getElementById("logoutBtn").addEventListener("click", () => {
+function doLogout(){
   if (accessToken){
     google.accounts.oauth2.revoke(accessToken, () => {});
   }
   accessToken = null;
-  driveFileId = null;
-  state = { pages: [], lastOpenedPageId: null };
+  indexData = { pages: [] };
+  pageContentCache = {};
   currentPageId = null;
+  sharedFolderId = null;
+  indexFileId = null;
   document.getElementById("app").classList.remove("visible");
+  document.getElementById("noAccessScreen").style.display = "none";
   document.getElementById("loginScreen").style.display = "flex";
-});
+}
+document.getElementById("logoutBtn").addEventListener("click", doLogout);
+document.getElementById("noAccessLogoutBtn").addEventListener("click", doLogout);
 
 /* ==========================================================================
-   GOOGLE DRIVE — ARQUIVO DE DADOS
+   GOOGLE DRIVE — PASTA COMPARTILHADA + ÍNDICE
    ========================================================================== */
-async function findOrCreateFile(){
-  const q = encodeURIComponent(`name='${DATA_FILENAME}' and trashed=false`);
+async function fetchUserEmail(){
+  const res = await driveFetch("https://www.googleapis.com/oauth2/v3/userinfo");
+  const json = await res.json();
+  currentUserEmail = (json.email || "").toLowerCase();
+}
+
+async function findSharedFolder(){
+  const q = encodeURIComponent(`name='${SHARED_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`);
+  const json = await res.json();
+  return (json.files && json.files.length > 0) ? json.files[0].id : null;
+}
+
+async function createSharedFolder(){
+  const res = await driveFetch("https://www.googleapis.com/drive/v3/files?fields=id", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: SHARED_FOLDER_NAME, mimeType: "application/vnd.google-apps.folder" })
+  });
+  const json = await res.json();
+  return json.id;
+}
+
+async function loadFolderCapabilities(){
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}?fields=capabilities,owners`);
+  const json = await res.json();
+  canEdit = !!(json.capabilities && json.capabilities.canEdit);
+  const ownerEmail = json.owners && json.owners[0] ? (json.owners[0].emailAddress || "").toLowerCase() : "";
+  isOwner = currentUserEmail === OWNER_EMAIL.toLowerCase() && ownerEmail === currentUserEmail;
+}
+
+async function findOrCreateIndexFile(){
+  const q = encodeURIComponent(`name='${INDEX_FILENAME}' and '${sharedFolderId}' in parents and trashed=false`);
   const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`);
   const json = await res.json();
   if (json.files && json.files.length > 0){
-    driveFileId = json.files[0].id;
-    await loadDataFromDrive();
+    indexFileId = json.files[0].id;
+    await loadIndexFromDrive();
   } else {
-    await createDataFile();
+    indexData = { pages: [] };
+    indexFileId = await createJsonFile(INDEX_FILENAME, indexData);
   }
 }
 
-async function createDataFile(){
-  const boundary = "-------npx" + Date.now();
-  const metadata = { name: DATA_FILENAME, mimeType: "application/json" };
-  const defaultContent = JSON.stringify({ pages: [], lastOpenedPageId: null });
+async function createJsonFile(name, contentObj){
+  const boundary = "-------npx" + Date.now() + Math.random().toString(36).slice(2);
+  const metadata = { name, mimeType: "application/json", parents: [sharedFolderId] };
   const body =
     `--${boundary}\r\n` +
     `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
     JSON.stringify(metadata) + `\r\n` +
     `--${boundary}\r\n` +
     `Content-Type: application/json\r\n\r\n` +
-    defaultContent + `\r\n` +
+    JSON.stringify(contentObj) + `\r\n` +
     `--${boundary}--`;
 
   const res = await driveFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
@@ -342,53 +461,76 @@ async function createDataFile(){
     body
   });
   const json = await res.json();
-  driveFileId = json.id;
-  state = { pages: [], lastOpenedPageId: null };
+  return json.id;
 }
 
-async function loadDataFromDrive(){
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`);
+async function loadIndexFromDrive(){
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${indexFileId}?alt=media`);
   const text = await res.text();
   try{
-    state = text ? JSON.parse(text) : { pages: [], lastOpenedPageId: null };
+    indexData = text ? JSON.parse(text) : { pages: [] };
   }catch(e){
-    state = { pages: [], lastOpenedPageId: null };
+    indexData = { pages: [] };
   }
-  if (!state.pages) state.pages = [];
-  nextOrder = state.pages.reduce((max, p) => Math.max(max, (p.order || 0) + 1), 0);
+  if (!indexData.pages) indexData.pages = [];
+  nextOrder = indexData.pages.reduce((max, p) => Math.max(max, (p.order || 0) + 1), 0);
 }
 
-async function doSave(){
-  if (!driveFileId) return;
+async function saveJsonToFile(fileId, contentObj){
+  const res = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(contentObj)
+  });
+  if (!res.ok) throw new Error("status " + res.status);
+}
+
+function scheduleSaveIndex(){
+  setStatus("Editando…");
+  clearTimeout(saveTimers.index);
+  saveTimers.index = setTimeout(doSaveIndex, 1200);
+}
+async function doSaveIndex(){
   setStatus("Salvando…");
   try{
-    const body = JSON.stringify(state);
-    const res = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body
-    });
-    if (!res.ok) throw new Error("status " + res.status);
-    saveLocalCache();
+    await saveJsonToFile(indexFileId, indexData);
     setStatus("Salvo às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }catch(err){
     setStatus("Erro ao salvar — tentando de novo…");
-    clearTimeout(retryTimer);
-    retryTimer = setTimeout(doSave, 5000);
+    clearTimeout(retryTimers.index);
+    retryTimers.index = setTimeout(doSaveIndex, 5000);
   }
 }
 
-function scheduleSave(){
+function scheduleSavePage(pageId){
   setStatus("Editando…");
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(doSave, 1200);
+  clearTimeout(saveTimers[pageId]);
+  saveTimers[pageId] = setTimeout(() => doSavePage(pageId), 1200);
+}
+async function doSavePage(pageId){
+  const meta = getPageMeta(pageId);
+  const content = pageContentCache[pageId];
+  if (!meta || !content) return;
+  setStatus("Salvando…");
+  try{
+    await saveJsonToFile(meta.fileId, content);
+    setStatus("Salvo às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }catch(err){
+    setStatus("Erro ao salvar — tentando de novo…");
+    clearTimeout(retryTimers[pageId]);
+    retryTimers[pageId] = setTimeout(() => doSavePage(pageId), 5000);
+  }
 }
 
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s"){
     e.preventDefault();
-    clearTimeout(saveTimer);
-    doSave();
+    clearTimeout(saveTimers.index);
+    doSaveIndex();
+    if (currentPageId){
+      clearTimeout(saveTimers[currentPageId]);
+      doSavePage(currentPageId);
+    }
   }
 });
 
@@ -397,42 +539,66 @@ document.addEventListener("keydown", (e) => {
    ========================================================================== */
 async function afterLogin(){
   document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("noAccessScreen").style.display = "none";
+
+  await fetchUserEmail();
+
+  let folderId = await findSharedFolder();
+  if (!folderId){
+    if (currentUserEmail === OWNER_EMAIL.toLowerCase()){
+      folderId = await createSharedFolder();
+    } else {
+      showNoAccess();
+      return;
+    }
+  }
+  sharedFolderId = folderId;
+  await loadFolderCapabilities();
+
   document.getElementById("app").classList.add("visible");
-  setStatus("Carregando suas notas…");
-  await findOrCreateFile();
+  document.getElementById("newPageBtn").hidden = !canEdit;
+  document.getElementById("adminBtn").hidden = !isOwner;
+  document.getElementById("userLine").textContent = currentUserEmail + (canEdit ? "" : " (visualização)");
+
+  setStatus("Carregando…");
+  await findOrCreateIndexFile();
   buildTree();
-  if (state.lastOpenedPageId && getPage(state.lastOpenedPageId)){
-    openPage(state.lastOpenedPageId);
-  } else if (state.pages.length){
-    const firstRoot = state.pages.filter(p => !p.parentId).sort((a,b) => a.order - b.order)[0];
-    openPage(firstRoot ? firstRoot.id : state.pages[0].id);
+  if (indexData.pages.length){
+    const firstRoot = indexData.pages.filter(p => !p.parentId).sort((a,b) => a.order - b.order)[0];
+    await openPage(firstRoot ? firstRoot.id : indexData.pages[0].id);
   } else {
     showEmptyState();
   }
   setStatus("");
 }
 
+function showNoAccess(){
+  document.getElementById("noAccessScreen").style.display = "flex";
+  document.getElementById("noAccessMsg").textContent =
+    `A conta ${currentUserEmail} ainda não tem acesso a este espaço de notas. Peça para o administrador te adicionar.`;
+}
+
 /* ==========================================================================
    PÁGINAS — CRUD + ÁRVORE
    ========================================================================== */
-function addPage(parentId){
-  const page = {
-    id: genId("p"),
-    parentId: parentId || null,
-    title: "",
-    blocks: [{ id: genId("b"), type: "paragraph", content: "" }],
-    order: nextOrder++,
-    createdAt: Date.now()
-  };
-  state.pages.push(page);
+async function addPage(parentId){
+  if (!canEdit) return;
+  const id = genId("p");
+  const content = { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+  const fileId = await createJsonFile("pagina_" + id + ".json", content);
+  pageContentCache[id] = content;
+
+  const meta = { id, parentId: parentId || null, title: "", order: nextOrder++, fileId };
+  indexData.pages.push(meta);
   buildTree();
-  openPage(page.id);
-  scheduleSave();
+  await openPage(id);
+  scheduleSaveIndex();
   setTimeout(() => document.getElementById("pageTitle").focus(), 30);
 }
 
-function deletePage(id){
-  const page = getPage(id);
+async function deletePage(id){
+  if (!canEdit) return;
+  const page = getPageMeta(id);
   if (!page) return;
   if (!confirm(`Excluir "${page.title || "Sem título"}" e todas as subpáginas dela?`)) return;
 
@@ -440,35 +606,64 @@ function deletePage(id){
   let changed = true;
   while (changed){
     changed = false;
-    state.pages.forEach(p => {
+    indexData.pages.forEach(p => {
       if (p.parentId && toDelete.has(p.parentId) && !toDelete.has(p.id)){
         toDelete.add(p.id);
         changed = true;
       }
     });
   }
-  state.pages = state.pages.filter(p => !toDelete.has(p.id));
+
+  for (const pid of toDelete){
+    const meta = getPageMeta(pid);
+    if (meta && meta.fileId){
+      try{
+        await driveFetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trashed: true })
+        });
+      }catch(e){ /* ignora falha ao mover pra lixeira, remove do índice de qualquer forma */ }
+    }
+    delete pageContentCache[pid];
+  }
+
+  indexData.pages = indexData.pages.filter(p => !toDelete.has(p.id));
   if (toDelete.has(currentPageId)){
     currentPageId = null;
     showEmptyState();
   }
   buildTree();
-  scheduleSave();
+  scheduleSaveIndex();
 }
 
-function openPage(id){
+async function openPage(id){
+  const meta = getPageMeta(id);
+  if (!meta) return;
   currentPageId = id;
-  state.lastOpenedPageId = id;
   document.getElementById("emptyState").style.display = "none";
   document.getElementById("pageView").style.display = "block";
+
+  if (!pageContentCache[id]){
+    setStatus("Carregando página…");
+    try{
+      const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}?alt=media`);
+      const text = await res.text();
+      pageContentCache[id] = text ? JSON.parse(text) : { blocks: [] };
+    }catch(e){
+      pageContentCache[id] = { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+    }
+    setStatus("");
+  }
+
   renderEditor();
   highlightActivePage();
-  scheduleSave();
 }
 
 function showEmptyState(){
   document.getElementById("emptyState").style.display = "flex";
   document.getElementById("pageView").style.display = "none";
+  document.getElementById("emptyCreateBtn").hidden = !canEdit;
 }
 
 function highlightActivePage(){
@@ -483,13 +678,13 @@ function buildTree(query){
   const q = (query || "").trim().toLowerCase();
 
   if (q){
-    const matches = state.pages.filter(p => (p.title || "sem título").toLowerCase().includes(q));
+    const matches = indexData.pages.filter(p => (p.title || "sem título").toLowerCase().includes(q));
     matches.forEach(p => container.appendChild(renderPageRow(p, 0)));
     return;
   }
 
   function renderChildren(parentId, depth){
-    const children = state.pages.filter(p => (p.parentId || null) === parentId).sort((a,b) => a.order - b.order);
+    const children = indexData.pages.filter(p => (p.parentId || null) === parentId).sort((a,b) => a.order - b.order);
     children.forEach(p => {
       container.appendChild(renderPageRow(p, depth));
       renderChildren(p.id, depth + 1);
@@ -506,12 +701,13 @@ function renderPageRow(page, depth){
   row.innerHTML = `
     <span class="page-title-label">${escapeHtml(page.title || "Sem título")}</span>
     <span class="row-actions">
-      <button class="icon-btn add-sub" title="Nova subpágina">+</button>
-      <button class="icon-btn del-page" title="Excluir">🗑</button>
+      ${canEdit ? '<button class="icon-btn add-sub" title="Nova subpágina">+</button><button class="icon-btn del-page" title="Excluir">🗑</button>' : ""}
     </span>`;
   row.querySelector(".page-title-label").addEventListener("click", () => openPage(page.id));
-  row.querySelector(".add-sub").addEventListener("click", (e) => { e.stopPropagation(); addPage(page.id); });
-  row.querySelector(".del-page").addEventListener("click", (e) => { e.stopPropagation(); deletePage(page.id); });
+  const addSub = row.querySelector(".add-sub");
+  if (addSub) addSub.addEventListener("click", (e) => { e.stopPropagation(); addPage(page.id); });
+  const delBtn = row.querySelector(".del-page");
+  if (delBtn) delBtn.addEventListener("click", (e) => { e.stopPropagation(); deletePage(page.id); });
   return row;
 }
 
@@ -524,25 +720,29 @@ document.getElementById("searchInput").addEventListener("input", (e) => buildTre
    ========================================================================== */
 const pageTitleEl = document.getElementById("pageTitle");
 pageTitleEl.addEventListener("input", () => {
-  const page = getPage(currentPageId);
-  if (!page) return;
-  page.title = pageTitleEl.value;
+  if (!canEdit) return;
+  const meta = getPageMeta(currentPageId);
+  if (!meta) return;
+  meta.title = pageTitleEl.value;
   const row = document.querySelector(`.page-row[data-id="${currentPageId}"] .page-title-label`);
-  if (row) row.textContent = page.title || "Sem título";
-  scheduleSave();
+  if (row) row.textContent = meta.title || "Sem título";
+  scheduleSaveIndex();
 });
 pageTitleEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter"){
     e.preventDefault();
-    const page = getPage(currentPageId);
-    if (page && page.blocks.length) focusBlock(page.blocks[0].id, 0);
+    const content = pageContentCache[currentPageId];
+    if (content && content.blocks.length) focusBlock(content.blocks[0].id, 0);
   }
 });
 
 function renderEditor(){
-  const page = getPage(currentPageId);
-  if (!page) return;
-  pageTitleEl.value = page.title || "";
+  const meta = getPageMeta(currentPageId);
+  if (!meta) return;
+  pageTitleEl.value = meta.title || "";
+  pageTitleEl.readOnly = !canEdit;
+  document.getElementById("readOnlyBanner").style.display = canEdit ? "none" : "block";
+  document.getElementById("addBlockBtn").hidden = !canEdit;
   renderBlocks();
 }
 
@@ -550,42 +750,44 @@ function renderEditor(){
    BLOCOS
    ========================================================================== */
 function renderBlocks(){
-  const page = getPage(currentPageId);
+  const content = pageContentCache[currentPageId];
   const list = document.getElementById("blockList");
   list.innerHTML = "";
-  if (!page) return;
+  if (!content) return;
 
   let numberCounter = 0;
 
-  page.blocks.forEach((block, index) => {
+  content.blocks.forEach((block, index) => {
     numberCounter = block.type === "numbered" ? numberCounter + 1 : 0;
-    list.appendChild(renderBlockRow(page, block, index, numberCounter));
+    list.appendChild(renderBlockRow(content, block, index, numberCounter));
   });
 }
 
-function renderBlockRow(page, block, index, numberValue){
+function renderBlockRow(pageContent, block, index, numberValue){
   const row = document.createElement("div");
   row.className = "block-row";
   row.dataset.id = block.id;
 
-  const gutter = document.createElement("div");
-  gutter.className = "block-gutter";
-  gutter.innerHTML = `
-    <button class="add-below" title="Adicionar bloco abaixo">+</button>
-    <button class="move-up" title="Mover para cima">↑</button>
-    <button class="move-down" title="Mover para baixo">↓</button>
-    <button class="del-block" title="Excluir bloco">×</button>`;
-  gutter.querySelector(".add-below").onclick = () => insertBlockAfter(index);
-  gutter.querySelector(".move-up").onclick = () => moveBlock(index, -1);
-  gutter.querySelector(".move-down").onclick = () => moveBlock(index, 1);
-  gutter.querySelector(".del-block").onclick = () => deleteBlock(index);
+  if (canEdit){
+    const gutter = document.createElement("div");
+    gutter.className = "block-gutter";
+    gutter.innerHTML = `
+      <button class="add-below" title="Adicionar bloco abaixo">+</button>
+      <button class="move-up" title="Mover para cima">↑</button>
+      <button class="move-down" title="Mover para baixo">↓</button>
+      <button class="del-block" title="Excluir bloco">×</button>`;
+    gutter.querySelector(".add-below").onclick = () => insertBlockAfter(index);
+    gutter.querySelector(".move-up").onclick = () => moveBlock(index, -1);
+    gutter.querySelector(".move-down").onclick = () => moveBlock(index, 1);
+    gutter.querySelector(".del-block").onclick = () => deleteBlock(index);
+    row.appendChild(gutter);
+  }
 
   const body = document.createElement("div");
   body.className = "block-body";
 
   if (block.type === "divider"){
     body.innerHTML = `<hr class="divider-block">`;
-    row.appendChild(gutter);
     row.appendChild(body);
     return row;
   }
@@ -605,10 +807,11 @@ function renderBlockRow(page, block, index, numberValue){
     checkbox.type = "checkbox";
     checkbox.className = "todo-checkbox";
     checkbox.checked = !!block.checked;
+    checkbox.disabled = !canEdit;
     checkbox.addEventListener("change", () => {
       block.checked = checkbox.checked;
       content.classList.toggle("todo-done", block.checked);
-      scheduleSave();
+      scheduleSavePage(currentPageId);
     });
     body.appendChild(checkbox);
   }
@@ -619,16 +822,17 @@ function renderBlockRow(page, block, index, numberValue){
                                       + (block.type === "heading3" ? " h3" : "")
                                       + (block.type === "quote" ? " quote" : "")
                                       + (block.type === "todo" && block.checked ? " todo-done" : "");
-  content.contentEditable = "true";
-  content.dataset.placeholder = index === 0 ? "Digite '/' para comandos" : "";
+  content.contentEditable = canEdit ? "true" : "false";
+  content.dataset.placeholder = (index === 0 && canEdit) ? "Digite '/' para comandos" : "";
   content.textContent = block.content || "";
 
-  content.addEventListener("input", () => onBlockInput(block, content));
-  content.addEventListener("keydown", (e) => onBlockKeydown(e, page, block, index, content));
-  content.addEventListener("blur", () => hideSlashMenu());
+  if (canEdit){
+    content.addEventListener("input", () => onBlockInput(block, content));
+    content.addEventListener("keydown", (e) => onBlockKeydown(e, pageContent, block, index, content));
+    content.addEventListener("blur", () => hideSlashMenu());
+  }
 
   body.appendChild(content);
-  row.appendChild(gutter);
   row.appendChild(body);
   return row;
 }
@@ -666,7 +870,7 @@ function focusBlock(blockId, offset){
 
 function onBlockInput(block, contentEl){
   block.content = contentEl.textContent;
-  scheduleSave();
+  scheduleSavePage(currentPageId);
   checkSlashTrigger(block, contentEl);
   checkMarkdownShortcuts(block, contentEl);
 }
@@ -703,16 +907,16 @@ function checkMarkdownShortcuts(block, contentEl){
   if (text === "---"){
     block.type = "divider";
     block.content = "";
-    const page = getPage(currentPageId);
-    const idx = page.blocks.findIndex(b => b.id === block.id);
+    const pageContent = pageContentCache[currentPageId];
+    const idx = pageContent.blocks.findIndex(b => b.id === block.id);
     const newBlock = { id: genId("b"), type: "paragraph", content: "" };
-    page.blocks.splice(idx + 1, 0, newBlock);
+    pageContent.blocks.splice(idx + 1, 0, newBlock);
     renderBlocks();
     focusBlock(newBlock.id, 0);
   }
 }
 
-function onBlockKeydown(e, page, block, index, contentEl){
+function onBlockKeydown(e, pageContent, block, index, contentEl){
   if (e.key === "Enter" && !e.shiftKey){
     const sel = window.getSelection();
     if (!sel.isCollapsed){ return; } // deixa comportamento padrão em seleção de texto
@@ -737,9 +941,10 @@ function onBlockKeydown(e, page, block, index, contentEl){
       content: after,
       checked: false
     };
-    page.blocks.splice(index + 1, 0, newBlock);
+    pageContent.blocks.splice(index + 1, 0, newBlock);
     renderBlocks();
     focusBlock(newBlock.id, 0);
+    scheduleSavePage(currentPageId);
     return;
   }
 
@@ -750,28 +955,28 @@ function onBlockKeydown(e, page, block, index, contentEl){
     if (offset !== 0) return;
     e.preventDefault();
     if (index === 0){
-      if (block.content === "" && page.blocks.length > 1){
-        page.blocks.splice(index, 1);
+      if (block.content === "" && pageContent.blocks.length > 1){
+        pageContent.blocks.splice(index, 1);
         renderBlocks();
-        focusBlock(page.blocks[0].id, 0);
-        scheduleSave();
+        focusBlock(pageContent.blocks[0].id, 0);
+        scheduleSavePage(currentPageId);
       }
       return;
     }
-    const prev = page.blocks[index - 1];
+    const prev = pageContent.blocks[index - 1];
     if (prev.type === "divider"){
-      page.blocks.splice(index - 1, 1);
+      pageContent.blocks.splice(index - 1, 1);
       renderBlocks();
       focusBlock(block.id, 0);
-      scheduleSave();
+      scheduleSavePage(currentPageId);
       return;
     }
     const caretPos = (prev.content || "").length;
     prev.content = (prev.content || "") + block.content;
-    page.blocks.splice(index, 1);
+    pageContent.blocks.splice(index, 1);
     renderBlocks();
     focusBlock(prev.id, caretPos);
-    scheduleSave();
+    scheduleSavePage(currentPageId);
     return;
   }
 
@@ -781,42 +986,42 @@ function onBlockKeydown(e, page, block, index, contentEl){
 }
 
 function insertBlockAfter(index){
-  const page = getPage(currentPageId);
+  const pageContent = pageContentCache[currentPageId];
   const newBlock = { id: genId("b"), type: "paragraph", content: "" };
-  page.blocks.splice(index + 1, 0, newBlock);
+  pageContent.blocks.splice(index + 1, 0, newBlock);
   renderBlocks();
   focusBlock(newBlock.id, 0);
-  scheduleSave();
+  scheduleSavePage(currentPageId);
 }
 
 function moveBlock(index, dir){
-  const page = getPage(currentPageId);
+  const pageContent = pageContentCache[currentPageId];
   const newIndex = index + dir;
-  if (newIndex < 0 || newIndex >= page.blocks.length) return;
-  const [block] = page.blocks.splice(index, 1);
-  page.blocks.splice(newIndex, 0, block);
+  if (newIndex < 0 || newIndex >= pageContent.blocks.length) return;
+  const [block] = pageContent.blocks.splice(index, 1);
+  pageContent.blocks.splice(newIndex, 0, block);
   renderBlocks();
-  scheduleSave();
+  scheduleSavePage(currentPageId);
 }
 
 function deleteBlock(index){
-  const page = getPage(currentPageId);
-  page.blocks.splice(index, 1);
-  if (page.blocks.length === 0){
-    page.blocks.push({ id: genId("b"), type: "paragraph", content: "" });
+  const pageContent = pageContentCache[currentPageId];
+  pageContent.blocks.splice(index, 1);
+  if (pageContent.blocks.length === 0){
+    pageContent.blocks.push({ id: genId("b"), type: "paragraph", content: "" });
   }
   renderBlocks();
-  scheduleSave();
+  scheduleSavePage(currentPageId);
 }
 
 document.getElementById("addBlockBtn").addEventListener("click", () => {
-  const page = getPage(currentPageId);
-  if (!page) return;
+  const pageContent = pageContentCache[currentPageId];
+  if (!pageContent) return;
   const newBlock = { id: genId("b"), type: "paragraph", content: "" };
-  page.blocks.push(newBlock);
+  pageContent.blocks.push(newBlock);
   renderBlocks();
   focusBlock(newBlock.id, 0);
-  scheduleSave();
+  scheduleSavePage(currentPageId);
 });
 
 /* ==========================================================================
@@ -848,24 +1053,24 @@ function hideSlashMenu(){
 }
 
 function applySlashChoice(type){
-  const page = getPage(currentPageId);
-  const block = page.blocks.find(b => b.id === slashMenuTargetBlockId);
+  const pageContent = pageContentCache[currentPageId];
+  const block = pageContent.blocks.find(b => b.id === slashMenuTargetBlockId);
   if (!block) return;
   block.type = type;
   block.content = "";
   hideSlashMenu();
 
   if (type === "divider"){
-    const idx = page.blocks.findIndex(b => b.id === block.id);
+    const idx = pageContent.blocks.findIndex(b => b.id === block.id);
     const newBlock = { id: genId("b"), type: "paragraph", content: "" };
-    page.blocks.splice(idx + 1, 0, newBlock);
+    pageContent.blocks.splice(idx + 1, 0, newBlock);
     renderBlocks();
     focusBlock(newBlock.id, 0);
   } else {
     renderBlocks();
     focusBlock(block.id, 0);
   }
-  scheduleSave();
+  scheduleSavePage(currentPageId);
 }
 
 document.addEventListener("mousedown", (e) => {
@@ -874,6 +1079,111 @@ document.addEventListener("mousedown", (e) => {
     hideSlashMenu();
   }
 });
+
+/* ==========================================================================
+   PAINEL DE ADMINISTRAÇÃO
+   ========================================================================== */
+document.getElementById("adminBtn").addEventListener("click", openAdminPanel);
+document.getElementById("adminCloseBtn").addEventListener("click", closeAdminPanel);
+document.getElementById("adminOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "adminOverlay") closeAdminPanel();
+});
+
+function openAdminPanel(){
+  document.getElementById("adminOverlay").classList.add("visible");
+  document.getElementById("adminMsg").textContent = "";
+  loadAdminUserList();
+}
+function closeAdminPanel(){
+  document.getElementById("adminOverlay").classList.remove("visible");
+}
+
+async function loadAdminUserList(){
+  const list = document.getElementById("adminUserList");
+  list.innerHTML = "Carregando…";
+  try{
+    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions?fields=permissions(id,emailAddress,role,displayName)`);
+    const json = await res.json();
+    const perms = (json.permissions || []).filter(p => p.role !== "owner");
+    list.innerHTML = "";
+    if (perms.length === 0){
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-light);">Ninguém convidado ainda.</div>';
+    }
+    perms.forEach(p => list.appendChild(renderAdminUserRow(p)));
+  }catch(e){
+    list.innerHTML = '<div style="font-size:12px;color:var(--danger);">Erro ao carregar a lista de acesso.</div>';
+  }
+}
+
+function renderAdminUserRow(perm){
+  const row = document.createElement("div");
+  row.className = "admin-user-row";
+  row.innerHTML = `
+    <span class="u-email">${escapeHtml(perm.emailAddress || perm.displayName || "?")}</span>
+    <select class="role-select">
+      <option value="writer">Editor</option>
+      <option value="reader">Visualizador</option>
+    </select>
+    <button class="remove-btn">Remover</button>`;
+  row.querySelector(".role-select").value = perm.role === "reader" ? "reader" : "writer";
+  row.querySelector(".role-select").addEventListener("change", async (e) => {
+    await updatePermissionRole(perm.id, e.target.value);
+  });
+  row.querySelector(".remove-btn").addEventListener("click", async () => {
+    if (!confirm(`Remover o acesso de ${perm.emailAddress}?`)) return;
+    await removePermission(perm.id);
+  });
+  return row;
+}
+
+function setAdminMsg(text, isErr){
+  const el = document.getElementById("adminMsg");
+  el.textContent = text;
+  el.className = isErr ? "err" : "ok";
+}
+
+document.getElementById("adminInviteForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("inviteEmail").value.trim();
+  const role = document.getElementById("inviteRole").value;
+  if (!email) return;
+  setAdminMsg("Concedendo acesso…", false);
+  try{
+    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions?sendNotificationEmail=false`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, type: "user", emailAddress: email })
+    });
+    if (!res.ok) throw new Error("status " + res.status);
+    document.getElementById("inviteEmail").value = "";
+    setAdminMsg(`Acesso concedido a ${email}. Não esqueça de adicioná-la como Usuário de teste no Google Cloud também.`, false);
+    loadAdminUserList();
+  }catch(err){
+    setAdminMsg("Erro ao conceder acesso. Confira o e-mail e tente novamente.", true);
+  }
+});
+
+async function updatePermissionRole(permissionId, role){
+  try{
+    await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions/${permissionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role })
+    });
+  }catch(e){
+    setAdminMsg("Erro ao mudar o papel dessa pessoa.", true);
+    loadAdminUserList();
+  }
+}
+
+async function removePermission(permissionId){
+  try{
+    await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions/${permissionId}`, { method: "DELETE" });
+    loadAdminUserList();
+  }catch(e){
+    setAdminMsg("Erro ao remover o acesso.", true);
+  }
+}
 </script>
 </body>
 </html>
