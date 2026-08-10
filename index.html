@@ -76,7 +76,34 @@
     box-shadow:var(--shadow-sm);transition:border-color .15s ease, background .15s ease;
   }
   #newPageBtn:hover{background:var(--hover);border-color:var(--accent);}
+  #newPageBtn:focus{outline:none;box-shadow:0 0 0 3px var(--accent-light);}
   #newPageBtn[hidden]{display:none;}
+
+  /* ---------- Usuário (avatar + menu) ---------- */
+  #userBlock{position:relative;margin-bottom:12px;}
+  .user-avatar-btn{
+    display:flex;align-items:center;gap:8px;width:100%;background:#fff;border:1px solid var(--sidebar-border);
+    border-radius:9px;padding:7px 9px;cursor:pointer;text-align:left;transition:background .12s ease;
+  }
+  .user-avatar-btn:hover{background:var(--hover);}
+  .user-avatar-btn:focus{outline:none;box-shadow:0 0 0 3px var(--accent-light);}
+  .user-avatar{
+    width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .user-email-short{flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .user-caret{font-size:9px;color:var(--text-light);flex-shrink:0;}
+  .user-menu{
+    position:absolute;top:calc(100% + 8px);left:0;right:0;background:#fff;border:1px solid var(--sidebar-border);
+    border-radius:10px;box-shadow:var(--shadow-md);padding:6px;z-index:60;animation:menuPopIn .12s ease-out;
+  }
+  .user-menu[hidden]{display:none;}
+  .user-menu-item{
+    display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px;font-size:13px;
+    border-radius:7px;cursor:pointer;color:var(--text);
+  }
+  .user-menu-item:hover{background:var(--hover);}
+  .user-menu-item[hidden]{display:none;}
   #pageTree{flex:1;overflow-y:auto;padding:6px 8px 12px;}
   .page-row{
     display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border-radius:7px;
@@ -94,11 +121,7 @@
   .icon-btn:hover{background:#fff;color:var(--text);box-shadow:var(--shadow-sm);}
 
   #sidebarFooter{padding:12px 14px;border-top:1px solid var(--sidebar-border);font-size:12px;color:var(--text-light);}
-  #statusText{display:block;margin-bottom:6px;min-height:14px;}
-  #userLine{display:block;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  #adminBtn{background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;margin-right:10px;}
-  #logoutBtn{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;}
-  #logoutBtn:hover{color:var(--text);}
+  #statusText{display:block;min-height:14px;}
 
   /* ---------- Editor ---------- */
   #editor{flex:1;overflow-y:auto;height:100%;}
@@ -396,15 +419,23 @@
   <aside id="sidebar">
     <div id="sidebarHeader">
       <h2>📝 Notas Pessoais</h2>
+      <div id="userBlock">
+        <button id="userAvatarBtn" class="user-avatar-btn">
+          <span id="userAvatarInitial" class="user-avatar"></span>
+          <span id="userEmailShort" class="user-email-short"></span>
+          <span class="user-caret">▾</span>
+        </button>
+        <div id="userMenu" class="user-menu" hidden>
+          <button id="adminBtn" class="user-menu-item" hidden>Administração</button>
+          <button id="logoutBtn" class="user-menu-item">Sair</button>
+        </div>
+      </div>
       <input id="searchInput" type="text" placeholder="Buscar páginas...">
     </div>
     <button id="newPageBtn">+ Nova página</button>
     <div id="pageTree"></div>
     <div id="sidebarFooter">
-      <span id="userLine"></span>
       <span id="statusText"></span>
-      <button id="adminBtn" hidden>Administração</button>
-      <button id="logoutBtn">Sair</button>
     </div>
   </aside>
 
@@ -672,6 +703,19 @@ function doLogout(){
 document.getElementById("logoutBtn").addEventListener("click", doLogout);
 document.getElementById("noAccessLogoutBtn").addEventListener("click", doLogout);
 
+document.getElementById("userAvatarBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("userMenu").hidden = !document.getElementById("userMenu").hidden;
+});
+document.getElementById("adminBtn").addEventListener("click", () => { document.getElementById("userMenu").hidden = true; });
+document.getElementById("logoutBtn").addEventListener("click", () => { document.getElementById("userMenu").hidden = true; });
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("userMenu");
+  if (!menu.hidden && !menu.contains(e.target) && !e.target.closest("#userAvatarBtn")){
+    menu.hidden = true;
+  }
+});
+
 /* ==========================================================================
    MICROSOFT GRAPH — WORKSPACE (pasta compartilhada + índice)
    ========================================================================== */
@@ -807,7 +851,8 @@ async function afterLogin(){
   document.getElementById("app").classList.add("visible");
   document.getElementById("newPageBtn").hidden = !canEdit;
   document.getElementById("adminBtn").hidden = !isOwner;
-  document.getElementById("userLine").textContent = currentUserEmail + (canEdit ? "" : " (visualização)");
+  document.getElementById("userEmailShort").textContent = currentUserEmail + (canEdit ? "" : " (visualização)");
+  document.getElementById("userAvatarInitial").textContent = (currentUserEmail[0] || "?").toUpperCase();
 
   await loadIndex();
   buildTree();
