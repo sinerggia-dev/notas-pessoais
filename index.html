@@ -231,6 +231,25 @@
   #eventModalActions{display:flex;justify-content:space-between;margin-top:18px;}
   #eventDeleteBtn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;}
   #eventSaveBtn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;}
+  .cal-task-pill{
+    background:#dff3e0;color:#2f8132;border:none;border-radius:4px;padding:2px 5px;
+    font-size:11px;cursor:pointer;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .cal-task-pill.cal-task-done{background:#efefee;color:#8a8a86;text-decoration:line-through;}
+
+  /* ---------- Dashboard ---------- */
+  #dashboardView{display:none;}
+  #dashboardStats{display:flex;gap:12px;margin-bottom:24px;}
+  .dash-stat{flex:1;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:8px;padding:14px;text-align:center;}
+  .dash-stat-num{display:block;font-size:26px;font-weight:700;}
+  .dash-stat-label{display:block;font-size:12px;color:var(--text-light);margin-top:2px;}
+  .dash-section-title{font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;margin:20px 0 8px;}
+  .dash-row{display:flex;gap:10px;padding:8px 6px;border-bottom:1px solid var(--sidebar-border);cursor:pointer;font-size:13px;align-items:center;}
+  .dash-row:hover{background:var(--hover);}
+  .dash-row-date{color:var(--text-light);font-size:12px;min-width:90px;flex-shrink:0;}
+  .dash-row-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dash-row-page{color:var(--text-light);font-size:12px;flex-shrink:0;}
+  .dash-empty{color:var(--text-light);font-size:13px;padding:10px 6px;}
 
   /* ---------- Painel de administração ---------- */
   #adminOverlay{
@@ -359,6 +378,13 @@
           <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
         </div>
         <div id="calendarGrid"></div>
+      </div>
+      <div id="dashboardView">
+        <div id="dashboardStats"></div>
+        <h3 class="dash-section-title">Tarefas com vencimento próximo</h3>
+        <div id="dashboardUpcomingTasks"></div>
+        <h3 class="dash-section-title">Próximos eventos</h3>
+        <div id="dashboardUpcomingEvents"></div>
       </div>
     </div>
   </main>
@@ -721,15 +747,18 @@ function showNoAccess(){
 /* ==========================================================================
    PÁGINAS — CRUD + ÁRVORE
    ========================================================================== */
+const PAGE_KINDS = ["notas", "tarefas", "calendario", "dashboard"];
+
 function defaultContentForKind(kind){
   if (kind === "tarefas") return { tasks: [] };
   if (kind === "calendario") return { events: [] };
+  if (kind === "dashboard") return {};
   return { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
 }
 
 async function addPage(parentId, kind){
   if (!canEdit) return;
-  kind = (kind === "tarefas" || kind === "calendario") ? kind : "notas";
+  kind = PAGE_KINDS.includes(kind) ? kind : "notas";
   const id = genId("p");
   const content = defaultContentForKind(kind);
   await putJsonByPath("pagina_" + id + ".json", content);
@@ -796,7 +825,7 @@ async function openPage(id){
     setStatus("");
   }
 
-  renderEditor();
+  await renderEditor();
   highlightActivePage();
   if (isMobileViewport()) closeMobileSidebar();
 }
@@ -837,6 +866,7 @@ function buildTree(query){
 function pageIcon(page){
   if (page.kind === "tarefas") return "✅ ";
   if (page.kind === "calendario") return "📅 ";
+  if (page.kind === "dashboard") return "📊 ";
   return "📝 ";
 }
 
@@ -890,7 +920,8 @@ function showKindMenu(parentId, anchorEl){
   menu.innerHTML = `
     <div class="slash-item" data-kind="notas"><span class="slash-icon">📝</span><span>Página de notas</span></div>
     <div class="slash-item" data-kind="tarefas"><span class="slash-icon">✅</span><span>Banco de tarefas</span></div>
-    <div class="slash-item" data-kind="calendario"><span class="slash-icon">📅</span><span>Calendário</span></div>`;
+    <div class="slash-item" data-kind="calendario"><span class="slash-icon">📅</span><span>Calendário</span></div>
+    <div class="slash-item" data-kind="dashboard"><span class="slash-icon">📊</span><span>Dashboard</span></div>`;
   menu.querySelectorAll(".slash-item").forEach(el => {
     el.onmousedown = (e) => {
       e.preventDefault();
@@ -935,8 +966,9 @@ pageTitleEl.addEventListener("keydown", (e) => {
 let taskFilter = "Todas";
 let calendarYear = null;
 let calendarMonth = null;
+let calendarTasksByDate = {};
 
-function renderEditor(){
+async function renderEditor(){
   const meta = getPageMeta(currentPageId);
   if (!meta) return;
   pageTitleEl.value = meta.title || "";
@@ -947,6 +979,7 @@ function renderEditor(){
   document.getElementById("notesView").style.display = kind === "notas" ? "block" : "none";
   document.getElementById("tasksView").style.display = kind === "tarefas" ? "block" : "none";
   document.getElementById("calendarView").style.display = kind === "calendario" ? "block" : "none";
+  document.getElementById("dashboardView").style.display = kind === "dashboard" ? "block" : "none";
 
   if (kind === "tarefas"){
     taskFilter = "Todas";
@@ -956,7 +989,14 @@ function renderEditor(){
     const today = new Date();
     calendarYear = today.getFullYear();
     calendarMonth = today.getMonth();
+    setStatus("Carregando…");
+    calendarTasksByDate = await loadCalendarTasksIndex();
+    setStatus("");
     renderCalendar();
+  } else if (kind === "dashboard"){
+    setStatus("Carregando…");
+    await renderDashboard();
+    setStatus("");
   } else {
     document.getElementById("addBlockBtn").hidden = !canEdit;
     renderBlocks();
@@ -1392,6 +1432,125 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
 });
 
 /* ==========================================================================
+   AGREGAÇÃO ENTRE PÁGINAS (tarefas/eventos de todas as páginas do tipo)
+   ========================================================================== */
+async function ensurePagesOfKindLoaded(kind){
+  const pages = indexData.pages.filter(p => p.kind === kind);
+  for (const p of pages){
+    if (!pageContentCache[p.id]){
+      try{
+        const data = await getJsonByPath("pagina_" + p.id + ".json");
+        pageContentCache[p.id] = data || defaultContentForKind(kind);
+      }catch(e){
+        pageContentCache[p.id] = defaultContentForKind(kind);
+      }
+    }
+  }
+  return pages;
+}
+
+async function loadAllTasksFlat(){
+  const pages = await ensurePagesOfKindLoaded("tarefas");
+  const flat = [];
+  pages.forEach(p => {
+    (pageContentCache[p.id].tasks || []).forEach(t => {
+      flat.push({ task: t, pageId: p.id, pageTitle: p.title || "Sem título" });
+    });
+  });
+  return flat;
+}
+
+async function loadAllEventsFlat(){
+  const pages = await ensurePagesOfKindLoaded("calendario");
+  const flat = [];
+  pages.forEach(p => {
+    (pageContentCache[p.id].events || []).forEach(ev => {
+      flat.push({ event: ev, pageId: p.id, pageTitle: p.title || "Sem título" });
+    });
+  });
+  return flat;
+}
+
+async function loadCalendarTasksIndex(){
+  const flat = await loadAllTasksFlat();
+  const map = {};
+  flat.forEach(({ task, pageId, pageTitle }) => {
+    if (!task.dueDate) return;
+    (map[task.dueDate] = map[task.dueDate] || []).push({
+      title: task.title || "Sem título", pageId, pageTitle, status: task.status
+    });
+  });
+  return map;
+}
+
+function formatDateBR(iso){
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/* ==========================================================================
+   DASHBOARD
+   ========================================================================== */
+async function renderDashboard(){
+  const tasksFlat = await loadAllTasksFlat();
+  const eventsFlat = await loadAllEventsFlat();
+  const todayStr = formatDateISO(new Date());
+
+  const counts = { "A fazer": 0, "Em andamento": 0, "Concluído": 0 };
+  tasksFlat.forEach(({ task }) => { counts[task.status] = (counts[task.status] || 0) + 1; });
+
+  document.getElementById("dashboardStats").innerHTML = `
+    <div class="dash-stat"><span class="dash-stat-num">${counts["A fazer"]}</span><span class="dash-stat-label">A fazer</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${counts["Em andamento"]}</span><span class="dash-stat-label">Em andamento</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${counts["Concluído"]}</span><span class="dash-stat-label">Concluído</span></div>`;
+
+  const upcomingTasks = tasksFlat
+    .filter(({ task }) => task.dueDate && task.status !== "Concluído" && task.dueDate >= todayStr)
+    .sort((a, b) => a.task.dueDate.localeCompare(b.task.dueDate))
+    .slice(0, 10);
+
+  const tasksList = document.getElementById("dashboardUpcomingTasks");
+  tasksList.innerHTML = "";
+  if (!upcomingTasks.length){
+    tasksList.innerHTML = '<div class="dash-empty">Nenhuma tarefa com vencimento próximo.</div>';
+  } else {
+    upcomingTasks.forEach(({ task, pageId, pageTitle }) => {
+      const row = document.createElement("div");
+      row.className = "dash-row";
+      row.innerHTML = `
+        <span class="dash-row-date">${formatDateBR(task.dueDate)}</span>
+        <span class="dash-row-title">${escapeHtml(task.title || "Sem título")}</span>
+        <span class="dash-row-page">${escapeHtml(pageTitle)}</span>`;
+      row.onclick = () => openPage(pageId);
+      tasksList.appendChild(row);
+    });
+  }
+
+  const upcomingEvents = eventsFlat
+    .filter(({ event }) => event.date && event.date >= todayStr)
+    .sort((a, b) => (a.event.date + (a.event.time || "")).localeCompare(b.event.date + (b.event.time || "")))
+    .slice(0, 10);
+
+  const eventsList = document.getElementById("dashboardUpcomingEvents");
+  eventsList.innerHTML = "";
+  if (!upcomingEvents.length){
+    eventsList.innerHTML = '<div class="dash-empty">Nenhum evento próximo.</div>';
+  } else {
+    upcomingEvents.forEach(({ event, pageId, pageTitle }) => {
+      const row = document.createElement("div");
+      row.className = "dash-row";
+      row.innerHTML = `
+        <span class="dash-row-date">${formatDateBR(event.date)}${event.time ? " " + event.time : ""}</span>
+        <span class="dash-row-title">${escapeHtml(event.title || "Sem título")}</span>
+        <span class="dash-row-page">${escapeHtml(pageTitle)}</span>`;
+      row.onclick = () => openPage(pageId);
+      eventsList.appendChild(row);
+    });
+  }
+}
+
+/* ==========================================================================
    CALENDÁRIO
    ========================================================================== */
 const MESES_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -1459,6 +1618,15 @@ function renderCalendar(){
         pill.onclick = () => openEventModal(dateStr, ev);
         cell.appendChild(pill);
       });
+
+    (calendarTasksByDate[dateStr] || []).forEach(t => {
+      const pill = document.createElement("button");
+      pill.className = "cal-task-pill" + (t.status === "Concluído" ? " cal-task-done" : "");
+      pill.textContent = "✅ " + t.title;
+      pill.title = t.pageTitle;
+      pill.onclick = () => openPage(t.pageId);
+      cell.appendChild(pill);
+    });
 
     grid.appendChild(cell);
   }
