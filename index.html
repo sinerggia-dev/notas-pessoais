@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Notas Pessoais</title>
-<script src="https://accounts.google.com/gsi/client" onload="initGoogle()" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.18.0/lib/msal-browser.min.js"></script>
 <style>
   :root{
     --sidebar-bg:#f7f7f5;
@@ -175,7 +175,7 @@
   .admin-user-row select{font-size:12px;padding:3px 6px;border-radius:5px;border:1px solid var(--sidebar-border);}
   .admin-user-row button{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;}
   #adminInviteForm{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
-  #adminInviteForm input[type=email]{flex:1;min-width:180px;padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;}
+  #adminInviteForm input[type=email]{flex:1;min-width:200px;padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;}
   #adminInviteForm select{padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;}
   #adminInviteForm button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;}
   #adminNote{font-size:11px;color:var(--text-light);margin-top:10px;line-height:1.5;}
@@ -188,8 +188,8 @@
 
 <div id="loginScreen">
   <h1>📝 Notas Pessoais</h1>
-  <p>Espaço de notas compartilhado. Entre com a conta Google que recebeu acesso para continuar.</p>
-  <button id="loginBtn">Entrar com Google</button>
+  <p>Espaço de notas compartilhado da Sinerggia. Entre com sua conta Microsoft corporativa para continuar.</p>
+  <button id="loginBtn">Entrar com Microsoft</button>
   <div id="loginError"></div>
 </div>
 
@@ -242,52 +242,58 @@
 
     <h3>Convidar alguém</h3>
     <form id="adminInviteForm">
-      <input type="email" id="inviteEmail" placeholder="email@gmail.com" required>
+      <input type="email" id="inviteEmail" placeholder="nome@sinerggia.com.br" required>
       <select id="inviteRole">
-        <option value="writer">Editor</option>
-        <option value="reader">Visualizador</option>
+        <option value="Editor">Editor</option>
+        <option value="Visualizador">Visualizador</option>
       </select>
       <button type="submit">Conceder acesso</button>
     </form>
     <div id="adminMsg"></div>
     <div id="adminNote">
-      Depois de conceder acesso aqui, é preciso também adicionar o e-mail da pessoa como <strong>"Usuário de teste"</strong>
-      no Google Cloud Console (Google Auth Platform → Público-alvo → Usuários de teste) — sem isso, a pessoa não
-      consegue nem fazer login no app, mesmo já com a pasta compartilhada.
+      O convite dá acesso real à pasta no OneDrive (compartilhamento do Microsoft 365) — não precisa de nenhum passo
+      extra no Azure por pessoa convidada, contanto que ela seja da mesma organização (@sinerggia.com.br).
     </div>
   </div>
 </div>
 
 <script>
 /* ==========================================================================
-   CONFIG
+   CONFIG — Microsoft 365 / Graph (mesmo App Registration do CAP/Qdelícia)
    ========================================================================== */
-const GOOGLE_CLIENT_ID = "964653200657-fs0h4t99s0cal68mdo0iml8skbhi78cb.apps.googleusercontent.com";
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email";
-const OWNER_EMAIL = "natanaelvieiradasilva@gmail.com";
-const SHARED_FOLDER_NAME = "Notas Pessoais - Dados";
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "9291254e-8c79-4641-8d7d-c5771d82ccde",
+    authority: "https://login.microsoftonline.com/0ea62e2f-152a-4380-bf4b-497083aa0326",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: "localStorage" }
+};
+const GRAPH_SCOPES = ["Files.ReadWrite.All"];
+const OWNER_EMAIL = "natanael.silva@sinerggia.com.br";
+const FOLDER_NAME = "Notas Pessoais - Dados";
 const INDEX_FILENAME = "_indice.json";
+const USERS_FILENAME = "_usuarios.json";
 
 /* ==========================================================================
    ESTADO
    ========================================================================== */
-let indexData = { pages: [] };     // { pages: [{id,parentId,title,order,fileId}] }
+let indexData = { pages: [] };     // { pages: [{id,parentId,title,order}] }
+let usersData = { usuarios: [] };  // { usuarios: [{email,papel,dataAprovacao}] }
 let pageContentCache = {};         // pageId -> { blocks: [...] }
 let currentPageId = null;
 let nextOrder = 0;
 
+let msalInstance = null;
 let accessToken = null;
-let tokenExpiresAt = 0;
-let tokenClient = null;
-let pendingResolve = null, pendingReject = null;
-
 let currentUserEmail = null;
-let sharedFolderId = null;
-let indexFileId = null;
+
+let workspaceDriveId = null;   // null = "/me/drive" (dono); senão, drive de outra pessoa
+let workspaceFolderId = null;
 let canEdit = false;
 let isOwner = false;
 
-const saveTimers = {};   // key ('index' ou pageId) -> timeoutId
+const saveTimers = {};
 const retryTimers = {};
 
 let slashMenuTargetBlockId = null;
@@ -321,168 +327,141 @@ function setStatus(text){
 function getPageMeta(id){
   return indexData.pages.find(p => p.id === id);
 }
+function itemsBase(){
+  return workspaceDriveId
+    ? `https://graph.microsoft.com/v1.0/drives/${workspaceDriveId}/items`
+    : `https://graph.microsoft.com/v1.0/me/drive/items`;
+}
 
 /* ==========================================================================
-   GOOGLE LOGIN / TOKEN
+   LOGIN / TOKEN (MSAL)
    ========================================================================== */
-function initGoogle(){
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: DRIVE_SCOPE,
-    callback: (resp) => {
-      if (resp.error){
-        if (pendingReject) pendingReject(resp);
-        return;
-      }
-      accessToken = resp.access_token;
-      tokenExpiresAt = Date.now() + (Number(resp.expires_in || 3600) * 1000);
-      if (pendingResolve) pendingResolve(resp);
-    }
-  });
-}
-
-function requestToken(prompt){
-  return new Promise((resolve, reject) => {
-    pendingResolve = resolve;
-    pendingReject = reject;
-    tokenClient.requestAccessToken({ prompt });
-  });
-}
-
-async function ensureToken(){
-  if (!accessToken || Date.now() > tokenExpiresAt - 60000){
-    await requestToken(accessToken ? "" : "consent");
+async function initMsal(){
+  msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+  await msalInstance.initialize();
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length){
+    msalInstance.setActiveAccount(accounts[0]);
   }
 }
 
-async function driveFetch(url, options = {}){
-  await ensureToken();
+async function ensureGraphToken(){
+  const account = msalInstance.getActiveAccount();
+  if (!account) throw new Error("sem conta ativa");
+  try{
+    const result = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account });
+    accessToken = result.accessToken;
+  }catch(e){
+    const result = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    msalInstance.setActiveAccount(result.account);
+    accessToken = result.accessToken;
+  }
+}
+
+async function graphFetch(url, options = {}){
+  await ensureGraphToken();
   const headers = Object.assign({}, options.headers, { Authorization: "Bearer " + accessToken });
-  let res = await fetch(url, Object.assign({}, options, { headers }));
-  if (res.status === 401){
-    await requestToken("");
-    headers.Authorization = "Bearer " + accessToken;
-    res = await fetch(url, Object.assign({}, options, { headers }));
-  }
-  return res;
+  return fetch(url, Object.assign({}, options, { headers }));
 }
 
 document.getElementById("loginBtn").addEventListener("click", async () => {
   const errEl = document.getElementById("loginError");
   errEl.style.display = "none";
   try{
-    await requestToken("consent");
+    const resp = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
+    msalInstance.setActiveAccount(resp.account);
+    currentUserEmail = (resp.account.username || "").toLowerCase();
     await afterLogin();
   }catch(err){
-    errEl.textContent = "Não foi possível entrar com o Google. Tente novamente.";
+    errEl.textContent = "Não foi possível entrar com a Microsoft. Tente novamente.";
     errEl.style.display = "block";
   }
 });
 
 function doLogout(){
-  if (accessToken){
-    google.accounts.oauth2.revoke(accessToken, () => {});
-  }
-  accessToken = null;
+  const account = msalInstance ? msalInstance.getActiveAccount() : null;
   indexData = { pages: [] };
+  usersData = { usuarios: [] };
   pageContentCache = {};
   currentPageId = null;
-  sharedFolderId = null;
-  indexFileId = null;
+  workspaceDriveId = null;
+  workspaceFolderId = null;
   document.getElementById("app").classList.remove("visible");
   document.getElementById("noAccessScreen").style.display = "none";
   document.getElementById("loginScreen").style.display = "flex";
+  if (msalInstance && account){
+    msalInstance.logoutPopup({ account }).catch(() => {});
+  }
 }
 document.getElementById("logoutBtn").addEventListener("click", doLogout);
 document.getElementById("noAccessLogoutBtn").addEventListener("click", doLogout);
 
 /* ==========================================================================
-   GOOGLE DRIVE — PASTA COMPARTILHADA + ÍNDICE
+   MICROSOFT GRAPH — WORKSPACE (pasta compartilhada + índice)
    ========================================================================== */
-async function fetchUserEmail(){
-  const res = await driveFetch("https://www.googleapis.com/oauth2/v3/userinfo");
-  const json = await res.json();
-  currentUserEmail = (json.email || "").toLowerCase();
-}
+async function resolveWorkspace(){
+  isOwner = currentUserEmail === OWNER_EMAIL.toLowerCase();
 
-async function findSharedFolder(){
-  const q = encodeURIComponent(`name='${SHARED_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`);
-  const json = await res.json();
-  return (json.files && json.files.length > 0) ? json.files[0].id : null;
-}
-
-async function createSharedFolder(){
-  const res = await driveFetch("https://www.googleapis.com/drive/v3/files?fields=id", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: SHARED_FOLDER_NAME, mimeType: "application/vnd.google-apps.folder" })
-  });
-  const json = await res.json();
-  return json.id;
-}
-
-async function loadFolderCapabilities(){
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}?fields=capabilities,owners`);
-  const json = await res.json();
-  canEdit = !!(json.capabilities && json.capabilities.canEdit);
-  const ownerEmail = json.owners && json.owners[0] ? (json.owners[0].emailAddress || "").toLowerCase() : "";
-  isOwner = currentUserEmail === OWNER_EMAIL.toLowerCase() && ownerEmail === currentUserEmail;
-}
-
-async function findOrCreateIndexFile(){
-  const q = encodeURIComponent(`name='${INDEX_FILENAME}' and '${sharedFolderId}' in parents and trashed=false`);
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`);
-  const json = await res.json();
-  if (json.files && json.files.length > 0){
-    indexFileId = json.files[0].id;
-    await loadIndexFromDrive();
-  } else {
-    indexData = { pages: [] };
-    indexFileId = await createJsonFile(INDEX_FILENAME, indexData);
+  if (isOwner){
+    workspaceDriveId = null;
+    let res = await graphFetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(FOLDER_NAME)}`);
+    if (res.status === 404){
+      res = await graphFetch(`https://graph.microsoft.com/v1.0/me/drive/root/children`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: FOLDER_NAME, folder: {}, "@microsoft.graph.conflictBehavior": "fail" })
+      });
+    }
+    if (!res.ok) return false;
+    const json = await res.json();
+    workspaceFolderId = json.id;
+    canEdit = true;
+    return true;
   }
-}
 
-async function createJsonFile(name, contentObj){
-  const boundary = "-------npx" + Date.now() + Math.random().toString(36).slice(2);
-  const metadata = { name, mimeType: "application/json", parents: [sharedFolderId] };
-  const body =
-    `--${boundary}\r\n` +
-    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify(metadata) + `\r\n` +
-    `--${boundary}\r\n` +
-    `Content-Type: application/json\r\n\r\n` +
-    JSON.stringify(contentObj) + `\r\n` +
-    `--${boundary}--`;
-
-  const res = await driveFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
-    method: "POST",
-    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-    body
-  });
+  const res = await graphFetch(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?$select=remoteItem,name`);
+  if (!res.ok) return false;
   const json = await res.json();
-  return json.id;
+  const match = (json.value || []).find(it =>
+    (it.remoteItem && it.remoteItem.name === FOLDER_NAME) || it.name === FOLDER_NAME
+  );
+  if (!match || !match.remoteItem) return false;
+
+  workspaceDriveId = match.remoteItem.parentReference.driveId;
+  workspaceFolderId = match.remoteItem.id;
+
+  await loadUsers();
+  const me = usersData.usuarios.find(u => (u.email || "").toLowerCase() === currentUserEmail);
+  canEdit = !!(me && me.papel === "Editor");
+  return true;
 }
 
-async function loadIndexFromDrive(){
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${indexFileId}?alt=media`);
+async function getJsonByPath(filename){
+  const res = await graphFetch(`${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(filename)}:/content`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("status " + res.status);
   const text = await res.text();
-  try{
-    indexData = text ? JSON.parse(text) : { pages: [] };
-  }catch(e){
-    indexData = { pages: [] };
-  }
-  if (!indexData.pages) indexData.pages = [];
+  try{ return text ? JSON.parse(text) : null; }catch(e){ return null; }
+}
+
+async function putJsonByPath(filename, obj){
+  const res = await graphFetch(`${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(filename)}:/content`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(obj)
+  });
+  if (!res.ok) throw new Error("status " + res.status);
+}
+
+async function loadIndex(){
+  const data = await getJsonByPath(INDEX_FILENAME);
+  indexData = data && data.pages ? data : { pages: [] };
   nextOrder = indexData.pages.reduce((max, p) => Math.max(max, (p.order || 0) + 1), 0);
 }
 
-async function saveJsonToFile(fileId, contentObj){
-  const res = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(contentObj)
-  });
-  if (!res.ok) throw new Error("status " + res.status);
+async function loadUsers(){
+  const data = await getJsonByPath(USERS_FILENAME);
+  usersData = data && data.usuarios ? data : { usuarios: [] };
 }
 
 function scheduleSaveIndex(){
@@ -493,7 +472,7 @@ function scheduleSaveIndex(){
 async function doSaveIndex(){
   setStatus("Salvando…");
   try{
-    await saveJsonToFile(indexFileId, indexData);
+    await putJsonByPath(INDEX_FILENAME, indexData);
     setStatus("Salvo às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }catch(err){
     setStatus("Erro ao salvar — tentando de novo…");
@@ -508,12 +487,11 @@ function scheduleSavePage(pageId){
   saveTimers[pageId] = setTimeout(() => doSavePage(pageId), 1200);
 }
 async function doSavePage(pageId){
-  const meta = getPageMeta(pageId);
   const content = pageContentCache[pageId];
-  if (!meta || !content) return;
+  if (!content) return;
   setStatus("Salvando…");
   try{
-    await saveJsonToFile(meta.fileId, content);
+    await putJsonByPath("pagina_" + pageId + ".json", content);
     setStatus("Salvo às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }catch(err){
     setStatus("Erro ao salvar — tentando de novo…");
@@ -541,27 +519,19 @@ async function afterLogin(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("noAccessScreen").style.display = "none";
 
-  await fetchUserEmail();
-
-  let folderId = await findSharedFolder();
-  if (!folderId){
-    if (currentUserEmail === OWNER_EMAIL.toLowerCase()){
-      folderId = await createSharedFolder();
-    } else {
-      showNoAccess();
-      return;
-    }
+  setStatus("Carregando…");
+  const ok = await resolveWorkspace();
+  if (!ok){
+    showNoAccess();
+    return;
   }
-  sharedFolderId = folderId;
-  await loadFolderCapabilities();
 
   document.getElementById("app").classList.add("visible");
   document.getElementById("newPageBtn").hidden = !canEdit;
   document.getElementById("adminBtn").hidden = !isOwner;
   document.getElementById("userLine").textContent = currentUserEmail + (canEdit ? "" : " (visualização)");
 
-  setStatus("Carregando…");
-  await findOrCreateIndexFile();
+  await loadIndex();
   buildTree();
   if (indexData.pages.length){
     const firstRoot = indexData.pages.filter(p => !p.parentId).sort((a,b) => a.order - b.order)[0];
@@ -585,10 +555,10 @@ async function addPage(parentId){
   if (!canEdit) return;
   const id = genId("p");
   const content = { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
-  const fileId = await createJsonFile("pagina_" + id + ".json", content);
+  await putJsonByPath("pagina_" + id + ".json", content);
   pageContentCache[id] = content;
 
-  const meta = { id, parentId: parentId || null, title: "", order: nextOrder++, fileId };
+  const meta = { id, parentId: parentId || null, title: "", order: nextOrder++ };
   indexData.pages.push(meta);
   buildTree();
   await openPage(id);
@@ -615,16 +585,9 @@ async function deletePage(id){
   }
 
   for (const pid of toDelete){
-    const meta = getPageMeta(pid);
-    if (meta && meta.fileId){
-      try{
-        await driveFetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ trashed: true })
-        });
-      }catch(e){ /* ignora falha ao mover pra lixeira, remove do índice de qualquer forma */ }
-    }
+    try{
+      await graphFetch(`${itemsBase()}/${workspaceFolderId}:/pagina_${pid}.json`, { method: "DELETE" });
+    }catch(e){ /* ignora falha ao mover pra lixeira, remove do índice de qualquer forma */ }
     delete pageContentCache[pid];
   }
 
@@ -647,9 +610,8 @@ async function openPage(id){
   if (!pageContentCache[id]){
     setStatus("Carregando página…");
     try{
-      const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}?alt=media`);
-      const text = await res.text();
-      pageContentCache[id] = text ? JSON.parse(text) : { blocks: [] };
+      const data = await getJsonByPath("pagina_" + id + ".json");
+      pageContentCache[id] = data && data.blocks ? data : { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
     }catch(e){
       pageContentCache[id] = { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
     }
@@ -1092,46 +1054,39 @@ document.getElementById("adminOverlay").addEventListener("click", (e) => {
 function openAdminPanel(){
   document.getElementById("adminOverlay").classList.add("visible");
   document.getElementById("adminMsg").textContent = "";
-  loadAdminUserList();
+  renderAdminUserList();
 }
 function closeAdminPanel(){
   document.getElementById("adminOverlay").classList.remove("visible");
 }
 
-async function loadAdminUserList(){
+function renderAdminUserList(){
   const list = document.getElementById("adminUserList");
-  list.innerHTML = "Carregando…";
-  try{
-    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions?fields=permissions(id,emailAddress,role,displayName)`);
-    const json = await res.json();
-    const perms = (json.permissions || []).filter(p => p.role !== "owner");
-    list.innerHTML = "";
-    if (perms.length === 0){
-      list.innerHTML = '<div style="font-size:12px;color:var(--text-light);">Ninguém convidado ainda.</div>';
-    }
-    perms.forEach(p => list.appendChild(renderAdminUserRow(p)));
-  }catch(e){
-    list.innerHTML = '<div style="font-size:12px;color:var(--danger);">Erro ao carregar a lista de acesso.</div>';
+  list.innerHTML = "";
+  if (!usersData.usuarios.length){
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-light);">Ninguém convidado ainda.</div>';
+    return;
   }
+  usersData.usuarios.forEach(u => list.appendChild(renderAdminUserRow(u)));
 }
 
-function renderAdminUserRow(perm){
+function renderAdminUserRow(u){
   const row = document.createElement("div");
   row.className = "admin-user-row";
   row.innerHTML = `
-    <span class="u-email">${escapeHtml(perm.emailAddress || perm.displayName || "?")}</span>
+    <span class="u-email">${escapeHtml(u.email)}</span>
     <select class="role-select">
-      <option value="writer">Editor</option>
-      <option value="reader">Visualizador</option>
+      <option value="Editor">Editor</option>
+      <option value="Visualizador">Visualizador</option>
     </select>
     <button class="remove-btn">Remover</button>`;
-  row.querySelector(".role-select").value = perm.role === "reader" ? "reader" : "writer";
+  row.querySelector(".role-select").value = u.papel === "Visualizador" ? "Visualizador" : "Editor";
   row.querySelector(".role-select").addEventListener("change", async (e) => {
-    await updatePermissionRole(perm.id, e.target.value);
+    await changeUserRole(u.email, e.target.value);
   });
   row.querySelector(".remove-btn").addEventListener("click", async () => {
-    if (!confirm(`Remover o acesso de ${perm.emailAddress}?`)) return;
-    await removePermission(perm.id);
+    if (!confirm(`Remover o acesso de ${u.email}?`)) return;
+    await revokeUser(u.email);
   });
   return row;
 }
@@ -1142,48 +1097,90 @@ function setAdminMsg(text, isErr){
   el.className = isErr ? "err" : "ok";
 }
 
+async function findPermissionIdByEmail(email){
+  const res = await graphFetch(`${itemsBase()}/${workspaceFolderId}/permissions`);
+  if (!res.ok) return null;
+  const json = await res.json();
+  const perm = (json.value || []).find(p => {
+    const identities = (p.grantedToIdentitiesV2 || (p.grantedToV2 ? [p.grantedToV2] : []));
+    return identities.some(idn => idn.user && (idn.user.email || "").toLowerCase() === email.toLowerCase());
+  });
+  return perm ? perm.id : null;
+}
+
 document.getElementById("adminInviteForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = document.getElementById("inviteEmail").value.trim();
-  const role = document.getElementById("inviteRole").value;
+  const papel = document.getElementById("inviteRole").value;
   if (!email) return;
   setAdminMsg("Concedendo acesso…", false);
   try{
-    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions?sendNotificationEmail=false`, {
+    const res = await graphFetch(`${itemsBase()}/${workspaceFolderId}/invite`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role, type: "user", emailAddress: email })
+      body: JSON.stringify({
+        requireSignIn: true,
+        sendInvitation: false,
+        roles: [papel === "Editor" ? "write" : "read"],
+        recipients: [{ email }]
+      })
     });
     if (!res.ok) throw new Error("status " + res.status);
+
+    const existing = usersData.usuarios.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+    const entry = { email, papel, dataAprovacao: new Date().toISOString().slice(0, 10) };
+    if (existing >= 0) usersData.usuarios[existing] = entry;
+    else usersData.usuarios.push(entry);
+    await putJsonByPath(USERS_FILENAME, usersData);
+
     document.getElementById("inviteEmail").value = "";
-    setAdminMsg(`Acesso concedido a ${email}. Não esqueça de adicioná-la como Usuário de teste no Google Cloud também.`, false);
-    loadAdminUserList();
+    setAdminMsg(`Acesso concedido a ${email} como ${papel}.`, false);
+    renderAdminUserList();
   }catch(err){
-    setAdminMsg("Erro ao conceder acesso. Confira o e-mail e tente novamente.", true);
+    setAdminMsg("Erro ao conceder acesso. Confira o e-mail (precisa ser @sinerggia.com.br) e tente novamente.", true);
   }
 });
 
-async function updatePermissionRole(permissionId, role){
+async function changeUserRole(email, papel){
   try{
-    await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions/${permissionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role })
-    });
+    const permId = await findPermissionIdByEmail(email);
+    if (permId){
+      await graphFetch(`${itemsBase()}/${workspaceFolderId}/permissions/${permId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roles: [papel === "Editor" ? "write" : "read"] })
+      });
+    }
+    const entry = usersData.usuarios.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (entry) entry.papel = papel;
+    await putJsonByPath(USERS_FILENAME, usersData);
   }catch(e){
     setAdminMsg("Erro ao mudar o papel dessa pessoa.", true);
-    loadAdminUserList();
+    renderAdminUserList();
   }
 }
 
-async function removePermission(permissionId){
+async function revokeUser(email){
   try{
-    await driveFetch(`https://www.googleapis.com/drive/v3/files/${sharedFolderId}/permissions/${permissionId}`, { method: "DELETE" });
-    loadAdminUserList();
+    const permId = await findPermissionIdByEmail(email);
+    if (permId){
+      await graphFetch(`${itemsBase()}/${workspaceFolderId}/permissions/${permId}`, { method: "DELETE" });
+    }
+    usersData.usuarios = usersData.usuarios.filter(u => u.email.toLowerCase() !== email.toLowerCase());
+    await putJsonByPath(USERS_FILENAME, usersData);
+    renderAdminUserList();
   }catch(e){
     setAdminMsg("Erro ao remover o acesso.", true);
   }
 }
+
+/* ==========================================================================
+   BOOT
+   ========================================================================== */
+initMsal().catch(() => {
+  document.getElementById("loginError").textContent = "Erro ao carregar o login da Microsoft. Recarregue a página.";
+  document.getElementById("loginError").style.display = "block";
+});
 </script>
 </body>
 </html>
