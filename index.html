@@ -240,6 +240,16 @@
   .del-task{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:14px;}
   .del-task:hover{color:var(--danger);}
   .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+  .task-meta-date{font-size:11px;color:var(--text-light);}
+  .task-timer-cell{display:flex;align-items:center;gap:6px;}
+  .timer-toggle-btn{
+    background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:6px;width:24px;height:24px;
+    cursor:pointer;font-size:11px;color:var(--text);flex-shrink:0;
+  }
+  .timer-toggle-btn:hover{background:var(--hover);}
+  .timer-display{font-size:12px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .kanban-card-timer{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+  .kanban-card-dates{font-size:10px;color:var(--text-light);margin-bottom:6px;}
 
   #taskViewToggle{display:flex;gap:6px;margin-bottom:12px;}
   .view-toggle-btn{
@@ -460,7 +470,7 @@
         <div id="taskTableWrap">
           <table id="taskTable">
             <thead>
-              <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Vencimento</th><th>Responsável</th><th></th></tr>
+              <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Vencimento</th><th>Criado em</th><th>Atualizado em</th><th>Tempo</th><th>Responsável</th><th></th></tr>
             </thead>
             <tbody id="taskTableBody"></tbody>
           </table>
@@ -633,6 +643,12 @@ function setStatus(text){
 }
 function getPageMeta(id){
   return indexData.pages.find(p => p.id === id);
+}
+function firstNameFromEmail(email){
+  const local = (email || "").split("@")[0];
+  const first = local.split(/[._-]/)[0];
+  if (!first) return email || "";
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
 }
 function itemsBase(){
   return workspaceDriveId
@@ -851,7 +867,8 @@ async function afterLogin(){
   document.getElementById("app").classList.add("visible");
   document.getElementById("newPageBtn").hidden = !canEdit;
   document.getElementById("adminBtn").hidden = !isOwner;
-  document.getElementById("userEmailShort").textContent = currentUserEmail + (canEdit ? "" : " (visualização)");
+  document.getElementById("userEmailShort").textContent = "Olá " + firstNameFromEmail(currentUserEmail) + (canEdit ? "" : " (visualização)");
+  document.getElementById("userAvatarBtn").title = currentUserEmail;
   document.getElementById("userAvatarInitial").textContent = (currentUserEmail[0] || "?").toUpperCase();
 
   await loadIndex();
@@ -1419,6 +1436,59 @@ function slugify(text){
   return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-");
 }
 
+function formatDateTimeBR(iso){
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+function formatDateOnlyShort(iso){
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR");
+}
+function formatDuration(totalSeconds){
+  const s = Math.max(0, Math.floor(totalSeconds || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+function getTaskDisplaySeconds(task){
+  if (task.timerRunning && task.timerStartedAt){
+    return (task.timeSpentSeconds || 0) + (Date.now() - new Date(task.timerStartedAt).getTime()) / 1000;
+  }
+  return task.timeSpentSeconds || 0;
+}
+function toggleTaskTimer(task){
+  if (!canEdit) return;
+  if (task.timerRunning){
+    const started = new Date(task.timerStartedAt).getTime();
+    task.timeSpentSeconds = (task.timeSpentSeconds || 0) + (Date.now() - started) / 1000;
+    task.timerRunning = false;
+    task.timerStartedAt = null;
+  } else {
+    task.timerRunning = true;
+    task.timerStartedAt = new Date().toISOString();
+  }
+  renderTasks();
+  scheduleSavePage(currentPageId);
+}
+setInterval(() => {
+  const meta = getPageMeta(currentPageId);
+  if (!meta || meta.kind !== "tarefas") return;
+  const content = pageContentCache[currentPageId];
+  if (!content || !content.tasks) return;
+  content.tasks.forEach(task => {
+    if (!task.timerRunning) return;
+    document.querySelectorAll(`.timer-display[data-id="${task.id}"]`).forEach(el => {
+      el.textContent = formatDuration(getTaskDisplaySeconds(task));
+    });
+  });
+}, 1000);
+
 function getAssigneeOptions(){
   const emails = new Set([OWNER_EMAIL]);
   usersData.usuarios.forEach(u => emails.add(u.email));
@@ -1522,6 +1592,27 @@ function renderKanbanCard(task, assigneeOptions){
   meta.appendChild(dueInput);
   card.appendChild(meta);
 
+  const timerRow = document.createElement("div");
+  timerRow.className = "kanban-card-timer";
+  const timerBtn = document.createElement("button");
+  timerBtn.className = "timer-toggle-btn";
+  timerBtn.textContent = task.timerRunning ? "⏸" : "▶";
+  timerBtn.disabled = !canEdit;
+  timerBtn.onclick = () => toggleTaskTimer(task);
+  const timerSpan = document.createElement("span");
+  timerSpan.className = "timer-display";
+  timerSpan.dataset.id = task.id;
+  timerSpan.textContent = formatDuration(getTaskDisplaySeconds(task));
+  timerRow.appendChild(timerBtn);
+  timerRow.appendChild(timerSpan);
+  card.appendChild(timerRow);
+
+  const datesLine = document.createElement("div");
+  datesLine.className = "kanban-card-dates";
+  datesLine.textContent = `Criado ${formatDateOnlyShort(task.createdAt)}`
+    + (task.statusChangedAt ? ` · Atualizado ${formatDateOnlyShort(task.statusChangedAt)}` : "");
+  card.appendChild(datesLine);
+
   const assigneeSel = document.createElement("select");
   assigneeSel.className = "kanban-assignee";
   assigneeSel.disabled = !canEdit;
@@ -1532,7 +1623,7 @@ function renderKanbanCard(task, assigneeOptions){
   assigneeOptions.forEach(email => {
     const opt = document.createElement("option");
     opt.value = email;
-    opt.textContent = email;
+    opt.textContent = firstNameFromEmail(email);
     if (task.assignee === email) opt.selected = true;
     assigneeSel.appendChild(opt);
   });
@@ -1572,6 +1663,7 @@ document.querySelectorAll(".kanban-col-body").forEach(colBody => {
     const task = content.tasks.find(t => t.id === taskId);
     if (!task) return;
     task.status = colBody.dataset.status;
+    task.statusChangedAt = new Date().toISOString();
     renderTasks();
     scheduleSavePage(currentPageId);
   });
@@ -1590,6 +1682,7 @@ function buildTaskSelect(task, field, options, pillClass){
   });
   sel.addEventListener("change", () => {
     task[field] = sel.value;
+    if (field === "status") task.statusChangedAt = new Date().toISOString();
     sel.className = pillClass + " " + slugify(sel.value);
     scheduleSavePage(currentPageId);
   });
@@ -1629,6 +1722,28 @@ function renderTaskRow(task, assigneeOptions){
   });
   tdDue.appendChild(dueInput);
 
+  const tdCreated = document.createElement("td");
+  tdCreated.className = "task-meta-date";
+  tdCreated.textContent = formatDateTimeBR(task.createdAt);
+
+  const tdUpdated = document.createElement("td");
+  tdUpdated.className = "task-meta-date";
+  tdUpdated.textContent = formatDateTimeBR(task.statusChangedAt);
+
+  const tdTimer = document.createElement("td");
+  tdTimer.className = "task-timer-cell";
+  const timerBtn = document.createElement("button");
+  timerBtn.className = "timer-toggle-btn";
+  timerBtn.textContent = task.timerRunning ? "⏸" : "▶";
+  timerBtn.disabled = !canEdit;
+  timerBtn.onclick = () => toggleTaskTimer(task);
+  const timerSpan = document.createElement("span");
+  timerSpan.className = "timer-display";
+  timerSpan.dataset.id = task.id;
+  timerSpan.textContent = formatDuration(getTaskDisplaySeconds(task));
+  tdTimer.appendChild(timerBtn);
+  tdTimer.appendChild(timerSpan);
+
   const tdAssignee = document.createElement("td");
   const sel = document.createElement("select");
   sel.disabled = !canEdit;
@@ -1639,7 +1754,7 @@ function renderTaskRow(task, assigneeOptions){
   assigneeOptions.forEach(email => {
     const opt = document.createElement("option");
     opt.value = email;
-    opt.textContent = email;
+    opt.textContent = firstNameFromEmail(email);
     if (task.assignee === email) opt.selected = true;
     sel.appendChild(opt);
   });
@@ -1663,6 +1778,9 @@ function renderTaskRow(task, assigneeOptions){
   tr.appendChild(tdStatus);
   tr.appendChild(tdPriority);
   tr.appendChild(tdDue);
+  tr.appendChild(tdCreated);
+  tr.appendChild(tdUpdated);
+  tr.appendChild(tdTimer);
   tr.appendChild(tdAssignee);
   tr.appendChild(tdActions);
   return tr;
@@ -1679,7 +1797,11 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
   const content = pageContentCache[currentPageId];
   if (!content) return;
   if (!content.tasks) content.tasks = [];
-  content.tasks.push({ id: genId("t"), title: "", status: "A fazer", priority: "Média", assignee: "" });
+  const now = new Date().toISOString();
+  content.tasks.push({
+    id: genId("t"), title: "", status: "A fazer", priority: "Média", assignee: "",
+    createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
+  });
   renderTasks();
   scheduleSavePage(currentPageId);
   setTimeout(() => {
@@ -2088,9 +2210,10 @@ document.getElementById("adminInviteForm").addEventListener("submit", async (e) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         requireSignIn: true,
-        sendInvitation: false,
+        sendInvitation: true,
         roles: [papel === "Editor" ? "write" : "read"],
-        recipients: [{ email }]
+        recipients: [{ email }],
+        message: "Você recebeu acesso ao espaço de notas compartilhado \"Notas Pessoais\" da Sinerggia. Acesse: https://sinerggia-dev.github.io/notas-pessoais/"
       })
     });
     if (!res.ok) throw new Error("status " + res.status);
