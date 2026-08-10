@@ -218,6 +218,39 @@
   .del-task:hover{color:var(--danger);}
   .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
 
+  #taskViewToggle{display:flex;gap:6px;margin-bottom:12px;}
+  .view-toggle-btn{
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:6px 12px;
+    font-size:12px;cursor:pointer;color:var(--text-light);transition:background .12s ease, color .12s ease;
+  }
+  .view-toggle-btn.active{background:var(--accent-light);color:var(--accent-hover);border-color:var(--accent-light);font-weight:600;}
+  .view-toggle-btn:hover{background:var(--hover);}
+
+  #taskKanban{display:none;gap:16px;align-items:flex-start;}
+  .kanban-col{
+    flex:1;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:10px;
+    padding:12px;min-height:120px;transition:background .12s ease;
+  }
+  .kanban-col.drag-over{background:var(--accent-light);}
+  .kanban-col h4{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);margin:0 0 10px;}
+  .kanban-col-body{min-height:80px;display:flex;flex-direction:column;gap:8px;}
+  .kanban-card{
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:9px;padding:10px;
+    box-shadow:var(--shadow-sm);cursor:grab;position:relative;
+  }
+  .kanban-card.dragging{opacity:.4;}
+  .kanban-card-title{font-size:13px;font-weight:500;outline:none;margin-bottom:8px;padding-right:16px;}
+  .kanban-card-title:empty::before{content:"Sem título";color:#c8c8c5;}
+  .kanban-card-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+  .kanban-card select.priority-pill{font-size:11px;padding:3px 8px;}
+  .kanban-card .task-due{font-size:11px;padding:3px 5px;}
+  .kanban-assignee{width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--sidebar-border);border-radius:6px;}
+  .kanban-del-btn{
+    position:absolute;top:8px;right:8px;background:none;border:none;color:var(--text-light);
+    cursor:pointer;font-size:14px;line-height:1;
+  }
+  .kanban-del-btn:hover{color:var(--danger);}
+
   /* ---------- Calendário ---------- */
   #calendarView{display:none;}
   #calendarHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
@@ -388,6 +421,10 @@
         <button id="addBlockBtn">+ Novo bloco</button>
       </div>
       <div id="tasksView">
+        <div id="taskViewToggle">
+          <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
+          <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
+        </div>
         <div id="taskFilterTabs"></div>
         <div id="taskTableWrap">
           <table id="taskTable">
@@ -396,6 +433,20 @@
             </thead>
             <tbody id="taskTableBody"></tbody>
           </table>
+        </div>
+        <div id="taskKanban" class="kanban-board">
+          <div class="kanban-col">
+            <h4>A fazer</h4>
+            <div class="kanban-col-body" data-status="A fazer"></div>
+          </div>
+          <div class="kanban-col">
+            <h4>Em andamento</h4>
+            <div class="kanban-col-body" data-status="Em andamento"></div>
+          </div>
+          <div class="kanban-col">
+            <h4>Concluído</h4>
+            <div class="kanban-col-body" data-status="Concluído"></div>
+          </div>
         </div>
         <button id="addTaskBtn">+ Nova tarefa</button>
       </div>
@@ -995,6 +1046,7 @@ pageTitleEl.addEventListener("keydown", (e) => {
 });
 
 let taskFilter = "Todas";
+let taskViewMode = "table";
 let calendarYear = null;
 let calendarMonth = null;
 let calendarTasksByDate = {};
@@ -1015,6 +1067,8 @@ async function renderEditor(){
 
   if (kind === "tarefas"){
     taskFilter = "Todas";
+    taskViewMode = "table";
+    updateTaskViewToggle();
     renderTaskFilterTabs();
     renderTasks();
   } else if (kind === "calendario"){
@@ -1339,17 +1393,144 @@ function renderTaskFilterTabs(){
   });
 }
 
+function updateTaskViewToggle(){
+  document.getElementById("tableViewBtn").classList.toggle("active", taskViewMode === "table");
+  document.getElementById("kanbanViewBtn").classList.toggle("active", taskViewMode === "kanban");
+  document.getElementById("taskFilterTabs").style.display = taskViewMode === "table" ? "flex" : "none";
+  document.getElementById("taskTableWrap").style.display = taskViewMode === "table" ? "block" : "none";
+  document.getElementById("taskKanban").style.display = taskViewMode === "kanban" ? "flex" : "none";
+}
+
+document.getElementById("tableViewBtn").addEventListener("click", () => {
+  taskViewMode = "table";
+  updateTaskViewToggle();
+  renderTasks();
+});
+document.getElementById("kanbanViewBtn").addEventListener("click", () => {
+  taskViewMode = "kanban";
+  updateTaskViewToggle();
+  renderTasks();
+});
+
 function renderTasks(){
   const content = pageContentCache[currentPageId];
-  const tbody = document.getElementById("taskTableBody");
-  tbody.innerHTML = "";
   document.getElementById("addTaskBtn").hidden = !canEdit;
   if (!content || !content.tasks) return;
   const assigneeOptions = getAssigneeOptions();
+
+  if (taskViewMode === "kanban"){
+    renderKanban(content, assigneeOptions);
+    return;
+  }
+
+  const tbody = document.getElementById("taskTableBody");
+  tbody.innerHTML = "";
   content.tasks
     .filter(t => taskFilter === "Todas" || t.status === taskFilter)
     .forEach(task => tbody.appendChild(renderTaskRow(task, assigneeOptions)));
 }
+
+function renderKanban(content, assigneeOptions){
+  document.querySelectorAll(".kanban-col-body").forEach(colBody => {
+    const status = colBody.dataset.status;
+    colBody.innerHTML = "";
+    content.tasks
+      .filter(t => t.status === status)
+      .forEach(t => colBody.appendChild(renderKanbanCard(t, assigneeOptions)));
+  });
+}
+
+function renderKanbanCard(task, assigneeOptions){
+  const card = document.createElement("div");
+  card.className = "kanban-card";
+  card.draggable = canEdit;
+  card.dataset.id = task.id;
+  card.addEventListener("dragstart", (e) => {
+    e.dataTransfer.setData("text/plain", task.id);
+    card.classList.add("dragging");
+  });
+  card.addEventListener("dragend", () => card.classList.remove("dragging"));
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "kanban-card-title";
+  titleEl.contentEditable = canEdit ? "true" : "false";
+  titleEl.textContent = task.title || "";
+  titleEl.addEventListener("input", () => {
+    task.title = titleEl.textContent;
+    scheduleSavePage(currentPageId);
+  });
+  card.appendChild(titleEl);
+
+  const meta = document.createElement("div");
+  meta.className = "kanban-card-meta";
+  meta.appendChild(buildTaskSelect(task, "priority", ["Baixa", "Média", "Alta"], "priority-pill"));
+
+  const dueInput = document.createElement("input");
+  dueInput.type = "date";
+  dueInput.className = "task-due";
+  dueInput.value = task.dueDate || "";
+  dueInput.disabled = !canEdit;
+  dueInput.addEventListener("change", () => {
+    task.dueDate = dueInput.value;
+    scheduleSavePage(currentPageId);
+  });
+  meta.appendChild(dueInput);
+  card.appendChild(meta);
+
+  const assigneeSel = document.createElement("select");
+  assigneeSel.className = "kanban-assignee";
+  assigneeSel.disabled = !canEdit;
+  const blankOpt = document.createElement("option");
+  blankOpt.value = "";
+  blankOpt.textContent = "Não atribuído";
+  assigneeSel.appendChild(blankOpt);
+  assigneeOptions.forEach(email => {
+    const opt = document.createElement("option");
+    opt.value = email;
+    opt.textContent = email;
+    if (task.assignee === email) opt.selected = true;
+    assigneeSel.appendChild(opt);
+  });
+  assigneeSel.addEventListener("change", () => {
+    task.assignee = assigneeSel.value;
+    scheduleSavePage(currentPageId);
+  });
+  card.appendChild(assigneeSel);
+
+  if (canEdit){
+    const delBtn = document.createElement("button");
+    delBtn.className = "kanban-del-btn";
+    delBtn.textContent = "×";
+    delBtn.title = "Excluir tarefa";
+    delBtn.onclick = () => deleteTask(task.id);
+    card.appendChild(delBtn);
+  }
+
+  return card;
+}
+
+document.querySelectorAll(".kanban-col-body").forEach(colBody => {
+  colBody.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    colBody.parentElement.classList.add("drag-over");
+  });
+  colBody.addEventListener("dragleave", () => {
+    colBody.parentElement.classList.remove("drag-over");
+  });
+  colBody.addEventListener("drop", (e) => {
+    e.preventDefault();
+    colBody.parentElement.classList.remove("drag-over");
+    if (!canEdit) return;
+    const taskId = e.dataTransfer.getData("text/plain");
+    const content = pageContentCache[currentPageId];
+    if (!content) return;
+    const task = content.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = colBody.dataset.status;
+    renderTasks();
+    scheduleSavePage(currentPageId);
+  });
+});
 
 function buildTaskSelect(task, field, options, pillClass){
   const sel = document.createElement("select");
