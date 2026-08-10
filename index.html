@@ -214,6 +214,31 @@
   #adminMsg{font-size:12px;margin-top:8px;min-height:16px;}
   #adminMsg.err{color:var(--danger);}
   #adminMsg.ok{color:#2f8132;}
+  #taskTableWrap{overflow-x:auto;}
+
+  /* ---------- Menu mobile (hambúrguer) ---------- */
+  #mobileMenuBtn{
+    display:none;position:fixed;top:12px;left:12px;z-index:250;width:38px;height:38px;
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;font-size:18px;cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,.1);
+  }
+  #sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:190;}
+  #sidebarOverlay.visible{display:block;}
+
+  /* ---------- Responsivo (celular) ---------- */
+  @media (max-width: 768px){
+    #mobileMenuBtn{display:flex;align-items:center;justify-content:center;}
+    #sidebar{
+      position:fixed;top:0;left:0;height:100vh;width:85vw;max-width:300px;z-index:200;
+      transform:translateX(-100%);transition:transform .22s ease;box-shadow:2px 0 16px rgba(0,0,0,.18);
+    }
+    #sidebar.open{transform:translateX(0);}
+    #editor{width:100%;}
+    #pageView{padding:56px 16px 120px;}
+    #pageTitle{font-size:26px;}
+    .block-gutter{opacity:1;}
+    #taskTable{font-size:12px;}
+  }
 </style>
 </head>
 <body>
@@ -230,6 +255,9 @@
   <p id="noAccessMsg">Sua conta ainda não tem acesso a este espaço de notas. Peça para o administrador te adicionar.</p>
   <button id="noAccessLogoutBtn">Trocar de conta</button>
 </div>
+
+<button id="mobileMenuBtn">☰</button>
+<div id="sidebarOverlay"></div>
 
 <div id="app">
   <aside id="sidebar">
@@ -261,12 +289,14 @@
       </div>
       <div id="tasksView">
         <div id="taskFilterTabs"></div>
-        <table id="taskTable">
-          <thead>
-            <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Responsável</th><th></th></tr>
-          </thead>
-          <tbody id="taskTableBody"></tbody>
-        </table>
+        <div id="taskTableWrap">
+          <table id="taskTable">
+            <thead>
+              <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Responsável</th><th></th></tr>
+            </thead>
+            <tbody id="taskTableBody"></tbody>
+          </table>
+        </div>
         <button id="addTaskBtn">+ Nova tarefa</button>
       </div>
     </div>
@@ -669,6 +699,7 @@ async function openPage(id){
 
   renderEditor();
   highlightActivePage();
+  if (isMobileViewport()) closeMobileSidebar();
 }
 
 function showEmptyState(){
@@ -725,6 +756,26 @@ function renderPageRow(page, depth){
   if (delBtn) delBtn.addEventListener("click", (e) => { e.stopPropagation(); deletePage(page.id); });
   return row;
 }
+
+/* ==========================================================================
+   MENU MOBILE (barra lateral retrátil no celular)
+   ========================================================================== */
+function isMobileViewport(){
+  return window.matchMedia("(max-width: 768px)").matches;
+}
+function openMobileSidebar(){
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("sidebarOverlay").classList.add("visible");
+}
+function closeMobileSidebar(){
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("visible");
+}
+document.getElementById("mobileMenuBtn").addEventListener("click", () => {
+  if (document.getElementById("sidebar").classList.contains("open")) closeMobileSidebar();
+  else openMobileSidebar();
+});
+document.getElementById("sidebarOverlay").addEventListener("click", closeMobileSidebar);
 
 document.getElementById("newPageBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
 document.getElementById("emptyCreateBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
