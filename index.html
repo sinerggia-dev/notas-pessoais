@@ -185,6 +185,52 @@
   #addTaskBtn:hover{color:var(--text);}
   .del-task{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:14px;}
   .del-task:hover{color:var(--danger);}
+  .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+
+  /* ---------- Calendário ---------- */
+  #calendarView{display:none;}
+  #calendarHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  #calMonthLabel{font-size:16px;font-weight:700;text-transform:capitalize;}
+  #calPrevBtn, #calNextBtn{
+    background:none;border:1px solid var(--sidebar-border);border-radius:6px;width:30px;height:30px;
+    font-size:15px;cursor:pointer;color:var(--text);
+  }
+  #calPrevBtn:hover, #calNextBtn:hover{background:var(--hover);}
+  #calendarWeekdays{
+    display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;color:var(--text-light);
+    text-transform:uppercase;letter-spacing:.03em;padding:0 2px 6px;text-align:center;
+  }
+  #calendarGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--sidebar-border);border:1px solid var(--sidebar-border);border-radius:8px;overflow:hidden;}
+  .cal-day{background:#fff;min-height:88px;padding:6px;display:flex;flex-direction:column;gap:3px;position:relative;}
+  .cal-day.other-month{background:#fbfbfa;color:#c8c8c5;}
+  .cal-day.today .cal-day-num{background:var(--accent);color:#fff;border-radius:50%;}
+  .cal-day-num{font-size:12px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;}
+  .cal-day-add{
+    position:absolute;top:4px;right:4px;background:none;border:none;color:var(--text-light);
+    font-size:14px;cursor:pointer;opacity:0;line-height:1;
+  }
+  .cal-day:hover .cal-day-add{opacity:1;}
+  .cal-event-pill{
+    background:var(--accent-light);color:var(--accent);border:none;border-radius:4px;padding:2px 5px;
+    font-size:11px;cursor:pointer;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+
+  /* ---------- Modal de evento ---------- */
+  #eventOverlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:110;
+    align-items:center;justify-content:center;
+  }
+  #eventOverlay.visible{display:flex;}
+  #eventModal{background:#fff;border-radius:10px;width:400px;max-width:92vw;padding:24px;}
+  #eventModal h2{margin:0 0 14px;font-size:16px;}
+  #eventCloseBtn{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-light);}
+  .event-label{display:block;font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;margin:10px 0 4px;}
+  .event-input{
+    width:100%;padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;font-family:inherit;
+  }
+  #eventModalActions{display:flex;justify-content:space-between;margin-top:18px;}
+  #eventDeleteBtn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;}
+  #eventSaveBtn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;}
 
   /* ---------- Painel de administração ---------- */
   #adminOverlay{
@@ -238,6 +284,10 @@
     #pageTitle{font-size:26px;}
     .block-gutter{opacity:1;}
     #taskTable{font-size:12px;}
+    .cal-day{min-height:60px;padding:3px;}
+    .cal-day-num{font-size:11px;width:16px;height:16px;}
+    .cal-event-pill{font-size:9px;padding:1px 3px;}
+    #calendarWeekdays{font-size:9px;}
   }
 </style>
 </head>
@@ -292,12 +342,23 @@
         <div id="taskTableWrap">
           <table id="taskTable">
             <thead>
-              <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Responsável</th><th></th></tr>
+              <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Vencimento</th><th>Responsável</th><th></th></tr>
             </thead>
             <tbody id="taskTableBody"></tbody>
           </table>
         </div>
         <button id="addTaskBtn">+ Nova tarefa</button>
+      </div>
+      <div id="calendarView">
+        <div id="calendarHeader">
+          <button id="calPrevBtn">‹</button>
+          <span id="calMonthLabel"></span>
+          <button id="calNextBtn">›</button>
+        </div>
+        <div id="calendarWeekdays">
+          <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+        </div>
+        <div id="calendarGrid"></div>
       </div>
     </div>
   </main>
@@ -322,12 +383,44 @@
         <option value="Editor">Editor</option>
         <option value="Visualizador">Visualizador</option>
       </select>
+      <input type="tel" id="inviteWhatsapp" placeholder="WhatsApp (opcional, com DDI)">
+      <input type="text" id="inviteApiKey" placeholder="CallMeBot API Key (opcional)">
       <button type="submit">Conceder acesso</button>
     </form>
     <div id="adminMsg"></div>
     <div id="adminNote">
       O convite dá acesso real à pasta no OneDrive (compartilhamento do Microsoft 365) — não precisa de nenhum passo
       extra no Azure por pessoa convidada, contanto que ela seja da mesma organização (@sinerggia.com.br).
+      O WhatsApp/CallMeBot é usado só para os alertas de vencimento de tarefa — a pessoa precisa ativar o CallMeBot
+      uma vez no próprio WhatsApp (mandando uma mensagem específica pro número do bot) e te passar a API key gerada.
+    </div>
+
+    <h3>Meu contato (para eu também receber alertas)</h3>
+    <form id="ownerContactForm">
+      <input type="tel" id="ownerWhatsapp" placeholder="Seu WhatsApp (opcional, com DDI)">
+      <input type="text" id="ownerApiKey" placeholder="Sua CallMeBot API Key (opcional)">
+      <button type="submit">Salvar</button>
+    </form>
+    <div id="ownerContactMsg"></div>
+  </div>
+</div>
+
+<div id="eventOverlay">
+  <div id="eventModal">
+    <button id="eventCloseBtn">×</button>
+    <h2 id="eventModalTitle">Novo evento</h2>
+    <input type="hidden" id="eventId">
+    <label class="event-label">Data</label>
+    <input type="date" id="eventDate" class="event-input">
+    <label class="event-label">Hora (opcional)</label>
+    <input type="time" id="eventTime" class="event-input">
+    <label class="event-label">Título</label>
+    <input type="text" id="eventTitleInput" class="event-input" placeholder="Título do evento">
+    <label class="event-label">Descrição (opcional)</label>
+    <textarea id="eventDescInput" class="event-input" rows="3"></textarea>
+    <div id="eventModalActions">
+      <button id="eventDeleteBtn" type="button">Excluir</button>
+      <button id="eventSaveBtn" type="button">Salvar</button>
     </div>
   </div>
 </div>
@@ -354,7 +447,7 @@ const USERS_FILENAME = "_usuarios.json";
    ESTADO
    ========================================================================== */
 let indexData = { pages: [] };     // { pages: [{id,parentId,title,order}] }
-let usersData = { usuarios: [] };  // { usuarios: [{email,papel,dataAprovacao}] }
+let usersData = { usuarios: [], donoContato: { telefone: "", whatsappApiKey: "" } };
 let pageContentCache = {};         // pageId -> { blocks: [...] }
 let currentPageId = null;
 let nextOrder = 0;
@@ -537,7 +630,8 @@ async function loadIndex(){
 
 async function loadUsers(){
   const data = await getJsonByPath(USERS_FILENAME);
-  usersData = data && data.usuarios ? data : { usuarios: [] };
+  usersData = data && data.usuarios ? data : { usuarios: [], donoContato: { telefone: "", whatsappApiKey: "" } };
+  if (!usersData.donoContato) usersData.donoContato = { telefone: "", whatsappApiKey: "" };
 }
 
 function scheduleSaveIndex(){
@@ -627,11 +721,17 @@ function showNoAccess(){
 /* ==========================================================================
    PÁGINAS — CRUD + ÁRVORE
    ========================================================================== */
+function defaultContentForKind(kind){
+  if (kind === "tarefas") return { tasks: [] };
+  if (kind === "calendario") return { events: [] };
+  return { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+}
+
 async function addPage(parentId, kind){
   if (!canEdit) return;
-  kind = kind === "tarefas" ? "tarefas" : "notas";
+  kind = (kind === "tarefas" || kind === "calendario") ? kind : "notas";
   const id = genId("p");
-  const content = kind === "tarefas" ? { tasks: [] } : { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+  const content = defaultContentForKind(kind);
   await putJsonByPath("pagina_" + id + ".json", content);
   pageContentCache[id] = content;
 
@@ -686,8 +786,7 @@ async function openPage(id){
 
   if (!pageContentCache[id]){
     setStatus("Carregando página…");
-    const kind = meta.kind || "notas";
-    const fallback = kind === "tarefas" ? { tasks: [] } : { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
+    const fallback = defaultContentForKind(meta.kind || "notas");
     try{
       const data = await getJsonByPath("pagina_" + id + ".json");
       pageContentCache[id] = data || fallback;
@@ -736,7 +835,9 @@ function buildTree(query){
 }
 
 function pageIcon(page){
-  return page.kind === "tarefas" ? "✅ " : "📝 ";
+  if (page.kind === "tarefas") return "✅ ";
+  if (page.kind === "calendario") return "📅 ";
+  return "📝 ";
 }
 
 function renderPageRow(page, depth){
@@ -788,7 +889,8 @@ function showKindMenu(parentId, anchorEl){
   const menu = document.getElementById("kindMenu");
   menu.innerHTML = `
     <div class="slash-item" data-kind="notas"><span class="slash-icon">📝</span><span>Página de notas</span></div>
-    <div class="slash-item" data-kind="tarefas"><span class="slash-icon">✅</span><span>Banco de tarefas</span></div>`;
+    <div class="slash-item" data-kind="tarefas"><span class="slash-icon">✅</span><span>Banco de tarefas</span></div>
+    <div class="slash-item" data-kind="calendario"><span class="slash-icon">📅</span><span>Calendário</span></div>`;
   menu.querySelectorAll(".slash-item").forEach(el => {
     el.onmousedown = (e) => {
       e.preventDefault();
@@ -831,6 +933,8 @@ pageTitleEl.addEventListener("keydown", (e) => {
 });
 
 let taskFilter = "Todas";
+let calendarYear = null;
+let calendarMonth = null;
 
 function renderEditor(){
   const meta = getPageMeta(currentPageId);
@@ -839,14 +943,20 @@ function renderEditor(){
   pageTitleEl.readOnly = !canEdit;
   document.getElementById("readOnlyBanner").style.display = canEdit ? "none" : "block";
 
-  const isTasks = meta.kind === "tarefas";
-  document.getElementById("notesView").style.display = isTasks ? "none" : "block";
-  document.getElementById("tasksView").style.display = isTasks ? "block" : "none";
+  const kind = meta.kind || "notas";
+  document.getElementById("notesView").style.display = kind === "notas" ? "block" : "none";
+  document.getElementById("tasksView").style.display = kind === "tarefas" ? "block" : "none";
+  document.getElementById("calendarView").style.display = kind === "calendario" ? "block" : "none";
 
-  if (isTasks){
+  if (kind === "tarefas"){
     taskFilter = "Todas";
     renderTaskFilterTabs();
     renderTasks();
+  } else if (kind === "calendario"){
+    const today = new Date();
+    calendarYear = today.getFullYear();
+    calendarMonth = today.getMonth();
+    renderCalendar();
   } else {
     document.getElementById("addBlockBtn").hidden = !canEdit;
     renderBlocks();
@@ -1209,6 +1319,18 @@ function renderTaskRow(task, assigneeOptions){
   const tdPriority = document.createElement("td");
   tdPriority.appendChild(buildTaskSelect(task, "priority", ["Baixa", "Média", "Alta"], "priority-pill"));
 
+  const tdDue = document.createElement("td");
+  const dueInput = document.createElement("input");
+  dueInput.type = "date";
+  dueInput.className = "task-due";
+  dueInput.value = task.dueDate || "";
+  dueInput.disabled = !canEdit;
+  dueInput.addEventListener("change", () => {
+    task.dueDate = dueInput.value;
+    scheduleSavePage(currentPageId);
+  });
+  tdDue.appendChild(dueInput);
+
   const tdAssignee = document.createElement("td");
   const sel = document.createElement("select");
   sel.disabled = !canEdit;
@@ -1242,6 +1364,7 @@ function renderTaskRow(task, assigneeOptions){
   tr.appendChild(tdTitle);
   tr.appendChild(tdStatus);
   tr.appendChild(tdPriority);
+  tr.appendChild(tdDue);
   tr.appendChild(tdAssignee);
   tr.appendChild(tdActions);
   return tr;
@@ -1266,6 +1389,138 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
     const last = rows[rows.length - 1];
     if (last) last.querySelector(".task-title").focus();
   }, 30);
+});
+
+/* ==========================================================================
+   CALENDÁRIO
+   ========================================================================== */
+const MESES_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+function formatDateISO(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+document.getElementById("calPrevBtn").addEventListener("click", () => {
+  calendarMonth--;
+  if (calendarMonth < 0){ calendarMonth = 11; calendarYear--; }
+  renderCalendar();
+});
+document.getElementById("calNextBtn").addEventListener("click", () => {
+  calendarMonth++;
+  if (calendarMonth > 11){ calendarMonth = 0; calendarYear++; }
+  renderCalendar();
+});
+
+function renderCalendar(){
+  const content = pageContentCache[currentPageId];
+  if (!content.events) content.events = [];
+
+  document.getElementById("calMonthLabel").textContent = `${MESES_PT[calendarMonth]} ${calendarYear}`;
+
+  const grid = document.getElementById("calendarGrid");
+  grid.innerHTML = "";
+
+  const firstOfMonth = new Date(calendarYear, calendarMonth, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const todayStr = formatDateISO(new Date());
+
+  for (let i = 0; i < 42; i++){
+    const cellDate = new Date(calendarYear, calendarMonth, 1 - startWeekday + i);
+    const dateStr = formatDateISO(cellDate);
+    const isOtherMonth = cellDate.getMonth() !== calendarMonth;
+
+    const cell = document.createElement("div");
+    cell.className = "cal-day" + (isOtherMonth ? " other-month" : "") + (dateStr === todayStr ? " today" : "");
+
+    const num = document.createElement("div");
+    num.className = "cal-day-num";
+    num.textContent = cellDate.getDate();
+    cell.appendChild(num);
+
+    if (canEdit){
+      const addBtn = document.createElement("button");
+      addBtn.className = "cal-day-add";
+      addBtn.textContent = "+";
+      addBtn.title = "Novo evento";
+      addBtn.onclick = () => openEventModal(dateStr, null);
+      cell.appendChild(addBtn);
+    }
+
+    content.events
+      .filter(ev => ev.date === dateStr)
+      .sort((a, b) => (a.time || "").localeCompare(b.time || ""))
+      .forEach(ev => {
+        const pill = document.createElement("button");
+        pill.className = "cal-event-pill";
+        pill.textContent = (ev.time ? ev.time + " " : "") + (ev.title || "Sem título");
+        pill.onclick = () => openEventModal(dateStr, ev);
+        cell.appendChild(pill);
+      });
+
+    grid.appendChild(cell);
+  }
+}
+
+let eventModalDate = null;
+
+function openEventModal(dateStr, existingEvent){
+  eventModalDate = dateStr;
+  document.getElementById("eventModalTitle").textContent = existingEvent ? "Editar evento" : "Novo evento";
+  document.getElementById("eventId").value = existingEvent ? existingEvent.id : "";
+  document.getElementById("eventDate").value = dateStr;
+  document.getElementById("eventTime").value = existingEvent ? (existingEvent.time || "") : "";
+  document.getElementById("eventTitleInput").value = existingEvent ? (existingEvent.title || "") : "";
+  document.getElementById("eventDescInput").value = existingEvent ? (existingEvent.description || "") : "";
+
+  const readOnly = !canEdit;
+  ["eventDate","eventTime","eventTitleInput","eventDescInput"].forEach(id => {
+    document.getElementById(id).disabled = readOnly;
+  });
+  document.getElementById("eventSaveBtn").style.display = readOnly ? "none" : "inline-block";
+  document.getElementById("eventDeleteBtn").style.display = (readOnly || !existingEvent) ? "none" : "inline-block";
+
+  document.getElementById("eventOverlay").classList.add("visible");
+}
+
+function closeEventModal(){
+  document.getElementById("eventOverlay").classList.remove("visible");
+}
+
+document.getElementById("eventCloseBtn").addEventListener("click", closeEventModal);
+document.getElementById("eventOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "eventOverlay") closeEventModal();
+});
+
+document.getElementById("eventSaveBtn").addEventListener("click", () => {
+  const content = pageContentCache[currentPageId];
+  if (!content.events) content.events = [];
+  const id = document.getElementById("eventId").value;
+  const eventData = {
+    id: id || genId("ev"),
+    date: document.getElementById("eventDate").value || eventModalDate,
+    time: document.getElementById("eventTime").value,
+    title: document.getElementById("eventTitleInput").value,
+    description: document.getElementById("eventDescInput").value
+  };
+  const idx = content.events.findIndex(ev => ev.id === eventData.id);
+  if (idx >= 0) content.events[idx] = eventData;
+  else content.events.push(eventData);
+
+  closeEventModal();
+  renderCalendar();
+  scheduleSavePage(currentPageId);
+});
+
+document.getElementById("eventDeleteBtn").addEventListener("click", () => {
+  const content = pageContentCache[currentPageId];
+  const id = document.getElementById("eventId").value;
+  content.events = (content.events || []).filter(ev => ev.id !== id);
+  closeEventModal();
+  renderCalendar();
+  scheduleSavePage(currentPageId);
 });
 
 /* ==========================================================================
@@ -1336,6 +1591,9 @@ document.getElementById("adminOverlay").addEventListener("click", (e) => {
 function openAdminPanel(){
   document.getElementById("adminOverlay").classList.add("visible");
   document.getElementById("adminMsg").textContent = "";
+  document.getElementById("ownerContactMsg").textContent = "";
+  document.getElementById("ownerWhatsapp").value = (usersData.donoContato && usersData.donoContato.telefone) || "";
+  document.getElementById("ownerApiKey").value = (usersData.donoContato && usersData.donoContato.whatsappApiKey) || "";
   renderAdminUserList();
 }
 function closeAdminPanel(){
@@ -1356,7 +1614,7 @@ function renderAdminUserRow(u){
   const row = document.createElement("div");
   row.className = "admin-user-row";
   row.innerHTML = `
-    <span class="u-email">${escapeHtml(u.email)}</span>
+    <span class="u-email">${escapeHtml(u.email)}${u.telefone ? " 📱" : ""}</span>
     <select class="role-select">
       <option value="Editor">Editor</option>
       <option value="Visualizador">Visualizador</option>
@@ -1394,6 +1652,8 @@ document.getElementById("adminInviteForm").addEventListener("submit", async (e) 
   e.preventDefault();
   const email = document.getElementById("inviteEmail").value.trim();
   const papel = document.getElementById("inviteRole").value;
+  const telefone = document.getElementById("inviteWhatsapp").value.trim();
+  const whatsappApiKey = document.getElementById("inviteApiKey").value.trim();
   if (!email) return;
   setAdminMsg("Concedendo acesso…", false);
   try{
@@ -1410,16 +1670,41 @@ document.getElementById("adminInviteForm").addEventListener("submit", async (e) 
     if (!res.ok) throw new Error("status " + res.status);
 
     const existing = usersData.usuarios.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
-    const entry = { email, papel, dataAprovacao: new Date().toISOString().slice(0, 10) };
+    const prev = existing >= 0 ? usersData.usuarios[existing] : {};
+    const entry = {
+      email, papel,
+      dataAprovacao: prev.dataAprovacao || new Date().toISOString().slice(0, 10),
+      telefone: telefone || prev.telefone || "",
+      whatsappApiKey: whatsappApiKey || prev.whatsappApiKey || ""
+    };
     if (existing >= 0) usersData.usuarios[existing] = entry;
     else usersData.usuarios.push(entry);
     await putJsonByPath(USERS_FILENAME, usersData);
 
     document.getElementById("inviteEmail").value = "";
+    document.getElementById("inviteWhatsapp").value = "";
+    document.getElementById("inviteApiKey").value = "";
     setAdminMsg(`Acesso concedido a ${email} como ${papel}.`, false);
     renderAdminUserList();
   }catch(err){
     setAdminMsg("Erro ao conceder acesso. Confira o e-mail (precisa ser @sinerggia.com.br) e tente novamente.", true);
+  }
+});
+
+document.getElementById("ownerContactForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  usersData.donoContato = {
+    telefone: document.getElementById("ownerWhatsapp").value.trim(),
+    whatsappApiKey: document.getElementById("ownerApiKey").value.trim()
+  };
+  const msgEl = document.getElementById("ownerContactMsg");
+  try{
+    await putJsonByPath(USERS_FILENAME, usersData);
+    msgEl.textContent = "Salvo.";
+    msgEl.className = "ok";
+  }catch(err){
+    msgEl.textContent = "Erro ao salvar.";
+    msgEl.className = "err";
   }
 });
 
