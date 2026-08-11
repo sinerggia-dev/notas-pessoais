@@ -255,6 +255,11 @@
   .col-menu-wrap{position:relative;display:inline-block;}
   .col-menu-item{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;}
   .col-menu-item:hover{background:var(--hover);}
+  .col-menu-reset{
+    display:block;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--sidebar-border);
+    margin-top:4px;padding:8px 8px 2px;font-size:12px;color:var(--accent);cursor:pointer;
+  }
+  .col-menu-reset:hover{color:var(--accent-hover);}
   #taskColumnsMenu{min-width:190px;}
   #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
     padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
@@ -1826,7 +1831,23 @@ function visibleColumnOrder(){
   return taskColOrder.filter(k => taskColVisibility[k] !== false);
 }
 
+let activeColumnResize = null;
+function endActiveColumnResize(){
+  if (activeColumnResize){
+    activeColumnResize.cleanup();
+    activeColumnResize = null;
+  }
+}
+
+function updateTaskTableWidth(){
+  const table = document.getElementById("taskTable");
+  if (!table) return;
+  const total = visibleColumnOrder().reduce((sum, k) => sum + (taskColWidths[k] || 140), 0) + 40;
+  table.style.width = total + "px";
+}
+
 function renderTaskTableHead(){
+  endActiveColumnResize();
   const row = document.getElementById("taskTableHeadRow");
   row.innerHTML = "";
   visibleColumnOrder().forEach(key => {
@@ -1871,6 +1892,7 @@ function renderTaskTableHead(){
       resizer.addEventListener("mousedown", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        endActiveColumnResize();
         const startX = e.clientX;
         const startWidth = taskColWidths[key] || 140;
         document.body.style.cursor = "col-resize";
@@ -1878,15 +1900,23 @@ function renderTaskTableHead(){
           const newWidth = Math.max(60, startWidth + (ev.clientX - startX));
           taskColWidths[key] = newWidth;
           th.style.width = newWidth + "px";
+          updateTaskTableWidth();
         }
-        function onUp(){
+        function cleanup(){
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
+          document.removeEventListener("mouseleave", onUp);
           document.body.style.cursor = "";
+        }
+        function onUp(){
+          cleanup();
+          activeColumnResize = null;
           saveTaskColWidths();
         }
         document.addEventListener("mousemove", onMove);
         document.addEventListener("mouseup", onUp);
+        document.addEventListener("mouseleave", onUp);
+        activeColumnResize = { cleanup };
       });
       th.appendChild(resizer);
 
@@ -1913,6 +1943,7 @@ function renderTaskTableHead(){
     row.appendChild(th);
   });
   row.appendChild(document.createElement("th"));
+  updateTaskTableWidth();
 }
 
 function renderTaskColumnsMenu(){
@@ -1938,6 +1969,24 @@ function renderTaskColumnsMenu(){
     label.appendChild(document.createTextNode(" " + col.label));
     menu.appendChild(label);
   });
+
+  const resetBtn = document.createElement("button");
+  resetBtn.type = "button";
+  resetBtn.className = "col-menu-reset";
+  resetBtn.textContent = "↺ Restaurar padrão";
+  resetBtn.addEventListener("click", () => {
+    endActiveColumnResize();
+    taskColOrder = DEFAULT_COL_ORDER.slice();
+    taskColWidths = Object.assign({}, DEFAULT_COL_WIDTHS);
+    taskColVisibility = {};
+    DEFAULT_COL_ORDER.forEach(k => taskColVisibility[k] = true);
+    saveTaskColOrder();
+    saveTaskColWidths();
+    saveTaskColVisibility();
+    renderTasks();
+    renderTaskColumnsMenu();
+  });
+  menu.appendChild(resetBtn);
 }
 document.getElementById("taskColumnsBtn").addEventListener("click", (e) => {
   e.stopPropagation();
