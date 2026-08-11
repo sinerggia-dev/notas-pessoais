@@ -262,7 +262,6 @@
     margin-top:4px;padding:8px 8px 2px;font-size:12px;color:var(--accent);cursor:pointer;
   }
   .col-menu-reset:hover{color:var(--accent-hover);}
-  #taskColumnsMenu{min-width:190px;}
   #statusFilterSelect, #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
     padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
   }
@@ -534,11 +533,7 @@
         <div id="taskViewToggle">
           <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
           <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
-          <div class="col-menu-wrap">
-            <button type="button" id="taskColumnsBtn" class="secondary-btn">🧱 Colunas</button>
-            <div id="taskColumnsMenu" class="user-menu" hidden></div>
-          </div>
-          <button type="button" id="exportTasksBtn" class="secondary-btn">⬇️ Exportar Excel</button>
+          <button type="button" id="exportTasksBtn" class="secondary-btn">⬇️ Exportar Tabela</button>
         </div>
         <div id="taskFilterBar">
           <div id="taskStatusPills"></div>
@@ -642,6 +637,10 @@
       <button type="submit">Salvar</button>
     </form>
     <div id="ownerContactMsg"></div>
+
+    <h3>Gestão de colunas (Banco de Tarefas)</h3>
+    <div class="sub">Escolha quais colunas aparecem na tabela de tarefas (vale pra todos os bancos de tarefas).</div>
+    <div id="adminColumnsMenu"></div>
 
     <h3>IDs técnicos (temporário — pra corrigir acesso de convidados)</h3>
     <div id="ownerIdsBox" style="font-size:11px;color:var(--text-light);line-height:1.6;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:8px;padding:8px 10px;user-select:all;">
@@ -1985,7 +1984,8 @@ function renderTaskTableHead(){
 }
 
 function renderTaskColumnsMenu(){
-  const menu = document.getElementById("taskColumnsMenu");
+  const menu = document.getElementById("adminColumnsMenu");
+  if (!menu) return;
   menu.innerHTML = "";
   TASK_COLUMNS_DEF.forEach(col => {
     const label = document.createElement("label");
@@ -2026,19 +2026,6 @@ function renderTaskColumnsMenu(){
   });
   menu.appendChild(resetBtn);
 }
-document.getElementById("taskColumnsBtn").addEventListener("click", (e) => {
-  e.stopPropagation();
-  renderTaskColumnsMenu();
-  const menu = document.getElementById("taskColumnsMenu");
-  menu.hidden = !menu.hidden;
-});
-document.addEventListener("click", (e) => {
-  const menu = document.getElementById("taskColumnsMenu");
-  if (menu && !menu.hidden && !menu.contains(e.target) && !e.target.closest("#taskColumnsBtn")){
-    menu.hidden = true;
-  }
-});
-
 /* ---------- Filtros extras (empresa / responsável / busca) ---------- */
 function populateExtraFilters(allTasks){
   const companySel = document.getElementById("companyFilterSelect");
@@ -2884,6 +2871,7 @@ async function openAdminPanel(){
   document.getElementById("ownerApiKey").value = (usersData.donoContato && usersData.donoContato.whatsappApiKey) || "";
   document.getElementById("ownerDriveIdText").textContent = ownerDriveIdDebug || "(não disponível)";
   document.getElementById("ownerFolderIdText").textContent = workspaceFolderId || "(não disponível)";
+  renderTaskColumnsMenu();
   renderAdminUserList();
 }
 function closeAdminPanel(){
