@@ -79,6 +79,12 @@
   #newPageBtn:hover{background:var(--hover);border-color:var(--accent);}
   #newPageBtn:focus{outline:none;box-shadow:0 0 0 3px var(--accent-light);}
   #newPageBtn[hidden]{display:none;}
+  #exportTasksBtn{
+    margin:0;padding:8px 11px;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
+    cursor:pointer;font-size:13px;color:var(--text);font-weight:500;text-align:left;
+    box-shadow:var(--shadow-sm);transition:border-color .15s ease, background .15s ease;
+  }
+  #exportTasksBtn:hover{background:var(--hover);border-color:var(--accent);}
 
   /* ---------- Usuário (avatar + menu) ---------- */
   #userBlock{position:relative;margin-bottom:12px;}
@@ -225,6 +231,15 @@
   #tasksView{display:none;}
   #taskStatusPills{display:flex;gap:6px;}
   #taskFilterBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  #taskStatsBar{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px;}
+  .mini-stat-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .mini-stat-group-label{font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;margin-right:2px;}
+  .mini-stat-items{display:flex;gap:6px;flex-wrap:wrap;}
+  .mini-stat{
+    background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:12px;
+    padding:3px 10px;font-size:11px;color:var(--text);white-space:nowrap;
+  }
+  .mini-stat b{margin-right:4px;color:var(--accent-hover);}
   #taskFilterTabs{display:flex;gap:6px;flex-wrap:wrap;}
   .task-filter-tab{
     background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:5px 12px;
@@ -533,7 +548,7 @@
         <div id="taskViewToggle">
           <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
           <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
-          <button type="button" id="exportTasksBtn" class="secondary-btn">⬇️ Exportar Tabela</button>
+          <button type="button" id="exportTasksBtn">⬇️ Exportar Tabela</button>
         </div>
         <div id="taskFilterBar">
           <div id="taskStatusPills"></div>
@@ -542,6 +557,7 @@
           <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
           <input type="text" id="taskSearchInput" placeholder="Buscar...">
         </div>
+        <div id="taskStatsBar"></div>
         <div id="taskTableWrap">
           <table id="taskTable">
             <thead>
@@ -2112,12 +2128,46 @@ document.getElementById("kanbanViewBtn").addEventListener("click", () => {
   renderTasks();
 });
 
+function renderTaskStats(allTasks){
+  const bar = document.getElementById("taskStatsBar");
+  if (!bar) return;
+  const base = allTasks.filter(taskMatchesCommonFilters);
+
+  const statusCounts = {};
+  TASK_STATUS_TABS.slice(1).forEach(s => statusCounts[s] = 0);
+  base.forEach(t => { statusCounts[t.status] = (statusCounts[t.status] || 0) + 1; });
+
+  const priorityCounts = { "Alta": 0, "Média": 0, "Baixa": 0 };
+  base.forEach(t => { const p = t.priority || "Média"; priorityCounts[p] = (priorityCounts[p] || 0) + 1; });
+
+  const assigneeCounts = {};
+  base.forEach(t => {
+    const name = t.assignee ? firstNameFromEmail(t.assignee) : "Sem responsável";
+    assigneeCounts[name] = (assigneeCounts[name] || 0) + 1;
+  });
+  const assigneeEntries = Object.entries(assigneeCounts).sort((a, b) => b[1] - a[1]);
+
+  function group(title, entries){
+    if (!entries.length) return "";
+    const items = entries.map(([label, count]) =>
+      `<span class="mini-stat"><b>${count}</b>${escapeHtml(label)}</span>`
+    ).join("");
+    return `<div class="mini-stat-group"><span class="mini-stat-group-label">${escapeHtml(title)}</span><div class="mini-stat-items">${items}</div></div>`;
+  }
+
+  bar.innerHTML =
+    group("Status", Object.entries(statusCounts)) +
+    group("Prioridade", Object.entries(priorityCounts)) +
+    group("Responsável", assigneeEntries);
+}
+
 function renderTasks(){
   const content = pageContentCache[currentPageId];
   document.getElementById("addTaskBtn").hidden = !canEdit;
   if (!content || !content.tasks) return;
   const assigneeOptions = getAssigneeOptions();
   populateExtraFilters(content.tasks);
+  renderTaskStats(content.tasks);
 
   if (taskViewMode === "kanban"){
     renderKanban(content, assigneeOptions);
