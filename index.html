@@ -223,7 +223,7 @@
 
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
-  #taskStatusPills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  #taskStatusPills{display:flex;gap:6px;}
   #taskFilterBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
   #taskFilterTabs{display:flex;gap:6px;flex-wrap:wrap;}
   .task-filter-tab{
@@ -540,8 +540,8 @@
           </div>
           <button type="button" id="exportTasksBtn" class="secondary-btn">⬇️ Exportar Excel</button>
         </div>
-        <div id="taskStatusPills"></div>
         <div id="taskFilterBar">
+          <div id="taskStatusPills"></div>
           <div id="taskFilterTabs"></div>
           <select id="companyFilterSelect"><option value="Todas">Todas as empresas</option></select>
           <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
