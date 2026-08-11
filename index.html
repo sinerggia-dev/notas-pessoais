@@ -262,7 +262,7 @@
   }
   .col-menu-reset:hover{color:var(--accent-hover);}
   #taskColumnsMenu{min-width:190px;}
-  #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
+  #statusFilterSelect, #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
     padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
   }
   #taskSearchInput{width:170px;flex:none;}
@@ -2035,13 +2035,20 @@ function renderTaskFilterTabs(){
   const wrap = document.getElementById("taskFilterTabs");
   const tabs = ["Todas", "A fazer", "Em andamento", "Concluído"];
   wrap.innerHTML = "";
+  const sel = document.createElement("select");
+  sel.id = "statusFilterSelect";
   tabs.forEach(t => {
-    const btn = document.createElement("button");
-    btn.className = "task-filter-tab" + (t === taskFilter ? " active" : "");
-    btn.textContent = t;
-    btn.onclick = () => { taskFilter = t; renderTaskFilterTabs(); renderTasks(); };
-    wrap.appendChild(btn);
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t === "Todas" ? "Todos os status" : t;
+    if (t === taskFilter) opt.selected = true;
+    sel.appendChild(opt);
   });
+  sel.addEventListener("change", () => {
+    taskFilter = sel.value;
+    renderTasks();
+  });
+  wrap.appendChild(sel);
 }
 
 function updateTaskViewToggle(){
