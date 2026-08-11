@@ -231,13 +231,14 @@
   #tasksView{display:none;}
   #taskStatusPills{display:flex;gap:6px;}
   #taskFilterBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-  #taskStatsBar{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
-  .mini-stat-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .mini-stat-group-label{font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;margin-right:2px;}
-  .mini-stat-items{display:flex;gap:6px;flex-wrap:wrap;}
+  #sidebarTaskStats{display:none;padding:12px 14px;border-top:1px solid var(--sidebar-border);}
+  .mini-stat-group{margin-bottom:10px;}
+  .mini-stat-group:last-child{margin-bottom:0;}
+  .mini-stat-group-label{display:block;font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px;}
+  .mini-stat-items{display:flex;gap:5px;flex-wrap:wrap;}
   .mini-stat{
-    background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:12px;
-    padding:3px 10px;font-size:11px;color:var(--text);white-space:nowrap;
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:12px;
+    padding:3px 8px;font-size:11px;color:var(--text);white-space:nowrap;
   }
   .mini-stat b{margin-right:4px;color:var(--accent-hover);}
   #taskFilterTabs{display:flex;gap:6px;flex-wrap:wrap;}
@@ -527,6 +528,7 @@
     </div>
     <button id="newPageBtn">+ Nova página</button>
     <div id="pageTree"></div>
+    <div id="sidebarTaskStats"></div>
     <div id="sidebarFooter">
       <span id="statusText"></span>
     </div>
@@ -557,7 +559,6 @@
           <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
           <input type="text" id="taskSearchInput" placeholder="Buscar...">
         </div>
-        <div id="taskStatsBar"></div>
         <div id="taskTableWrap">
           <table id="taskTable">
             <thead>
@@ -1127,6 +1128,7 @@ function showEmptyState(){
   document.getElementById("emptyState").style.display = "flex";
   document.getElementById("pageView").style.display = "none";
   document.getElementById("emptyCreateBtn").hidden = !canEdit;
+  document.getElementById("sidebarTaskStats").style.display = "none";
 }
 
 function highlightActivePage(){
@@ -1278,6 +1280,7 @@ async function renderEditor(){
   document.getElementById("tasksView").style.display = kind === "tarefas" ? "block" : "none";
   document.getElementById("calendarView").style.display = kind === "calendario" ? "block" : "none";
   document.getElementById("dashboardView").style.display = kind === "dashboard" ? "block" : "none";
+  document.getElementById("sidebarTaskStats").style.display = kind === "tarefas" ? "block" : "none";
   document.getElementById("pageView").classList.toggle("wide", kind !== "notas");
 
   if (kind === "tarefas"){
@@ -2129,7 +2132,7 @@ document.getElementById("kanbanViewBtn").addEventListener("click", () => {
 });
 
 function renderTaskStats(allTasks){
-  const bar = document.getElementById("taskStatsBar");
+  const bar = document.getElementById("sidebarTaskStats");
   if (!bar) return;
   const base = allTasks.filter(taskMatchesCommonFilters);
 
