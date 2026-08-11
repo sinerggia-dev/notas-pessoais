@@ -540,7 +540,6 @@
         </div>
         <div id="taskTableWrap">
           <table id="taskTable">
-            <colgroup id="taskColgroup"></colgroup>
             <thead>
               <tr id="taskTableHeadRow"></tr>
             </thead>
@@ -1827,12 +1826,6 @@ function visibleColumnOrder(){
   return taskColOrder.filter(k => taskColVisibility[k] !== false);
 }
 
-function renderTaskColgroup(){
-  const colgroup = document.getElementById("taskColgroup");
-  colgroup.innerHTML = visibleColumnOrder().map(k => `<col style="width:${taskColWidths[k] || 140}px">`).join("")
-    + `<col style="width:36px">`;
-}
-
 function renderTaskTableHead(){
   const row = document.getElementById("taskTableHeadRow");
   row.innerHTML = "";
@@ -1841,6 +1834,7 @@ function renderTaskTableHead(){
     const th = document.createElement("th");
     th.dataset.key = key;
     th.draggable = true;
+    th.style.width = (taskColWidths[key] || 140) + "px";
 
     const label = document.createElement("span");
     label.className = "col-label";
@@ -1879,13 +1873,16 @@ function renderTaskTableHead(){
         e.stopPropagation();
         const startX = e.clientX;
         const startWidth = taskColWidths[key] || 140;
+        document.body.style.cursor = "col-resize";
         function onMove(ev){
-          taskColWidths[key] = Math.max(60, startWidth + (ev.clientX - startX));
-          renderTaskColgroup();
+          const newWidth = Math.max(60, startWidth + (ev.clientX - startX));
+          taskColWidths[key] = newWidth;
+          th.style.width = newWidth + "px";
         }
         function onUp(){
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
+          document.body.style.cursor = "";
           saveTaskColWidths();
         }
         document.addEventListener("mousemove", onMove);
@@ -2028,7 +2025,6 @@ function renderTasks(){
     return;
   }
 
-  renderTaskColgroup();
   renderTaskTableHead();
 
   const tbody = document.getElementById("taskTableBody");
