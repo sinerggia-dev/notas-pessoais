@@ -232,7 +232,6 @@
   #tasksView{display:none;}
   #taskStatusRow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;}
   #taskStatusPills{display:flex;gap:6px;flex-wrap:wrap;}
-  #taskFilterBar{display:contents;}
   .filter-field{display:flex;flex-direction:column;gap:4px;}
   .filter-field-label{font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
   #sidebarTaskStats{display:none;padding:12px 14px;border-top:1px solid var(--sidebar-border);}
@@ -346,7 +345,7 @@
   .kanban-card-dates{font-size:10px;color:var(--text-light);margin-bottom:6px;}
 
   #taskToolbarRow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:14px;}
-  #taskViewToggle{display:contents;}
+  .toolbar-dragging{opacity:.4;}
   .view-toggle-btn{
     display:inline-flex;align-items:center;height:28px;box-sizing:border-box;
     background:#fff;border:1px solid var(--sidebar-border);border-radius:6px;padding:0 10px;
@@ -529,7 +528,7 @@
   /* ---------- Impressão (respeita os filtros aplicados no Banco de Tarefas) ---------- */
   @media print{
     #mobileMenuBtn, #sidebarOverlay, #sidebar,
-    #taskViewToggle, #taskFilterBar, #taskStatusRow, #addBlockBtn, #readOnlyBanner,
+    #taskToolbarRow, #taskStatusRow, #addBlockBtn, #readOnlyBanner,
     .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td,
     #adminOverlay, #eventOverlay, #passwordOverlay, #selectionToolbar, #slashMenu, #kindMenu{
       display:none !important;
@@ -599,24 +598,21 @@
       <div id="tasksView">
         <div id="printFiltersSummary"></div>
         <div id="taskToolbarRow">
-        <div id="taskViewToggle">
-          <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
-          <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
-        </div>
-        <div id="taskFilterBar">
-          <div class="filter-field">
+          <button id="tableViewBtn" class="view-toggle-btn active" data-tkey="tableView">☰ Tabela</button>
+          <button id="kanbanViewBtn" class="view-toggle-btn" data-tkey="kanbanView">▦ Kanban</button>
+          <div class="filter-field" data-tkey="status">
             <label class="filter-field-label">Status</label>
             <div id="taskFilterTabs"></div>
           </div>
-          <div class="filter-field">
+          <div class="filter-field" data-tkey="company">
             <label class="filter-field-label">Empresa</label>
             <div class="filter-control-wrap"><select id="companyFilterSelect"><option value="Todas">Todas</option></select></div>
           </div>
-          <div class="filter-field">
+          <div class="filter-field" data-tkey="assignee">
             <label class="filter-field-label">Responsável</label>
             <div class="filter-control-wrap"><select id="assigneeFilterSelect"><option value="Todos">Todos</option></select></div>
           </div>
-          <div class="filter-field">
+          <div class="filter-field" data-tkey="due">
             <label class="filter-field-label">Vencimento</label>
             <div id="dueFilterWrap">
               <div class="filter-control-wrap"><input type="date" id="dueFromFilter" title="Vencimento a partir de"></div>
@@ -624,14 +620,13 @@
               <div class="filter-control-wrap"><input type="date" id="dueToFilter" title="Vencimento até"></div>
             </div>
           </div>
-          <div class="filter-field">
+          <div class="filter-field" data-tkey="search">
             <label class="filter-field-label">Buscar</label>
             <div class="filter-control-wrap"><input type="text" id="taskSearchInput" placeholder="Título ou empresa..."></div>
           </div>
-          <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
-          <button type="button" id="exportTasksBtn">⬇️ Exportar Tabela</button>
-          <button type="button" id="printTasksBtn">🖨️ Imprimir</button>
-        </div>
+          <button type="button" id="clearFiltersBtn" data-tkey="clear">✕ Limpar filtros</button>
+          <button type="button" id="exportTasksBtn" data-tkey="export">⬇️ Exportar</button>
+          <button type="button" id="printTasksBtn" data-tkey="print">🖨️ Imprimir</button>
         </div>
         <div id="taskStatusRow">
           <div id="taskStatusPills"></div>
@@ -1362,7 +1357,10 @@ function makeFieldResizable(wrapEl, controlEl, key, minWidth){
   if (filterFieldWidths[key]) controlEl.style.width = filterFieldWidths[key] + "px";
   const resizer = document.createElement("div");
   resizer.className = "field-resizer";
+  resizer.draggable = false;
+  resizer.addEventListener("dragstart", (e) => { e.preventDefault(); e.stopPropagation(); });
   resizer.addEventListener("mousedown", (e) => {
+    e.stopPropagation();
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = controlEl.getBoundingClientRect().width;
@@ -1383,6 +1381,62 @@ function makeFieldResizable(wrapEl, controlEl, key, minWidth){
   });
   wrapEl.appendChild(resizer);
 }
+
+/* ---------- Ordem ajustável da barra de ferramentas (arrastar pra reordenar) ---------- */
+const DEFAULT_TOOLBAR_ORDER = ["tableView", "kanbanView", "status", "company", "assignee", "due", "search", "clear", "export", "print"];
+let toolbarOrder = DEFAULT_TOOLBAR_ORDER.slice();
+(function loadToolbarOrder(){
+  try{
+    const saved = JSON.parse(localStorage.getItem("np_task_toolbar_order_v1"));
+    if (Array.isArray(saved) && saved.length){
+      const kept = saved.filter(k => DEFAULT_TOOLBAR_ORDER.includes(k));
+      const missing = DEFAULT_TOOLBAR_ORDER.filter(k => !kept.includes(k));
+      toolbarOrder = kept.concat(missing);
+    }
+  }catch(e){}
+})();
+function saveToolbarOrder(){ localStorage.setItem("np_task_toolbar_order_v1", JSON.stringify(toolbarOrder)); }
+
+function applyToolbarOrder(){
+  const row = document.getElementById("taskToolbarRow");
+  if (!row) return;
+  toolbarOrder.forEach(key => {
+    const el = row.querySelector(`[data-tkey="${key}"]`);
+    if (el) row.appendChild(el);
+  });
+}
+
+function initToolbarDragReorder(){
+  const row = document.getElementById("taskToolbarRow");
+  if (!row) return;
+  Array.from(row.children).forEach(child => {
+    child.draggable = true;
+    child.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", child.dataset.tkey);
+      child.classList.add("toolbar-dragging");
+    });
+    child.addEventListener("dragend", () => child.classList.remove("toolbar-dragging"));
+    child.addEventListener("dragover", (e) => e.preventDefault());
+    child.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const draggedKey = e.dataTransfer.getData("text/plain");
+      const targetKey = child.dataset.tkey;
+      if (!draggedKey || draggedKey === targetKey || !DEFAULT_TOOLBAR_ORDER.includes(draggedKey)) return;
+      const order = toolbarOrder.slice();
+      const from = order.indexOf(draggedKey);
+      const to = order.indexOf(targetKey);
+      if (from < 0 || to < 0) return;
+      order.splice(from, 1);
+      order.splice(to, 0, draggedKey);
+      toolbarOrder = order;
+      saveToolbarOrder();
+      applyToolbarOrder();
+    });
+  });
+}
+applyToolbarOrder();
+initToolbarDragReorder();
+
 let calendarYear = null;
 let calendarMonth = null;
 let calendarTasksByDate = {};
