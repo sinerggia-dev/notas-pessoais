@@ -230,7 +230,7 @@
 
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
-  #taskStatusPills{display:flex;gap:6px;}
+  #taskStatusPills{display:flex;gap:6px;margin-bottom:14px;}
   #taskFilterBar{display:contents;}
   .filter-field{display:flex;flex-direction:column;gap:4px;}
   .filter-field-label{font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
@@ -516,7 +516,7 @@
   /* ---------- Impressão (respeita os filtros aplicados no Banco de Tarefas) ---------- */
   @media print{
     #mobileMenuBtn, #sidebarOverlay, #sidebar,
-    #taskViewToggle, #taskFilterBar, #addTaskBtn, #addBlockBtn, #readOnlyBanner,
+    #taskViewToggle, #taskFilterBar, #taskStatusPills, #addTaskBtn, #addBlockBtn, #readOnlyBanner,
     .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td,
     #adminOverlay, #eventOverlay, #passwordOverlay, #selectionToolbar, #slashMenu, #kindMenu{
       display:none !important;
@@ -593,7 +593,6 @@
           <button type="button" id="printTasksBtn">🖨️ Imprimir</button>
         </div>
         <div id="taskFilterBar">
-          <div id="taskStatusPills"></div>
           <div class="filter-field">
             <label class="filter-field-label">Status</label>
             <div id="taskFilterTabs"></div>
@@ -621,6 +620,7 @@
           <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
         </div>
         </div>
+        <div id="taskStatusPills"></div>
         <div id="taskTableWrap">
           <table id="taskTable">
             <thead>
