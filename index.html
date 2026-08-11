@@ -697,9 +697,10 @@ const OWNER_EMAIL = "natanael.silva@sinerggia.com.br";
 const FOLDER_NAME = "Notas Pessoais - Dados";
 const INDEX_FILENAME = "_indice.json";
 const USERS_FILENAME = "_usuarios.json";
-// Endereço fixo da pasta compartilhada (preenchido depois que o dono confirma os IDs — ver painel Administração)
-const OWNER_DRIVE_ID = "";
-const OWNER_FOLDER_ID = "";
+// Endereço fixo da pasta compartilhada — evita depender de "compartilhado comigo" do Graph,
+// que pode não estar atualizado pra quem acabou de ser convidado.
+const OWNER_DRIVE_ID = "b!lTwfpJvVJEOzjHLovSZS9lBvQQL9XqBPnLln3VF0a0bl1y8HbKerRarUr1Mvw5Iu";
+const OWNER_FOLDER_ID = "013PHIGVJBNDABLZ4SVVBIULS6TYSNQ4HH";
 let ownerDriveIdDebug = "";
 
 /* ==========================================================================
