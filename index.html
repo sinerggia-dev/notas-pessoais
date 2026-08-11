@@ -80,11 +80,10 @@
   #newPageBtn:focus{outline:none;box-shadow:0 0 0 3px var(--accent-light);}
   #newPageBtn[hidden]{display:none;}
   #exportTasksBtn, #printTasksBtn{
-    margin:0;padding:8px 11px;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
-    cursor:pointer;font-size:13px;color:var(--text);font-weight:500;text-align:left;
-    box-shadow:var(--shadow-sm);transition:border-color .15s ease, background .15s ease;
+    margin:0;padding:6px 12px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;
+    cursor:pointer;font-size:12px;color:var(--text-light);transition:background .12s ease, color .12s ease;
   }
-  #exportTasksBtn:hover, #printTasksBtn:hover{background:var(--hover);border-color:var(--accent);}
+  #exportTasksBtn:hover, #printTasksBtn:hover{background:var(--hover);color:var(--text);}
   #printFiltersSummary{display:none;}
 
   /* ---------- Usuário (avatar + menu) ---------- */
@@ -289,16 +288,16 @@
   }
   .col-menu-reset:hover{color:var(--accent-hover);}
   #statusFilterSelect, #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
-    padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
+    padding:6px 12px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
   }
   #taskSearchInput{width:170px;flex:none;}
   #dueFilterWrap{display:flex;align-items:center;gap:4px;}
   .due-filter-sep{color:var(--text-light);font-size:11px;}
   #dueFromFilter, #dueToFilter{
-    padding:5px 6px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;width:128px;
+    padding:6px 8px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;width:124px;
   }
   #clearFiltersBtn{
-    background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:6px 12px;
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:6px 12px;
     font-size:12px;cursor:pointer;color:var(--text-light);white-space:nowrap;
   }
   #clearFiltersBtn:hover{background:var(--hover);color:var(--text);border-color:var(--accent);}
@@ -589,8 +588,6 @@
         <div id="taskViewToggle">
           <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
           <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
-          <button type="button" id="exportTasksBtn">⬇️ Exportar Tabela</button>
-          <button type="button" id="printTasksBtn">🖨️ Imprimir</button>
         </div>
         <div id="taskFilterBar">
           <div class="filter-field">
@@ -618,6 +615,8 @@
             <input type="text" id="taskSearchInput" placeholder="Título ou empresa...">
           </div>
           <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
+          <button type="button" id="exportTasksBtn">⬇️ Exportar Tabela</button>
+          <button type="button" id="printTasksBtn">🖨️ Imprimir</button>
         </div>
         </div>
         <div id="taskStatusPills"></div>
