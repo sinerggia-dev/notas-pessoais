@@ -399,7 +399,8 @@
 
   /* ---------- Dashboard ---------- */
   #dashboardView{display:none;}
-  #dashboardStats{display:flex;gap:12px;margin-bottom:24px;}
+  #dashboardStats, #dashboardUserStats{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;}
+  #dashboardUserStats .dash-stat{flex:0 1 140px;}
   .dash-stat{flex:1;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:8px;padding:14px;text-align:center;}
   .dash-stat-num{display:block;font-size:26px;font-weight:700;}
   .dash-stat-label{display:block;font-size:12px;color:var(--text-light);margin-top:2px;}
@@ -581,6 +582,8 @@
       </div>
       <div id="dashboardView">
         <div id="dashboardStats"></div>
+        <h3 class="dash-section-title">Tarefas por responsável</h3>
+        <div id="dashboardUserStats"></div>
         <h3 class="dash-section-title">Tarefas com vencimento próximo</h3>
         <div id="dashboardUpcomingTasks"></div>
         <h3 class="dash-section-title">Próximos eventos</h3>
@@ -2554,6 +2557,21 @@ async function renderDashboard(){
     <div class="dash-stat"><span class="dash-stat-num">${counts["A fazer"]}</span><span class="dash-stat-label">A fazer</span></div>
     <div class="dash-stat"><span class="dash-stat-num">${counts["Em andamento"]}</span><span class="dash-stat-label">Em andamento</span></div>
     <div class="dash-stat"><span class="dash-stat-num">${counts["Concluído"]}</span><span class="dash-stat-label">Concluído</span></div>`;
+
+  const userCounts = {};
+  tasksFlat.forEach(({ task }) => {
+    const person = task.assignee ? firstNameFromEmail(task.assignee) : "Não atribuído";
+    userCounts[person] = (userCounts[person] || 0) + 1;
+  });
+  const userStatsEl = document.getElementById("dashboardUserStats");
+  const userNames = Object.keys(userCounts).sort((a, b) => userCounts[b] - userCounts[a]);
+  if (!userNames.length){
+    userStatsEl.innerHTML = '<div class="dash-empty">Nenhuma tarefa cadastrada ainda.</div>';
+  } else {
+    userStatsEl.innerHTML = userNames.map(name => `
+      <div class="dash-stat"><span class="dash-stat-num">${userCounts[name]}</span><span class="dash-stat-label">${escapeHtml(name)}</span></div>`
+    ).join("");
+  }
 
   const upcomingTasks = tasksFlat
     .filter(({ task }) => task.dueDate && task.status !== "Concluído" && task.dueDate >= todayStr)
