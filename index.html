@@ -286,6 +286,11 @@
     padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
   }
   #taskSearchInput{width:170px;flex:none;}
+  #clearFiltersBtn{
+    background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:6px 12px;
+    font-size:12px;cursor:pointer;color:var(--text-light);white-space:nowrap;
+  }
+  #clearFiltersBtn:hover{background:var(--hover);color:var(--text);border-color:var(--accent);}
   .task-title{outline:none;min-width:0;white-space:normal;overflow-wrap:break-word;}
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
   .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
@@ -562,6 +567,7 @@
           <select id="companyFilterSelect"><option value="Todas">Todas as empresas</option></select>
           <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
           <input type="text" id="taskSearchInput" placeholder="Buscar...">
+          <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
         </div>
         <div id="taskTableWrap">
           <table id="taskTable">
@@ -2090,6 +2096,16 @@ document.getElementById("taskSearchInput").addEventListener("input", (e) => {
   taskSearchText = e.target.value;
   renderTasks();
 });
+document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+  taskFilter = "Todas";
+  taskCompanyFilter = "Todas";
+  taskAssigneeFilter = "Todos";
+  taskPriorityFilter = "Todas";
+  taskSearchText = "";
+  document.getElementById("taskSearchInput").value = "";
+  renderTaskFilterTabs();
+  renderTasks();
+});
 
 const TASK_STATUS_TABS = ["Todas", "A fazer", "Em andamento", "Concluído"];
 
@@ -2610,16 +2626,18 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
   if (!content) return;
   if (!content.tasks) content.tasks = [];
   const now = new Date().toISOString();
-  content.tasks.push({
+  content.tasks.unshift({
     id: genId("t"), title: "", status: "A fazer", priority: "Média", assignee: "", company: "",
     createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
+  // Sem ordenação de coluna ativa, pra garantir que a tarefa recém-criada apareça no topo.
+  taskSortKey = null;
   renderTasks();
   scheduleSavePage(currentPageId);
   setTimeout(() => {
     const rows = document.querySelectorAll("#taskTableBody tr");
-    const last = rows[rows.length - 1];
-    if (last) last.querySelector(".task-title").focus();
+    const first = rows[0];
+    if (first) first.querySelector(".task-title").focus();
   }, 30);
 });
 
