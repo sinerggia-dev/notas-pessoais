@@ -253,7 +253,8 @@
   .task-filter-tab.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent-light);font-weight:600;}
   #taskTable{width:auto;table-layout:fixed;border-collapse:collapse;font-size:13px;}
   #taskTable th{
-    position:relative;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
+    position:sticky;top:0;background:#fff;z-index:3;
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
     padding:8px 20px 8px 4px;border-bottom:1px solid var(--sidebar-border);white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none;
   }
@@ -476,7 +477,7 @@
   #adminMsg{font-size:12px;margin-top:8px;min-height:16px;}
   #adminMsg.err{color:var(--danger);}
   #adminMsg.ok{color:#2f8132;}
-  #taskTableWrap{overflow-x:auto;}
+  #taskTableWrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 260px);}
 
   /* ---------- Menu mobile (hambúrguer) ---------- */
   #mobileMenuBtn{
