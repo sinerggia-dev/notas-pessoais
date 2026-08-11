@@ -231,7 +231,7 @@
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
   #taskStatusPills{display:flex;gap:6px;}
-  #taskFilterBar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  #taskFilterBar{display:contents;}
   .filter-field{display:flex;flex-direction:column;gap:4px;}
   .filter-field-label{font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
   #sidebarTaskStats{display:none;padding:12px 14px;border-top:1px solid var(--sidebar-border);}
@@ -333,7 +333,8 @@
   .kanban-card-timer{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
   .kanban-card-dates{font-size:10px;color:var(--text-light);margin-bottom:6px;}
 
-  #taskViewToggle{display:flex;gap:6px;margin-bottom:12px;}
+  #taskToolbarRow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:14px;}
+  #taskViewToggle{display:contents;}
   .view-toggle-btn{
     background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:6px 12px;
     font-size:12px;cursor:pointer;color:var(--text-light);transition:background .12s ease, color .12s ease;
@@ -583,13 +584,14 @@
         <button id="addBlockBtn">+ Novo bloco</button>
       </div>
       <div id="tasksView">
+        <div id="printFiltersSummary"></div>
+        <div id="taskToolbarRow">
         <div id="taskViewToggle">
           <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
           <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
           <button type="button" id="exportTasksBtn">⬇️ Exportar Tabela</button>
           <button type="button" id="printTasksBtn">🖨️ Imprimir</button>
         </div>
-        <div id="printFiltersSummary"></div>
         <div id="taskFilterBar">
           <div id="taskStatusPills"></div>
           <div class="filter-field">
@@ -617,6 +619,7 @@
             <input type="text" id="taskSearchInput" placeholder="Título ou empresa...">
           </div>
           <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
+        </div>
         </div>
         <div id="taskTableWrap">
           <table id="taskTable">
