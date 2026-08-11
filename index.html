@@ -241,6 +241,7 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   #taskTable td:first-child, #taskTable th:first-child{padding-left:2px;}
+  #taskTable td.task-title-cell{white-space:normal;overflow:visible;vertical-align:top;}
   .col-label{cursor:pointer;}
   .col-hide-btn{
     position:absolute;top:2px;right:12px;z-index:1;background:none;border:none;color:var(--text-light);
@@ -265,7 +266,7 @@
     padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
   }
   #taskSearchInput{width:170px;flex:none;}
-  .task-title{outline:none;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .task-title{outline:none;min-width:0;white-space:normal;overflow-wrap:break-word;}
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
   .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
@@ -2296,6 +2297,7 @@ function buildTaskSelect(task, field, options, pillClass){
 
 function buildTitleCell(task){
   const td = document.createElement("td");
+  td.className = "task-title-cell";
   const el = document.createElement("div");
   el.className = "task-title";
   el.contentEditable = canEdit ? "true" : "false";
