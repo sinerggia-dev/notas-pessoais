@@ -231,7 +231,9 @@
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
   #taskStatusPills{display:flex;gap:6px;}
-  #taskFilterBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  #taskFilterBar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .filter-field{display:flex;flex-direction:column;gap:4px;}
+  .filter-field-label{font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
   #sidebarTaskStats{display:none;padding:12px 14px;border-top:1px solid var(--sidebar-border);}
   .mini-stat-group{margin-bottom:10px;}
   .mini-stat-group:last-child{margin-bottom:0;}
@@ -289,7 +291,6 @@
   }
   #taskSearchInput{width:170px;flex:none;}
   #dueFilterWrap{display:flex;align-items:center;gap:4px;}
-  .due-filter-label{font-size:11px;color:var(--text-light);white-space:nowrap;}
   .due-filter-sep{color:var(--text-light);font-size:11px;}
   #dueFromFilter, #dueToFilter{
     padding:5px 6px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;width:128px;
@@ -588,16 +589,30 @@
         <div id="printFiltersSummary"></div>
         <div id="taskFilterBar">
           <div id="taskStatusPills"></div>
-          <div id="taskFilterTabs"></div>
-          <select id="companyFilterSelect"><option value="Todas">Todas as empresas</option></select>
-          <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
-          <div id="dueFilterWrap">
-            <span class="due-filter-label">Venc.:</span>
-            <input type="date" id="dueFromFilter" title="Vencimento a partir de">
-            <span class="due-filter-sep">–</span>
-            <input type="date" id="dueToFilter" title="Vencimento até">
+          <div class="filter-field">
+            <label class="filter-field-label">Status</label>
+            <div id="taskFilterTabs"></div>
           </div>
-          <input type="text" id="taskSearchInput" placeholder="Buscar...">
+          <div class="filter-field">
+            <label class="filter-field-label">Empresa</label>
+            <select id="companyFilterSelect"><option value="Todas">Todas</option></select>
+          </div>
+          <div class="filter-field">
+            <label class="filter-field-label">Responsável</label>
+            <select id="assigneeFilterSelect"><option value="Todos">Todos</option></select>
+          </div>
+          <div class="filter-field">
+            <label class="filter-field-label">Vencimento</label>
+            <div id="dueFilterWrap">
+              <input type="date" id="dueFromFilter" title="Vencimento a partir de">
+              <span class="due-filter-sep">–</span>
+              <input type="date" id="dueToFilter" title="Vencimento até">
+            </div>
+          </div>
+          <div class="filter-field">
+            <label class="filter-field-label">Buscar</label>
+            <input type="text" id="taskSearchInput" placeholder="Título ou empresa...">
+          </div>
           <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
         </div>
         <div id="taskTableWrap">
@@ -2101,14 +2116,14 @@ function renderTaskColumnsMenu(){
 function populateExtraFilters(allTasks){
   const companySel = document.getElementById("companyFilterSelect");
   const prevCompany = taskCompanyFilter;
-  companySel.innerHTML = '<option value="Todas">Todas as empresas</option>'
+  companySel.innerHTML = '<option value="Todas">Todas</option>'
     + getCompanyOptions(allTasks).map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   companySel.value = Array.from(companySel.options).some(o => o.value === prevCompany) ? prevCompany : "Todas";
   taskCompanyFilter = companySel.value;
 
   const assigneeSel = document.getElementById("assigneeFilterSelect");
   const prevAssignee = taskAssigneeFilter;
-  assigneeSel.innerHTML = '<option value="Todos">Todos os responsáveis</option>'
+  assigneeSel.innerHTML = '<option value="Todos">Todos</option>'
     + getAssigneeOptions().map(e => `<option value="${escapeHtml(e)}">${escapeHtml(firstNameFromEmail(e))}</option>`).join("");
   if (Array.from(assigneeSel.options).some(o => o.value === prevAssignee)){
     assigneeSel.value = prevAssignee;
@@ -2175,7 +2190,7 @@ function renderTaskFilterTabs(){
   TASK_STATUS_TABS.forEach(t => {
     const opt = document.createElement("option");
     opt.value = t;
-    opt.textContent = t === "Todas" ? "Todos os status" : t;
+    opt.textContent = t === "Todas" ? "Todos" : t;
     if (t === taskFilter) opt.selected = true;
     sel.appendChild(opt);
   });
