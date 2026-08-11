@@ -79,12 +79,13 @@
   #newPageBtn:hover{background:var(--hover);border-color:var(--accent);}
   #newPageBtn:focus{outline:none;box-shadow:0 0 0 3px var(--accent-light);}
   #newPageBtn[hidden]{display:none;}
-  #exportTasksBtn{
+  #exportTasksBtn, #printTasksBtn{
     margin:0;padding:8px 11px;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
     cursor:pointer;font-size:13px;color:var(--text);font-weight:500;text-align:left;
     box-shadow:var(--shadow-sm);transition:border-color .15s ease, background .15s ease;
   }
-  #exportTasksBtn:hover{background:var(--hover);border-color:var(--accent);}
+  #exportTasksBtn:hover, #printTasksBtn:hover{background:var(--hover);border-color:var(--accent);}
+  #printFiltersSummary{display:none;}
 
   /* ---------- Usuário (avatar + menu) ---------- */
   #userBlock{position:relative;margin-bottom:12px;}
@@ -506,6 +507,21 @@
     .cal-event-pill{font-size:9px;padding:1px 3px;}
     #calendarWeekdays{font-size:9px;}
   }
+
+  /* ---------- Impressão (respeita os filtros aplicados no Banco de Tarefas) ---------- */
+  @media print{
+    #mobileMenuBtn, #sidebarOverlay, #sidebar,
+    #taskViewToggle, #taskFilterBar, #addTaskBtn, #addBlockBtn, #readOnlyBanner,
+    .del-task, .col-hide-btn, .col-resizer,
+    #adminOverlay, #eventOverlay, #passwordOverlay, #selectionToolbar, #slashMenu, #kindMenu{
+      display:none !important;
+    }
+    #editor{overflow:visible !important;height:auto !important;}
+    #pageView{max-width:none !important;padding:0 !important;margin:0 !important;}
+    #taskTableWrap{max-height:none !important;overflow:visible !important;}
+    #taskTable th{position:static !important;}
+    #printFiltersSummary{display:block !important;font-size:12px;color:#000;margin-bottom:12px;}
+  }
 </style>
 </head>
 <body>
@@ -567,7 +583,9 @@
           <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
           <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
           <button type="button" id="exportTasksBtn">⬇️ Exportar Tabela</button>
+          <button type="button" id="printTasksBtn">🖨️ Imprimir</button>
         </div>
+        <div id="printFiltersSummary"></div>
         <div id="taskFilterBar">
           <div id="taskStatusPills"></div>
           <div id="taskFilterTabs"></div>
@@ -2319,6 +2337,28 @@ document.getElementById("exportTasksBtn").addEventListener("click", () => {
   const meta = getPageMeta(currentPageId);
   const filename = ((meta && meta.title) || "tarefas").replace(/[^a-z0-9]+/gi, "_") + ".xlsx";
   XLSX.writeFile(wb, filename);
+});
+
+function buildActiveFiltersSummary(){
+  const parts = [];
+  if (taskFilter !== "Todas") parts.push("Status: " + taskFilter);
+  if (taskCompanyFilter !== "Todas") parts.push("Empresa: " + taskCompanyFilter);
+  if (taskAssigneeFilter !== "Todos") parts.push("Responsável: " + (taskAssigneeFilter ? firstNameFromEmail(taskAssigneeFilter) : "Sem responsável"));
+  if (taskPriorityFilter !== "Todas") parts.push("Prioridade: " + taskPriorityFilter);
+  if (taskDueFromFilter || taskDueToFilter){
+    const de = taskDueFromFilter ? formatDateBR(taskDueFromFilter) : "…";
+    const ate = taskDueToFilter ? formatDateBR(taskDueToFilter) : "…";
+    parts.push("Vencimento: " + de + " a " + ate);
+  }
+  if (taskSearchText) parts.push('Busca: "' + taskSearchText + '"');
+  return parts.length ? ("Filtros aplicados — " + parts.join(" · ")) : "Sem filtros aplicados (todas as tarefas)";
+}
+
+document.getElementById("printTasksBtn").addEventListener("click", () => {
+  const meta = getPageMeta(currentPageId);
+  const summaryEl = document.getElementById("printFiltersSummary");
+  summaryEl.textContent = ((meta && meta.title) || "Banco de tarefas") + " — " + buildActiveFiltersSummary();
+  window.print();
 });
 
 function renderKanbanCard(task, assigneeOptions){
