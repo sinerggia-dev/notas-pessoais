@@ -286,6 +286,12 @@
     padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
   }
   #taskSearchInput{width:170px;flex:none;}
+  #dueFilterWrap{display:flex;align-items:center;gap:4px;}
+  .due-filter-label{font-size:11px;color:var(--text-light);white-space:nowrap;}
+  .due-filter-sep{color:var(--text-light);font-size:11px;}
+  #dueFromFilter, #dueToFilter{
+    padding:5px 6px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;width:128px;
+  }
   #clearFiltersBtn{
     background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:6px 12px;
     font-size:12px;cursor:pointer;color:var(--text-light);white-space:nowrap;
@@ -566,6 +572,12 @@
           <div id="taskFilterTabs"></div>
           <select id="companyFilterSelect"><option value="Todas">Todas as empresas</option></select>
           <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
+          <div id="dueFilterWrap">
+            <span class="due-filter-label">Venc.:</span>
+            <input type="date" id="dueFromFilter" title="Vencimento a partir de">
+            <span class="due-filter-sep">–</span>
+            <input type="date" id="dueToFilter" title="Vencimento até">
+          </div>
           <input type="text" id="taskSearchInput" placeholder="Buscar...">
           <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
         </div>
@@ -1272,6 +1284,8 @@ let taskViewMode = "table";
 let taskCompanyFilter = "Todas";
 let taskAssigneeFilter = "Todos";
 let taskPriorityFilter = "Todas";
+let taskDueFromFilter = "";
+let taskDueToFilter = "";
 let taskSearchText = "";
 let taskSortKey = null;
 let taskSortDir = "asc";
@@ -1300,6 +1314,10 @@ async function renderEditor(){
     taskCompanyFilter = "Todas";
     taskAssigneeFilter = "Todos";
     taskPriorityFilter = "Todas";
+    taskDueFromFilter = "";
+    taskDueToFilter = "";
+    document.getElementById("dueFromFilter").value = "";
+    document.getElementById("dueToFilter").value = "";
     taskSearchText = "";
     document.getElementById("taskSearchInput").value = "";
     taskSortKey = null;
@@ -1763,6 +1781,8 @@ function taskMatchesCommonFilters(task){
   if (taskCompanyFilter !== "Todas" && (task.company || "") !== taskCompanyFilter) return false;
   if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
   if (taskPriorityFilter !== "Todas" && (task.priority || "Média") !== taskPriorityFilter) return false;
+  if (taskDueFromFilter && (!task.dueDate || task.dueDate < taskDueFromFilter)) return false;
+  if (taskDueToFilter && (!task.dueDate || task.dueDate > taskDueToFilter)) return false;
   if (taskSearchText){
     const q = taskSearchText.toLowerCase();
     const hay = ((task.title || "") + " " + (task.company || "")).toLowerCase();
@@ -2096,12 +2116,24 @@ document.getElementById("taskSearchInput").addEventListener("input", (e) => {
   taskSearchText = e.target.value;
   renderTasks();
 });
+document.getElementById("dueFromFilter").addEventListener("change", (e) => {
+  taskDueFromFilter = e.target.value;
+  renderTasks();
+});
+document.getElementById("dueToFilter").addEventListener("change", (e) => {
+  taskDueToFilter = e.target.value;
+  renderTasks();
+});
 document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   taskFilter = "Todas";
   taskCompanyFilter = "Todas";
   taskAssigneeFilter = "Todos";
   taskPriorityFilter = "Todas";
+  taskDueFromFilter = "";
+  taskDueToFilter = "";
   taskSearchText = "";
+  document.getElementById("dueFromFilter").value = "";
+  document.getElementById("dueToFilter").value = "";
   document.getElementById("taskSearchInput").value = "";
   renderTaskFilterTabs();
   renderTasks();
