@@ -249,7 +249,15 @@
   .mini-stat.active{background:var(--accent-light);border-color:var(--accent-light);color:var(--accent-hover);font-weight:600;}
   .mini-stat b{margin-right:4px;color:var(--accent-hover);}
   .mini-stat.active b{color:var(--accent-hover);}
-  #taskFilterTabs{display:flex;gap:6px;flex-wrap:wrap;}
+  #taskFilterTabs{position:relative;display:inline-block;}
+  .filter-control-wrap{position:relative;display:inline-block;}
+  .field-resizer{
+    position:absolute;top:0;bottom:0;right:-7px;width:12px;cursor:col-resize;z-index:2;
+  }
+  .field-resizer::after{
+    content:"";position:absolute;top:20%;bottom:20%;left:5px;width:2px;background:var(--sidebar-border);
+  }
+  .field-resizer:hover::after{background:var(--accent);}
   .task-filter-tab{
     background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:4px 10px;
     font-size:11px;cursor:pointer;color:var(--text-light);
@@ -602,23 +610,23 @@
           </div>
           <div class="filter-field">
             <label class="filter-field-label">Empresa</label>
-            <select id="companyFilterSelect"><option value="Todas">Todas</option></select>
+            <div class="filter-control-wrap"><select id="companyFilterSelect"><option value="Todas">Todas</option></select></div>
           </div>
           <div class="filter-field">
             <label class="filter-field-label">Responsável</label>
-            <select id="assigneeFilterSelect"><option value="Todos">Todos</option></select>
+            <div class="filter-control-wrap"><select id="assigneeFilterSelect"><option value="Todos">Todos</option></select></div>
           </div>
           <div class="filter-field">
             <label class="filter-field-label">Vencimento</label>
             <div id="dueFilterWrap">
-              <input type="date" id="dueFromFilter" title="Vencimento a partir de">
+              <div class="filter-control-wrap"><input type="date" id="dueFromFilter" title="Vencimento a partir de"></div>
               <span class="due-filter-sep">–</span>
-              <input type="date" id="dueToFilter" title="Vencimento até">
+              <div class="filter-control-wrap"><input type="date" id="dueToFilter" title="Vencimento até"></div>
             </div>
           </div>
           <div class="filter-field">
             <label class="filter-field-label">Buscar</label>
-            <input type="text" id="taskSearchInput" placeholder="Título ou empresa...">
+            <div class="filter-control-wrap"><input type="text" id="taskSearchInput" placeholder="Título ou empresa..."></div>
           </div>
           <button type="button" id="clearFiltersBtn">✕ Limpar filtros</button>
           <button type="button" id="exportTasksBtn">⬇️ Exportar Tabela</button>
@@ -1337,6 +1345,44 @@ let taskSearchText = "";
 let taskSortKey = null;
 let taskSortDir = "asc";
 let selectedTaskIds = new Set();
+
+/* ---------- Largura ajustável das caixas de filtro (arrastar a bordinha direita) ---------- */
+let filterFieldWidths = {};
+(function loadFilterFieldWidths(){
+  try{
+    const saved = JSON.parse(localStorage.getItem("np_task_filter_widths_v1"));
+    if (saved) filterFieldWidths = saved;
+  }catch(e){}
+})();
+function saveFilterFieldWidths(){
+  localStorage.setItem("np_task_filter_widths_v1", JSON.stringify(filterFieldWidths));
+}
+function makeFieldResizable(wrapEl, controlEl, key, minWidth){
+  if (!wrapEl || !controlEl || wrapEl.querySelector(".field-resizer")) return;
+  if (filterFieldWidths[key]) controlEl.style.width = filterFieldWidths[key] + "px";
+  const resizer = document.createElement("div");
+  resizer.className = "field-resizer";
+  resizer.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = controlEl.getBoundingClientRect().width;
+    document.body.style.cursor = "col-resize";
+    function onMove(ev){
+      const newWidth = Math.max(minWidth || 60, startWidth + (ev.clientX - startX));
+      controlEl.style.width = newWidth + "px";
+    }
+    function onUp(){
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      filterFieldWidths[key] = Math.round(controlEl.getBoundingClientRect().width);
+      saveFilterFieldWidths();
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+  wrapEl.appendChild(resizer);
+}
 let calendarYear = null;
 let calendarMonth = null;
 let calendarTasksByDate = {};
@@ -2200,6 +2246,11 @@ document.getElementById("dueToFilter").addEventListener("change", (e) => {
   taskDueToFilter = e.target.value;
   renderTasks();
 });
+makeFieldResizable(document.getElementById("companyFilterSelect").parentElement, document.getElementById("companyFilterSelect"), "company", 70);
+makeFieldResizable(document.getElementById("assigneeFilterSelect").parentElement, document.getElementById("assigneeFilterSelect"), "assignee", 70);
+makeFieldResizable(document.getElementById("taskSearchInput").parentElement, document.getElementById("taskSearchInput"), "search", 90);
+makeFieldResizable(document.getElementById("dueFromFilter").parentElement, document.getElementById("dueFromFilter"), "dueFrom", 90);
+makeFieldResizable(document.getElementById("dueToFilter").parentElement, document.getElementById("dueToFilter"), "dueTo", 90);
 document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   taskFilter = "Todas";
   taskCompanyFilter = "Todas";
@@ -2238,6 +2289,7 @@ function renderTaskFilterTabs(){
   });
   sel.addEventListener("change", () => setTaskStatusFilter(sel.value));
   wrap.appendChild(sel);
+  makeFieldResizable(wrap, sel, "status", 70);
 
   // Botões (pills) — segunda forma de filtrar, lado a lado com o dropdown
   const pillsWrap = document.getElementById("taskStatusPills");
