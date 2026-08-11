@@ -640,6 +640,12 @@
       <button type="submit">Salvar</button>
     </form>
     <div id="ownerContactMsg"></div>
+
+    <h3>IDs técnicos (temporário — pra corrigir acesso de convidados)</h3>
+    <div id="ownerIdsBox" style="font-size:11px;color:var(--text-light);line-height:1.6;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:8px;padding:8px 10px;user-select:all;">
+      Drive ID: <span id="ownerDriveIdText">carregando…</span><br>
+      Folder ID: <span id="ownerFolderIdText">carregando…</span>
+    </div>
   </div>
 </div>
 
@@ -691,6 +697,10 @@ const OWNER_EMAIL = "natanael.silva@sinerggia.com.br";
 const FOLDER_NAME = "Notas Pessoais - Dados";
 const INDEX_FILENAME = "_indice.json";
 const USERS_FILENAME = "_usuarios.json";
+// Endereço fixo da pasta compartilhada (preenchido depois que o dono confirma os IDs — ver painel Administração)
+const OWNER_DRIVE_ID = "";
+const OWNER_FOLDER_ID = "";
+let ownerDriveIdDebug = "";
 
 /* ==========================================================================
    ESTADO
@@ -853,9 +863,30 @@ async function resolveWorkspace(){
     workspaceFolderId = json.id;
     canEdit = true;
     await loadUsers();
+    try{
+      const driveRes = await graphFetch(`https://graph.microsoft.com/v1.0/me/drive?$select=id`);
+      if (driveRes.ok){
+        const driveJson = await driveRes.json();
+        ownerDriveIdDebug = driveJson.id;
+      }
+    }catch(e){}
     return true;
   }
 
+  // 1) tenta o endereço direto e fixo (mais confiável — não depende do Graph ter indexado "compartilhado comigo")
+  if (OWNER_DRIVE_ID && OWNER_FOLDER_ID){
+    const direct = await graphFetch(`https://graph.microsoft.com/v1.0/drives/${OWNER_DRIVE_ID}/items/${OWNER_FOLDER_ID}?$select=id,name`);
+    if (direct.ok){
+      workspaceDriveId = OWNER_DRIVE_ID;
+      workspaceFolderId = OWNER_FOLDER_ID;
+      await loadUsers();
+      const me = usersData.usuarios.find(u => (u.email || "").toLowerCase() === currentUserEmail);
+      canEdit = !!(me && me.papel === "Editor");
+      return true;
+    }
+  }
+
+  // 2) alternativa: procurar em "compartilhado comigo" (pode não estar atualizado ainda)
   const res = await graphFetch(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?$select=remoteItem,name`);
   if (!res.ok) return false;
   const json = await res.json();
@@ -2830,6 +2861,8 @@ async function openAdminPanel(){
 
   document.getElementById("ownerWhatsapp").value = (usersData.donoContato && usersData.donoContato.telefone) || "";
   document.getElementById("ownerApiKey").value = (usersData.donoContato && usersData.donoContato.whatsappApiKey) || "";
+  document.getElementById("ownerDriveIdText").textContent = ownerDriveIdDebug || "(não disponível)";
+  document.getElementById("ownerFolderIdText").textContent = workspaceFolderId || "(não disponível)";
   renderAdminUserList();
 }
 function closeAdminPanel(){
