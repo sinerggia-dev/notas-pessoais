@@ -372,6 +372,11 @@
   #adminInviteForm input[type=email]{flex:1;min-width:200px;padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;}
   #adminInviteForm select{padding:7px 9px;border:1px solid var(--sidebar-border);border-radius:6px;font-size:13px;}
   #adminInviteForm button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;}
+  .secondary-btn{
+    margin-top:8px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:7px 12px;
+    font-size:12px;cursor:pointer;color:var(--text);transition:background .12s ease;
+  }
+  .secondary-btn:hover{background:var(--hover);}
   #adminNote{font-size:11px;color:var(--text-light);margin-top:10px;line-height:1.5;}
   #adminMsg{font-size:12px;margin-top:8px;min-height:16px;}
   #adminMsg.err{color:var(--danger);}
@@ -536,10 +541,13 @@
       <input type="text" id="inviteApiKey" placeholder="CallMeBot API Key (opcional)">
       <button type="submit">Conceder acesso</button>
     </form>
+    <button type="button" id="copyInviteMsgBtn" class="secondary-btn">📋 Copiar mensagem de convite</button>
     <div id="adminMsg"></div>
     <div id="adminNote">
       O convite dá acesso real à pasta no OneDrive (compartilhamento do Microsoft 365) — não precisa de nenhum passo
       extra no Azure por pessoa convidada, contanto que ela seja da mesma organização (@sinerggia.com.br).
+      Não mandamos e-mail automático do Microsoft 365 (o padrão dele leva direto pra pasta crua do OneDrive, não pro
+      app) — use o botão acima pra copiar um texto com o link certo e mandar por WhatsApp, Teams ou e-mail.
       O WhatsApp/CallMeBot é usado só para os alertas de vencimento de tarefa — a pessoa precisa ativar o CallMeBot
       uma vez no próprio WhatsApp (mandando uma mensagem específica pro número do bot) e te passar a API key gerada.
     </div>
@@ -2136,10 +2144,14 @@ document.getElementById("adminOverlay").addEventListener("click", (e) => {
   if (e.target.id === "adminOverlay") closeAdminPanel();
 });
 
-function openAdminPanel(){
+async function openAdminPanel(){
   document.getElementById("adminOverlay").classList.add("visible");
   document.getElementById("adminMsg").textContent = "";
   document.getElementById("ownerContactMsg").textContent = "";
+  document.getElementById("adminUserList").innerHTML = "Carregando…";
+
+  await loadUsers(); // sempre busca a versão mais recente do OneDrive, não a da memória
+
   document.getElementById("ownerWhatsapp").value = (usersData.donoContato && usersData.donoContato.telefone) || "";
   document.getElementById("ownerApiKey").value = (usersData.donoContato && usersData.donoContato.whatsappApiKey) || "";
   renderAdminUserList();
@@ -2210,10 +2222,9 @@ document.getElementById("adminInviteForm").addEventListener("submit", async (e) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         requireSignIn: true,
-        sendInvitation: true,
+        sendInvitation: false,
         roles: [papel === "Editor" ? "write" : "read"],
-        recipients: [{ email }],
-        message: "Você recebeu acesso ao espaço de notas compartilhado \"Notas Pessoais\" da Sinerggia. Acesse: https://sinerggia-dev.github.io/notas-pessoais/"
+        recipients: [{ email }]
       })
     });
     if (!res.ok) throw new Error("status " + res.status);
@@ -2237,6 +2248,16 @@ document.getElementById("adminInviteForm").addEventListener("submit", async (e) 
     renderAdminUserList();
   }catch(err){
     setAdminMsg("Erro ao conceder acesso. Confira o e-mail (precisa ser @sinerggia.com.br) e tente novamente.", true);
+  }
+});
+
+document.getElementById("copyInviteMsgBtn").addEventListener("click", async () => {
+  const text = 'Você recebeu acesso ao espaço de notas "Notas Pessoais" da Sinerggia. Acesse: https://sinerggia-dev.github.io/notas-pessoais/ e entre com sua conta Microsoft do trabalho.';
+  try{
+    await navigator.clipboard.writeText(text);
+    setAdminMsg("Mensagem copiada! Cole no WhatsApp, Teams ou e-mail.", false);
+  }catch(e){
+    setAdminMsg("Não consegui copiar automaticamente. Texto: " + text, true);
   }
 });
 
