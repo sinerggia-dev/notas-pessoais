@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Notas Pessoais</title>
+<title>ROADMAP</title>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.18.0/lib/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --sidebar-bg:#faf9fd;
@@ -215,15 +216,37 @@
     font-size:12px;cursor:pointer;color:var(--text-light);
   }
   .task-filter-tab.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent-light);font-weight:600;}
-  #taskTable{width:auto;border-collapse:collapse;font-size:13px;}
+  #taskTable{width:auto;table-layout:fixed;border-collapse:collapse;font-size:13px;}
   #taskTable th{
-    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
-    padding:8px 14px 8px 4px;border-bottom:1px solid var(--sidebar-border);white-space:nowrap;
+    position:relative;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
+    padding:8px 20px 8px 4px;border-bottom:1px solid var(--sidebar-border);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none;
   }
-  #taskTable td{padding:6px 14px 6px 4px;border-bottom:1px solid var(--sidebar-border);vertical-align:middle;white-space:nowrap;}
+  #taskTable td{
+    padding:6px 14px 6px 4px;border-bottom:1px solid var(--sidebar-border);vertical-align:middle;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
   #taskTable td:first-child, #taskTable th:first-child{padding-left:2px;}
-  .task-title{outline:none;min-width:140px;}
+  .col-label{cursor:pointer;}
+  .col-hide-btn{
+    position:absolute;top:3px;right:2px;background:none;border:none;color:var(--text-light);
+    font-size:11px;cursor:pointer;opacity:0;line-height:1;padding:2px;
+  }
+  #taskTable th:hover .col-hide-btn{opacity:1;}
+  .col-resizer{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;}
+  .col-resizer:hover{background:var(--accent-light);}
+  .col-menu-wrap{position:relative;display:inline-block;}
+  .col-menu-item{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;}
+  .col-menu-item:hover{background:var(--hover);}
+  #taskColumnsMenu{min-width:190px;}
+  #taskExtraFilters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  #taskExtraFilters select, #taskExtraFilters input{
+    padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
+  }
+  #taskSearchInput{min-width:220px;flex:1;}
+  .task-title{outline:none;min-width:0;overflow:hidden;text-overflow:ellipsis;}
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
+  .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
   .status-pill.a-fazer{background:#efefee;color:#55534d;}
   .status-pill.em-andamento{background:#fff3d6;color:#8a6d1e;}
@@ -278,6 +301,7 @@
   .kanban-card select.priority-pill{font-size:11px;padding:3px 8px;}
   .kanban-card .task-due{font-size:11px;padding:3px 5px;}
   .kanban-assignee{width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--sidebar-border);border-radius:6px;}
+  .kanban-company{width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--sidebar-border);border-radius:6px;margin-bottom:6px;}
   .kanban-del-btn{
     position:absolute;top:8px;right:8px;background:none;border:none;color:var(--text-light);
     cursor:pointer;font-size:14px;line-height:1;
@@ -415,7 +439,7 @@
 <body>
 
 <div id="loginScreen">
-  <h1>📝 Notas Pessoais</h1>
+  <h1>📝 ROADMAP</h1>
   <p>Espaço de notas compartilhado da Sinerggia. Entre com sua conta Microsoft corporativa para continuar.</p>
   <button id="loginBtn">Entrar com Microsoft</button>
   <div id="loginError"></div>
@@ -433,7 +457,7 @@
 <div id="app">
   <aside id="sidebar">
     <div id="sidebarHeader">
-      <h2>📝 Notas Pessoais</h2>
+      <h2>📝 ROADMAP</h2>
       <div id="userBlock">
         <button id="userAvatarBtn" class="user-avatar-btn">
           <span id="userAvatarInitial" class="user-avatar"></span>
@@ -470,12 +494,23 @@
         <div id="taskViewToggle">
           <button id="tableViewBtn" class="view-toggle-btn active">☰ Tabela</button>
           <button id="kanbanViewBtn" class="view-toggle-btn">▦ Kanban</button>
+          <div class="col-menu-wrap">
+            <button type="button" id="taskColumnsBtn" class="secondary-btn">🧱 Colunas</button>
+            <div id="taskColumnsMenu" class="user-menu" hidden></div>
+          </div>
+          <button type="button" id="exportTasksBtn" class="secondary-btn">⬇️ Exportar Excel</button>
         </div>
         <div id="taskFilterTabs"></div>
+        <div id="taskExtraFilters">
+          <select id="companyFilterSelect"><option value="Todas">Todas as empresas</option></select>
+          <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
+          <input type="text" id="taskSearchInput" placeholder="Buscar por tarefa ou empresa...">
+        </div>
         <div id="taskTableWrap">
           <table id="taskTable">
+            <colgroup id="taskColgroup"></colgroup>
             <thead>
-              <tr><th>Tarefa</th><th>Status</th><th>Prioridade</th><th>Vencimento</th><th>Criado em</th><th>Atualizado em</th><th>Tempo</th><th>Responsável</th><th></th></tr>
+              <tr id="taskTableHeadRow"></tr>
             </thead>
             <tbody id="taskTableBody"></tbody>
           </table>
@@ -1117,6 +1152,11 @@ pageTitleEl.addEventListener("keydown", (e) => {
 
 let taskFilter = "Todas";
 let taskViewMode = "table";
+let taskCompanyFilter = "Todas";
+let taskAssigneeFilter = "Todos";
+let taskSearchText = "";
+let taskSortKey = null;
+let taskSortDir = "asc";
 let calendarYear = null;
 let calendarMonth = null;
 let calendarTasksByDate = {};
@@ -1138,6 +1178,12 @@ async function renderEditor(){
   if (kind === "tarefas"){
     taskFilter = "Todas";
     taskViewMode = "table";
+    taskCompanyFilter = "Todas";
+    taskAssigneeFilter = "Todos";
+    taskSearchText = "";
+    document.getElementById("taskSearchInput").value = "";
+    taskSortKey = null;
+    taskSortDir = "asc";
     updateTaskViewToggle();
     renderTaskFilterTabs();
     renderTasks();
@@ -1503,6 +1549,257 @@ function getAssigneeOptions(){
   return Array.from(emails);
 }
 
+function getCompanyOptions(tasks){
+  const set = new Set();
+  (tasks || []).forEach(t => { if (t.company) set.add(t.company); });
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function taskMatchesCommonFilters(task){
+  if (taskCompanyFilter !== "Todas" && (task.company || "") !== taskCompanyFilter) return false;
+  if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
+  if (taskSearchText){
+    const q = taskSearchText.toLowerCase();
+    const hay = ((task.title || "") + " " + (task.company || "")).toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+const SORT_ACCESSORS = {
+  title: t => (t.title || "").toLowerCase(),
+  status: t => ({ "A fazer": 0, "Em andamento": 1, "Concluído": 2 }[t.status] ?? 0),
+  priority: t => ({ "Baixa": 0, "Média": 1, "Alta": 2 }[t.priority] ?? 0),
+  dueDate: t => t.dueDate || "",
+  company: t => (t.company || "").toLowerCase(),
+  createdAt: t => t.createdAt || "",
+  statusChangedAt: t => t.statusChangedAt || "",
+  timer: t => getTaskDisplaySeconds(t),
+  assignee: t => firstNameFromEmail(t.assignee || "").toLowerCase(),
+};
+
+function sortTasksList(tasks){
+  if (!taskSortKey || !SORT_ACCESSORS[taskSortKey]) return tasks;
+  const acc = SORT_ACCESSORS[taskSortKey];
+  const sorted = tasks.slice().sort((a, b) => {
+    const va = acc(a), vb = acc(b);
+    if (va < vb) return -1;
+    if (va > vb) return 1;
+    return 0;
+  });
+  if (taskSortDir === "desc") sorted.reverse();
+  return sorted;
+}
+
+function requestDeletePassword(){
+  const pass = prompt("Digite a senha para excluir esta tarefa:");
+  if (pass === null) return false;
+  if (pass !== "123456"){
+    alert("Senha incorreta.");
+    return false;
+  }
+  return true;
+}
+
+/* ---------- Colunas (ordem, largura, visibilidade) ---------- */
+const TASK_COLUMNS_DEF = [
+  { key: "title", label: "Tarefa" },
+  { key: "status", label: "Status" },
+  { key: "priority", label: "Prioridade" },
+  { key: "dueDate", label: "Vencimento" },
+  { key: "company", label: "Empresa" },
+  { key: "createdAt", label: "Criado em" },
+  { key: "statusChangedAt", label: "Atualizado em" },
+  { key: "timer", label: "Tempo" },
+  { key: "assignee", label: "Responsável" },
+];
+const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
+const DEFAULT_COL_WIDTHS = {
+  title: 190, status: 130, priority: 110, dueDate: 130, company: 140,
+  createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150
+};
+
+let taskColOrder = DEFAULT_COL_ORDER.slice();
+let taskColWidths = Object.assign({}, DEFAULT_COL_WIDTHS);
+let taskColVisibility = {};
+DEFAULT_COL_ORDER.forEach(k => taskColVisibility[k] = true);
+
+(function loadTaskColPrefs(){
+  try{
+    const order = JSON.parse(localStorage.getItem("np_task_col_order_v1"));
+    if (Array.isArray(order) && order.length === DEFAULT_COL_ORDER.length && order.every(k => DEFAULT_COL_ORDER.includes(k))){
+      taskColOrder = order;
+    }
+  }catch(e){}
+  try{
+    const widths = JSON.parse(localStorage.getItem("np_task_col_widths_v1"));
+    if (widths) taskColWidths = Object.assign({}, DEFAULT_COL_WIDTHS, widths);
+  }catch(e){}
+  try{
+    const vis = JSON.parse(localStorage.getItem("np_task_col_visibility_v1"));
+    if (vis) taskColVisibility = Object.assign({}, taskColVisibility, vis);
+  }catch(e){}
+})();
+
+function saveTaskColOrder(){ localStorage.setItem("np_task_col_order_v1", JSON.stringify(taskColOrder)); }
+function saveTaskColWidths(){ localStorage.setItem("np_task_col_widths_v1", JSON.stringify(taskColWidths)); }
+function saveTaskColVisibility(){ localStorage.setItem("np_task_col_visibility_v1", JSON.stringify(taskColVisibility)); }
+
+function visibleColumnOrder(){
+  return taskColOrder.filter(k => taskColVisibility[k] !== false);
+}
+
+function renderTaskColgroup(){
+  const colgroup = document.getElementById("taskColgroup");
+  colgroup.innerHTML = visibleColumnOrder().map(k => `<col style="width:${taskColWidths[k] || 140}px">`).join("")
+    + `<col style="width:36px">`;
+}
+
+function renderTaskTableHead(){
+  const row = document.getElementById("taskTableHeadRow");
+  row.innerHTML = "";
+  visibleColumnOrder().forEach(key => {
+    const def = TASK_COLUMNS_DEF.find(c => c.key === key);
+    const th = document.createElement("th");
+    th.dataset.key = key;
+    th.draggable = true;
+
+    const label = document.createElement("span");
+    label.className = "col-label";
+    label.textContent = def.label + (taskSortKey === key ? (taskSortDir === "asc" ? " ▲" : " ▼") : "");
+    label.addEventListener("click", () => {
+      if (taskSortKey === key) taskSortDir = taskSortDir === "asc" ? "desc" : "asc";
+      else { taskSortKey = key; taskSortDir = "asc"; }
+      renderTasks();
+    });
+    th.appendChild(label);
+
+    if (canEdit){
+      const hideBtn = document.createElement("button");
+      hideBtn.type = "button";
+      hideBtn.className = "col-hide-btn";
+      hideBtn.textContent = "×";
+      hideBtn.title = "Ocultar coluna";
+      hideBtn.draggable = false;
+      hideBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+      hideBtn.addEventListener("dragstart", (e) => { e.preventDefault(); e.stopPropagation(); });
+      hideBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        taskColVisibility[key] = false;
+        saveTaskColVisibility();
+        renderTasks();
+      });
+      th.appendChild(hideBtn);
+
+      const resizer = document.createElement("div");
+      resizer.className = "col-resizer";
+      resizer.draggable = false;
+      resizer.addEventListener("dragstart", (e) => { e.preventDefault(); e.stopPropagation(); });
+      resizer.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startWidth = taskColWidths[key] || 140;
+        function onMove(ev){
+          taskColWidths[key] = Math.max(60, startWidth + (ev.clientX - startX));
+          renderTaskColgroup();
+        }
+        function onUp(){
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          saveTaskColWidths();
+        }
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      });
+      th.appendChild(resizer);
+
+      th.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", key); });
+      th.addEventListener("dragover", (e) => e.preventDefault());
+      th.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const draggedKey = e.dataTransfer.getData("text/plain");
+        if (!draggedKey || draggedKey === key || !DEFAULT_COL_ORDER.includes(draggedKey)) return;
+        const order = taskColOrder.slice();
+        const from = order.indexOf(draggedKey);
+        const to = order.indexOf(key);
+        if (from < 0 || to < 0) return;
+        order.splice(from, 1);
+        order.splice(to, 0, draggedKey);
+        taskColOrder = order;
+        saveTaskColOrder();
+        renderTasks();
+      });
+    } else {
+      th.draggable = false;
+    }
+
+    row.appendChild(th);
+  });
+  row.appendChild(document.createElement("th"));
+}
+
+function renderTaskColumnsMenu(){
+  const menu = document.getElementById("taskColumnsMenu");
+  menu.innerHTML = "";
+  TASK_COLUMNS_DEF.forEach(col => {
+    const label = document.createElement("label");
+    label.className = "col-menu-item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = taskColVisibility[col.key] !== false;
+    cb.addEventListener("change", () => {
+      taskColVisibility[col.key] = cb.checked;
+      saveTaskColVisibility();
+      renderTasks();
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + col.label));
+    menu.appendChild(label);
+  });
+}
+document.getElementById("taskColumnsBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  renderTaskColumnsMenu();
+  const menu = document.getElementById("taskColumnsMenu");
+  menu.hidden = !menu.hidden;
+});
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("taskColumnsMenu");
+  if (menu && !menu.hidden && !menu.contains(e.target) && !e.target.closest("#taskColumnsBtn")){
+    menu.hidden = true;
+  }
+});
+
+/* ---------- Filtros extras (empresa / responsável / busca) ---------- */
+function populateExtraFilters(allTasks){
+  const companySel = document.getElementById("companyFilterSelect");
+  const prevCompany = taskCompanyFilter;
+  companySel.innerHTML = '<option value="Todas">Todas as empresas</option>'
+    + getCompanyOptions(allTasks).map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  companySel.value = Array.from(companySel.options).some(o => o.value === prevCompany) ? prevCompany : "Todas";
+  taskCompanyFilter = companySel.value;
+
+  const assigneeSel = document.getElementById("assigneeFilterSelect");
+  const prevAssignee = taskAssigneeFilter;
+  assigneeSel.innerHTML = '<option value="Todos">Todos os responsáveis</option>'
+    + getAssigneeOptions().map(e => `<option value="${escapeHtml(e)}">${escapeHtml(firstNameFromEmail(e))}</option>`).join("");
+  assigneeSel.value = Array.from(assigneeSel.options).some(o => o.value === prevAssignee) ? prevAssignee : "Todos";
+  taskAssigneeFilter = assigneeSel.value;
+}
+document.getElementById("companyFilterSelect").addEventListener("change", (e) => {
+  taskCompanyFilter = e.target.value;
+  renderTasks();
+});
+document.getElementById("assigneeFilterSelect").addEventListener("change", (e) => {
+  taskAssigneeFilter = e.target.value;
+  renderTasks();
+});
+document.getElementById("taskSearchInput").addEventListener("input", (e) => {
+  taskSearchText = e.target.value;
+  renderTasks();
+});
+
 function renderTaskFilterTabs(){
   const wrap = document.getElementById("taskFilterTabs");
   const tabs = ["Todas", "A fazer", "Em andamento", "Concluído"];
@@ -1540,28 +1837,57 @@ function renderTasks(){
   document.getElementById("addTaskBtn").hidden = !canEdit;
   if (!content || !content.tasks) return;
   const assigneeOptions = getAssigneeOptions();
+  populateExtraFilters(content.tasks);
 
   if (taskViewMode === "kanban"){
     renderKanban(content, assigneeOptions);
     return;
   }
 
+  renderTaskColgroup();
+  renderTaskTableHead();
+
   const tbody = document.getElementById("taskTableBody");
   tbody.innerHTML = "";
-  content.tasks
-    .filter(t => taskFilter === "Todas" || t.status === taskFilter)
-    .forEach(task => tbody.appendChild(renderTaskRow(task, assigneeOptions)));
+  const filtered = content.tasks.filter(t =>
+    (taskFilter === "Todas" || t.status === taskFilter) && taskMatchesCommonFilters(t)
+  );
+  sortTasksList(filtered).forEach(task => tbody.appendChild(renderTaskRow(task, assigneeOptions)));
 }
 
 function renderKanban(content, assigneeOptions){
   document.querySelectorAll(".kanban-col-body").forEach(colBody => {
     const status = colBody.dataset.status;
     colBody.innerHTML = "";
-    content.tasks
-      .filter(t => t.status === status)
-      .forEach(t => colBody.appendChild(renderKanbanCard(t, assigneeOptions)));
+    const filtered = content.tasks.filter(t => t.status === status && taskMatchesCommonFilters(t));
+    sortTasksList(filtered).forEach(t => colBody.appendChild(renderKanbanCard(t, assigneeOptions)));
   });
 }
+
+document.getElementById("exportTasksBtn").addEventListener("click", () => {
+  const content = pageContentCache[currentPageId];
+  if (!content || !content.tasks) return;
+  const filtered = sortTasksList(content.tasks.filter(t =>
+    (taskFilter === "Todas" || t.status === taskFilter) && taskMatchesCommonFilters(t)
+  ));
+  const rows = filtered.map(t => ({
+    "Tarefa": t.title || "",
+    "Status": t.status || "",
+    "Prioridade": t.priority || "",
+    "Vencimento": t.dueDate ? formatDateBR(t.dueDate) : "",
+    "Empresa": t.company || "",
+    "Criado em": formatDateTimeBR(t.createdAt),
+    "Atualizado em": formatDateTimeBR(t.statusChangedAt),
+    "Tempo (min)": Math.round(getTaskDisplaySeconds(t) / 60),
+    "Responsável": t.assignee ? firstNameFromEmail(t.assignee) : "",
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Tarefas");
+  const meta = getPageMeta(currentPageId);
+  const filename = ((meta && meta.title) || "tarefas").replace(/[^a-z0-9]+/gi, "_") + ".xlsx";
+  XLSX.writeFile(wb, filename);
+});
 
 function renderKanbanCard(task, assigneeOptions){
   const card = document.createElement("div");
@@ -1620,6 +1946,18 @@ function renderKanbanCard(task, assigneeOptions){
   datesLine.textContent = `Criado ${formatDateOnlyShort(task.createdAt)}`
     + (task.statusChangedAt ? ` · Atualizado ${formatDateOnlyShort(task.statusChangedAt)}` : "");
   card.appendChild(datesLine);
+
+  const companyInput = document.createElement("input");
+  companyInput.type = "text";
+  companyInput.className = "kanban-company";
+  companyInput.placeholder = "Empresa";
+  companyInput.value = task.company || "";
+  companyInput.disabled = !canEdit;
+  companyInput.addEventListener("change", () => {
+    task.company = companyInput.value;
+    scheduleSavePage(currentPageId);
+  });
+  card.appendChild(companyInput);
 
   const assigneeSel = document.createElement("select");
   assigneeSel.className = "kanban-assignee";
@@ -1697,68 +2035,83 @@ function buildTaskSelect(task, field, options, pillClass){
   return sel;
 }
 
-function renderTaskRow(task, assigneeOptions){
-  const tr = document.createElement("tr");
-  tr.dataset.id = task.id;
-
-  const tdTitle = document.createElement("td");
-  const titleEl = document.createElement("div");
-  titleEl.className = "task-title";
-  titleEl.contentEditable = canEdit ? "true" : "false";
-  titleEl.textContent = task.title || "";
-  titleEl.addEventListener("input", () => {
-    task.title = titleEl.textContent;
+function buildTitleCell(task){
+  const td = document.createElement("td");
+  const el = document.createElement("div");
+  el.className = "task-title";
+  el.contentEditable = canEdit ? "true" : "false";
+  el.textContent = task.title || "";
+  el.addEventListener("input", () => { task.title = el.textContent; scheduleSavePage(currentPageId); });
+  td.appendChild(el);
+  return td;
+}
+function buildStatusCell(task){
+  const td = document.createElement("td");
+  td.appendChild(buildTaskSelect(task, "status", ["A fazer", "Em andamento", "Concluído"], "status-pill"));
+  return td;
+}
+function buildPriorityCell(task){
+  const td = document.createElement("td");
+  td.appendChild(buildTaskSelect(task, "priority", ["Baixa", "Média", "Alta"], "priority-pill"));
+  return td;
+}
+function buildDueCell(task){
+  const td = document.createElement("td");
+  const input = document.createElement("input");
+  input.type = "date";
+  input.className = "task-due";
+  input.value = task.dueDate || "";
+  input.disabled = !canEdit;
+  input.addEventListener("change", () => { task.dueDate = input.value; scheduleSavePage(currentPageId); });
+  td.appendChild(input);
+  return td;
+}
+function buildCompanyCell(task){
+  const td = document.createElement("td");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "task-company";
+  input.placeholder = "Empresa";
+  input.value = task.company || "";
+  input.disabled = !canEdit;
+  input.addEventListener("change", () => {
+    task.company = input.value;
     scheduleSavePage(currentPageId);
+    populateExtraFilters(pageContentCache[currentPageId].tasks);
   });
-  tdTitle.appendChild(titleEl);
-
-  const tdStatus = document.createElement("td");
-  tdStatus.appendChild(buildTaskSelect(task, "status", ["A fazer", "Em andamento", "Concluído"], "status-pill"));
-
-  const tdPriority = document.createElement("td");
-  tdPriority.appendChild(buildTaskSelect(task, "priority", ["Baixa", "Média", "Alta"], "priority-pill"));
-
-  const tdDue = document.createElement("td");
-  const dueInput = document.createElement("input");
-  dueInput.type = "date";
-  dueInput.className = "task-due";
-  dueInput.value = task.dueDate || "";
-  dueInput.disabled = !canEdit;
-  dueInput.addEventListener("change", () => {
-    task.dueDate = dueInput.value;
-    scheduleSavePage(currentPageId);
-  });
-  tdDue.appendChild(dueInput);
-
-  const tdCreated = document.createElement("td");
-  tdCreated.className = "task-meta-date";
-  tdCreated.textContent = formatDateTimeBR(task.createdAt);
-
-  const tdUpdated = document.createElement("td");
-  tdUpdated.className = "task-meta-date";
-  tdUpdated.textContent = formatDateTimeBR(task.statusChangedAt);
-
-  const tdTimer = document.createElement("td");
-  tdTimer.className = "task-timer-cell";
-  const timerBtn = document.createElement("button");
-  timerBtn.className = "timer-toggle-btn";
-  timerBtn.textContent = task.timerRunning ? "⏸" : "▶";
-  timerBtn.disabled = !canEdit;
-  timerBtn.onclick = () => toggleTaskTimer(task);
-  const timerSpan = document.createElement("span");
-  timerSpan.className = "timer-display";
-  timerSpan.dataset.id = task.id;
-  timerSpan.textContent = formatDuration(getTaskDisplaySeconds(task));
-  tdTimer.appendChild(timerBtn);
-  tdTimer.appendChild(timerSpan);
-
-  const tdAssignee = document.createElement("td");
+  td.appendChild(input);
+  return td;
+}
+function buildReadonlyDateCell(iso){
+  const td = document.createElement("td");
+  td.className = "task-meta-date";
+  td.textContent = formatDateTimeBR(iso);
+  return td;
+}
+function buildTimerCell(task){
+  const td = document.createElement("td");
+  td.className = "task-timer-cell";
+  const btn = document.createElement("button");
+  btn.className = "timer-toggle-btn";
+  btn.textContent = task.timerRunning ? "⏸" : "▶";
+  btn.disabled = !canEdit;
+  btn.onclick = () => toggleTaskTimer(task);
+  const span = document.createElement("span");
+  span.className = "timer-display";
+  span.dataset.id = task.id;
+  span.textContent = formatDuration(getTaskDisplaySeconds(task));
+  td.appendChild(btn);
+  td.appendChild(span);
+  return td;
+}
+function buildAssigneeCell(task, assigneeOptions){
+  const td = document.createElement("td");
   const sel = document.createElement("select");
   sel.disabled = !canEdit;
-  const blankOpt = document.createElement("option");
-  blankOpt.value = "";
-  blankOpt.textContent = "Não atribuído";
-  sel.appendChild(blankOpt);
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "Não atribuído";
+  sel.appendChild(blank);
   assigneeOptions.forEach(email => {
     const opt = document.createElement("option");
     opt.value = email;
@@ -1766,11 +2119,30 @@ function renderTaskRow(task, assigneeOptions){
     if (task.assignee === email) opt.selected = true;
     sel.appendChild(opt);
   });
-  sel.addEventListener("change", () => {
-    task.assignee = sel.value;
-    scheduleSavePage(currentPageId);
+  sel.addEventListener("change", () => { task.assignee = sel.value; scheduleSavePage(currentPageId); });
+  td.appendChild(sel);
+  return td;
+}
+
+const TASK_CELL_BUILDERS = {
+  title: (task) => buildTitleCell(task),
+  status: (task) => buildStatusCell(task),
+  priority: (task) => buildPriorityCell(task),
+  dueDate: (task) => buildDueCell(task),
+  company: (task) => buildCompanyCell(task),
+  createdAt: (task) => buildReadonlyDateCell(task.createdAt),
+  statusChangedAt: (task) => buildReadonlyDateCell(task.statusChangedAt),
+  timer: (task) => buildTimerCell(task),
+  assignee: (task, assigneeOptions) => buildAssigneeCell(task, assigneeOptions),
+};
+
+function renderTaskRow(task, assigneeOptions){
+  const tr = document.createElement("tr");
+  tr.dataset.id = task.id;
+
+  visibleColumnOrder().forEach(key => {
+    tr.appendChild(TASK_CELL_BUILDERS[key](task, assigneeOptions));
   });
-  tdAssignee.appendChild(sel);
 
   const tdActions = document.createElement("td");
   if (canEdit){
@@ -1781,20 +2153,12 @@ function renderTaskRow(task, assigneeOptions){
     delBtn.onclick = () => deleteTask(task.id);
     tdActions.appendChild(delBtn);
   }
-
-  tr.appendChild(tdTitle);
-  tr.appendChild(tdStatus);
-  tr.appendChild(tdPriority);
-  tr.appendChild(tdDue);
-  tr.appendChild(tdCreated);
-  tr.appendChild(tdUpdated);
-  tr.appendChild(tdTimer);
-  tr.appendChild(tdAssignee);
   tr.appendChild(tdActions);
   return tr;
 }
 
 function deleteTask(taskId){
+  if (!requestDeletePassword()) return;
   const content = pageContentCache[currentPageId];
   content.tasks = content.tasks.filter(t => t.id !== taskId);
   renderTasks();
@@ -1807,7 +2171,7 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
   if (!content.tasks) content.tasks = [];
   const now = new Date().toISOString();
   content.tasks.push({
-    id: genId("t"), title: "", status: "A fazer", priority: "Média", assignee: "",
+    id: genId("t"), title: "", status: "A fazer", priority: "Média", assignee: "", company: "",
     createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
   renderTasks();
@@ -2252,7 +2616,7 @@ document.getElementById("adminInviteForm").addEventListener("submit", async (e) 
 });
 
 document.getElementById("copyInviteMsgBtn").addEventListener("click", async () => {
-  const text = 'Você recebeu acesso ao espaço de notas "Notas Pessoais" da Sinerggia. Acesse: https://sinerggia-dev.github.io/notas-pessoais/ e entre com sua conta Microsoft do trabalho.';
+  const text = 'Você recebeu acesso ao espaço "ROADMAP" da Sinerggia. Acesse: https://sinerggia-dev.github.io/notas-pessoais/ e entre com sua conta Microsoft do trabalho.';
   try{
     await navigator.clipboard.writeText(text);
     setAdminMsg("Mensagem copiada! Cole no WhatsApp, Teams ou e-mail.", false);
