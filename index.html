@@ -80,7 +80,8 @@
   #newPageBtn:focus{outline:none;box-shadow:0 0 0 3px var(--accent-light);}
   #newPageBtn[hidden]{display:none;}
   #exportTasksBtn, #printTasksBtn{
-    margin:0;padding:6px 12px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;
+    display:inline-flex;align-items:center;height:34px;box-sizing:border-box;
+    margin:0;padding:0 12px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;
     cursor:pointer;font-size:12px;color:var(--text-light);transition:background .12s ease, color .12s ease;
   }
   #exportTasksBtn:hover, #printTasksBtn:hover{background:var(--hover);color:var(--text);}
@@ -288,16 +289,19 @@
   }
   .col-menu-reset:hover{color:var(--accent-hover);}
   #statusFilterSelect, #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
-    padding:6px 12px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
+    height:34px;box-sizing:border-box;padding:0 12px;background:#fff;border:1px solid var(--sidebar-border);
+    border-radius:7px;font-size:12px;font-family:inherit;
   }
   #taskSearchInput{width:170px;flex:none;}
   #dueFilterWrap{display:flex;align-items:center;gap:4px;}
   .due-filter-sep{color:var(--text-light);font-size:11px;}
   #dueFromFilter, #dueToFilter{
-    padding:6px 8px;background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;width:124px;
+    height:34px;box-sizing:border-box;padding:0 8px;background:#fff;border:1px solid var(--sidebar-border);
+    border-radius:7px;font-size:12px;font-family:inherit;width:124px;
   }
   #clearFiltersBtn{
-    background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:6px 12px;
+    display:inline-flex;align-items:center;height:34px;box-sizing:border-box;
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:0 12px;
     font-size:12px;cursor:pointer;color:var(--text-light);white-space:nowrap;
   }
   #clearFiltersBtn:hover{background:var(--hover);color:var(--text);border-color:var(--accent);}
@@ -335,7 +339,8 @@
   #taskToolbarRow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:14px;}
   #taskViewToggle{display:contents;}
   .view-toggle-btn{
-    background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:6px 12px;
+    display:inline-flex;align-items:center;height:34px;box-sizing:border-box;
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:7px;padding:0 12px;
     font-size:12px;cursor:pointer;color:var(--text-light);transition:background .12s ease, color .12s ease;
   }
   .view-toggle-btn.active{background:var(--accent-light);color:var(--accent-hover);border-color:var(--accent-light);font-weight:600;}
