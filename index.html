@@ -210,7 +210,8 @@
 
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
-  #taskFilterTabs{display:flex;gap:6px;margin-bottom:14px;}
+  #taskFilterBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  #taskFilterTabs{display:flex;gap:6px;flex-wrap:wrap;}
   .task-filter-tab{
     background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:5px 12px;
     font-size:12px;cursor:pointer;color:var(--text-light);
@@ -239,11 +240,10 @@
   .col-menu-item{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;}
   .col-menu-item:hover{background:var(--hover);}
   #taskColumnsMenu{min-width:190px;}
-  #taskExtraFilters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
-  #taskExtraFilters select, #taskExtraFilters input{
+  #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
     padding:6px 9px;border:1px solid var(--sidebar-border);border-radius:7px;font-size:12px;font-family:inherit;
   }
-  #taskSearchInput{min-width:220px;flex:1;}
+  #taskSearchInput{width:170px;flex:none;}
   .task-title{outline:none;min-width:0;overflow:hidden;text-overflow:ellipsis;}
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
   .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
@@ -357,6 +357,23 @@
     font-size:11px;cursor:pointer;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .cal-task-pill.cal-task-done{background:#efefee;color:#8a8a86;text-decoration:line-through;}
+
+  /* ---------- Modal de senha ---------- */
+  #passwordOverlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;
+    align-items:center;justify-content:center;
+  }
+  #passwordOverlay.visible{display:flex;}
+  #passwordModal{
+    background:#fff;border-radius:12px;width:320px;max-width:90vw;padding:22px;
+    box-shadow:var(--shadow-md);animation:menuPopIn .12s ease-out;
+  }
+  #passwordModal h3{margin:0 0 12px;font-size:15px;}
+  #passwordModalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
+  #passwordCancelBtn{background:none;border:1px solid var(--sidebar-border);border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer;color:var(--text);}
+  #passwordCancelBtn:hover{background:var(--hover);}
+  #passwordOkBtn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;cursor:pointer;}
+  #passwordOkBtn:hover{background:var(--accent-hover);}
 
   /* ---------- Dashboard ---------- */
   #dashboardView{display:none;}
@@ -500,11 +517,11 @@
           </div>
           <button type="button" id="exportTasksBtn" class="secondary-btn">⬇️ Exportar Excel</button>
         </div>
-        <div id="taskFilterTabs"></div>
-        <div id="taskExtraFilters">
+        <div id="taskFilterBar">
+          <div id="taskFilterTabs"></div>
           <select id="companyFilterSelect"><option value="Todas">Todas as empresas</option></select>
           <select id="assigneeFilterSelect"><option value="Todos">Todos os responsáveis</option></select>
-          <input type="text" id="taskSearchInput" placeholder="Buscar por tarefa ou empresa...">
+          <input type="text" id="taskSearchInput" placeholder="Buscar...">
         </div>
         <div id="taskTableWrap">
           <table id="taskTable">
@@ -594,6 +611,17 @@
       <button type="submit">Salvar</button>
     </form>
     <div id="ownerContactMsg"></div>
+  </div>
+</div>
+
+<div id="passwordOverlay">
+  <div id="passwordModal">
+    <h3 id="passwordModalTitle">Digite a senha</h3>
+    <input type="password" id="passwordInput" class="event-input" placeholder="Senha" autocomplete="off">
+    <div id="passwordModalActions">
+      <button type="button" id="passwordCancelBtn">Cancelar</button>
+      <button type="button" id="passwordOkBtn">OK</button>
+    </div>
   </div>
 </div>
 
@@ -1591,10 +1619,46 @@ function sortTasksList(tasks){
   return sorted;
 }
 
-function requestDeletePassword(){
-  const pass = prompt("Digite a senha para excluir esta tarefa:");
+/* ---------- Modal de senha (substitui prompt() nativo) ---------- */
+let passwordModalResolve = null;
+function askPassword(title){
+  document.getElementById("passwordModalTitle").textContent = title || "Digite a senha";
+  document.getElementById("passwordInput").value = "";
+  document.getElementById("passwordOverlay").classList.add("visible");
+  setTimeout(() => document.getElementById("passwordInput").focus(), 50);
+  return new Promise(resolve => { passwordModalResolve = resolve; });
+}
+function closePasswordModal(result){
+  document.getElementById("passwordOverlay").classList.remove("visible");
+  if (passwordModalResolve) passwordModalResolve(result);
+  passwordModalResolve = null;
+}
+document.getElementById("passwordOkBtn").addEventListener("click", () => {
+  closePasswordModal(document.getElementById("passwordInput").value);
+});
+document.getElementById("passwordCancelBtn").addEventListener("click", () => closePasswordModal(null));
+document.getElementById("passwordInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter"){ e.preventDefault(); closePasswordModal(document.getElementById("passwordInput").value); }
+  if (e.key === "Escape") closePasswordModal(null);
+});
+document.getElementById("passwordOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "passwordOverlay") closePasswordModal(null);
+});
+
+const TASK_PASSWORD = "123456";
+async function requestDeletePassword(){
+  const pass = await askPassword("Digite a senha para excluir esta tarefa");
   if (pass === null) return false;
-  if (pass !== "123456"){
+  if (pass !== TASK_PASSWORD){
+    alert("Senha incorreta.");
+    return false;
+  }
+  return true;
+}
+async function requestEditPassword(){
+  const pass = await askPassword("Digite a senha para confirmar a alteração");
+  if (pass === null) return false;
+  if (pass !== TASK_PASSWORD){
     alert("Senha incorreta.");
     return false;
   }
@@ -1904,8 +1968,14 @@ function renderKanbanCard(task, assigneeOptions){
   titleEl.className = "kanban-card-title";
   titleEl.contentEditable = canEdit ? "true" : "false";
   titleEl.textContent = task.title || "";
-  titleEl.addEventListener("input", () => {
-    task.title = titleEl.textContent;
+  titleEl.addEventListener("blur", async () => {
+    const newVal = titleEl.textContent;
+    const oldVal = task.title || "";
+    if (newVal === oldVal) return;
+    titleEl.textContent = oldVal;
+    if (!(await requestEditPassword())){ titleEl.textContent = oldVal; return; }
+    titleEl.textContent = newVal;
+    task.title = newVal;
     scheduleSavePage(currentPageId);
   });
   card.appendChild(titleEl);
@@ -1919,8 +1989,13 @@ function renderKanbanCard(task, assigneeOptions){
   dueInput.className = "task-due";
   dueInput.value = task.dueDate || "";
   dueInput.disabled = !canEdit;
-  dueInput.addEventListener("change", () => {
-    task.dueDate = dueInput.value;
+  dueInput.addEventListener("change", async () => {
+    const newVal = dueInput.value;
+    const oldVal = task.dueDate || "";
+    dueInput.value = oldVal;
+    if (!(await requestEditPassword())){ dueInput.value = oldVal; return; }
+    dueInput.value = newVal;
+    task.dueDate = newVal;
     scheduleSavePage(currentPageId);
   });
   meta.appendChild(dueInput);
@@ -1953,9 +2028,15 @@ function renderKanbanCard(task, assigneeOptions){
   companyInput.placeholder = "Empresa";
   companyInput.value = task.company || "";
   companyInput.disabled = !canEdit;
-  companyInput.addEventListener("change", () => {
-    task.company = companyInput.value;
+  companyInput.addEventListener("change", async () => {
+    const newVal = companyInput.value;
+    const oldVal = task.company || "";
+    companyInput.value = oldVal;
+    if (!(await requestEditPassword())){ companyInput.value = oldVal; return; }
+    companyInput.value = newVal;
+    task.company = newVal;
     scheduleSavePage(currentPageId);
+    populateExtraFilters(pageContentCache[currentPageId].tasks);
   });
   card.appendChild(companyInput);
 
@@ -1973,8 +2054,13 @@ function renderKanbanCard(task, assigneeOptions){
     if (task.assignee === email) opt.selected = true;
     assigneeSel.appendChild(opt);
   });
-  assigneeSel.addEventListener("change", () => {
-    task.assignee = assigneeSel.value;
+  assigneeSel.addEventListener("change", async () => {
+    const newVal = assigneeSel.value;
+    const oldVal = task.assignee || "";
+    assigneeSel.value = oldVal;
+    if (!(await requestEditPassword())){ assigneeSel.value = oldVal; return; }
+    assigneeSel.value = newVal;
+    task.assignee = newVal;
     scheduleSavePage(currentPageId);
   });
   card.appendChild(assigneeSel);
@@ -1999,7 +2085,7 @@ document.querySelectorAll(".kanban-col-body").forEach(colBody => {
   colBody.addEventListener("dragleave", () => {
     colBody.parentElement.classList.remove("drag-over");
   });
-  colBody.addEventListener("drop", (e) => {
+  colBody.addEventListener("drop", async (e) => {
     e.preventDefault();
     colBody.parentElement.classList.remove("drag-over");
     if (!canEdit) return;
@@ -2008,6 +2094,8 @@ document.querySelectorAll(".kanban-col-body").forEach(colBody => {
     if (!content) return;
     const task = content.tasks.find(t => t.id === taskId);
     if (!task) return;
+    if (task.status === colBody.dataset.status) return;
+    if (!(await requestEditPassword())){ renderTasks(); return; }
     task.status = colBody.dataset.status;
     task.statusChangedAt = new Date().toISOString();
     renderTasks();
@@ -2026,11 +2114,17 @@ function buildTaskSelect(task, field, options, pillClass){
     if ((task[field] || options[0]) === opt) o.selected = true;
     sel.appendChild(o);
   });
-  sel.addEventListener("change", () => {
-    task[field] = sel.value;
+  sel.addEventListener("change", async () => {
+    const newVal = sel.value;
+    const oldVal = task[field] || options[0];
+    sel.value = oldVal;
+    if (!(await requestEditPassword())){ sel.value = oldVal; return; }
+    sel.value = newVal;
+    task[field] = newVal;
     if (field === "status") task.statusChangedAt = new Date().toISOString();
-    sel.className = pillClass + " " + slugify(sel.value);
+    sel.className = pillClass + " " + slugify(newVal);
     scheduleSavePage(currentPageId);
+    if (taskViewMode === "kanban" && field === "status") renderTasks();
   });
   return sel;
 }
@@ -2041,7 +2135,16 @@ function buildTitleCell(task){
   el.className = "task-title";
   el.contentEditable = canEdit ? "true" : "false";
   el.textContent = task.title || "";
-  el.addEventListener("input", () => { task.title = el.textContent; scheduleSavePage(currentPageId); });
+  el.addEventListener("blur", async () => {
+    const newVal = el.textContent;
+    const oldVal = task.title || "";
+    if (newVal === oldVal) return;
+    el.textContent = oldVal;
+    if (!(await requestEditPassword())){ el.textContent = oldVal; return; }
+    el.textContent = newVal;
+    task.title = newVal;
+    scheduleSavePage(currentPageId);
+  });
   td.appendChild(el);
   return td;
 }
@@ -2062,7 +2165,15 @@ function buildDueCell(task){
   input.className = "task-due";
   input.value = task.dueDate || "";
   input.disabled = !canEdit;
-  input.addEventListener("change", () => { task.dueDate = input.value; scheduleSavePage(currentPageId); });
+  input.addEventListener("change", async () => {
+    const newVal = input.value;
+    const oldVal = task.dueDate || "";
+    input.value = oldVal;
+    if (!(await requestEditPassword())){ input.value = oldVal; return; }
+    input.value = newVal;
+    task.dueDate = newVal;
+    scheduleSavePage(currentPageId);
+  });
   td.appendChild(input);
   return td;
 }
@@ -2074,8 +2185,13 @@ function buildCompanyCell(task){
   input.placeholder = "Empresa";
   input.value = task.company || "";
   input.disabled = !canEdit;
-  input.addEventListener("change", () => {
-    task.company = input.value;
+  input.addEventListener("change", async () => {
+    const newVal = input.value;
+    const oldVal = task.company || "";
+    input.value = oldVal;
+    if (!(await requestEditPassword())){ input.value = oldVal; return; }
+    input.value = newVal;
+    task.company = newVal;
     scheduleSavePage(currentPageId);
     populateExtraFilters(pageContentCache[currentPageId].tasks);
   });
@@ -2119,7 +2235,15 @@ function buildAssigneeCell(task, assigneeOptions){
     if (task.assignee === email) opt.selected = true;
     sel.appendChild(opt);
   });
-  sel.addEventListener("change", () => { task.assignee = sel.value; scheduleSavePage(currentPageId); });
+  sel.addEventListener("change", async () => {
+    const newVal = sel.value;
+    const oldVal = task.assignee || "";
+    sel.value = oldVal;
+    if (!(await requestEditPassword())){ sel.value = oldVal; return; }
+    sel.value = newVal;
+    task.assignee = newVal;
+    scheduleSavePage(currentPageId);
+  });
   td.appendChild(sel);
   return td;
 }
@@ -2157,8 +2281,8 @@ function renderTaskRow(task, assigneeOptions){
   return tr;
 }
 
-function deleteTask(taskId){
-  if (!requestDeletePassword()) return;
+async function deleteTask(taskId){
+  if (!(await requestDeletePassword())) return;
   const content = pageContentCache[currentPageId];
   content.tasks = content.tasks.filter(t => t.id !== taskId);
   renderTasks();
