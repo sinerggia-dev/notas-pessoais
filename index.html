@@ -208,6 +208,19 @@
     background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:7px;font-size:13px;
   }
 
+  /* ---------- Barra de formatação flutuante ---------- */
+  #selectionToolbar{
+    position:absolute;display:flex;align-items:center;gap:2px;background:#242430;border-radius:9px;
+    padding:5px;z-index:80;box-shadow:var(--shadow-md);
+  }
+  #selectionToolbar[hidden]{display:none;}
+  #selectionToolbar button{
+    background:none;border:none;color:#fff;width:28px;height:28px;border-radius:6px;font-size:13px;cursor:pointer;
+  }
+  #selectionToolbar button.fmt-text{width:auto;padding:0 8px;font-size:11px;}
+  #selectionToolbar button:hover{background:rgba(255,255,255,.15);}
+  .fmt-sep{width:1px;align-self:stretch;background:rgba(255,255,255,.2);margin:2px 3px;}
+
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
   #taskFilterBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -572,6 +585,19 @@
 
 <div id="slashMenu" hidden></div>
 <div id="kindMenu" hidden></div>
+<div id="selectionToolbar" hidden>
+  <button type="button" id="fmtBoldBtn" title="Negrito"><b>B</b></button>
+  <button type="button" id="fmtItalicBtn" title="Itálico"><i>I</i></button>
+  <button type="button" id="fmtUnderlineBtn" title="Sublinhado"><u>S</u></button>
+  <button type="button" id="fmtStrikeBtn" title="Tachado"><s>T</s></button>
+  <span class="fmt-sep"></span>
+  <button type="button" id="fmtAlignLeftBtn" class="fmt-text" title="Alinhar à esquerda">Esq</button>
+  <button type="button" id="fmtAlignCenterBtn" class="fmt-text" title="Centralizar">Cen</button>
+  <button type="button" id="fmtAlignRightBtn" class="fmt-text" title="Alinhar à direita">Dir</button>
+  <span class="fmt-sep"></span>
+  <button type="button" id="fmtLinkBtn" title="Link">🔗</button>
+  <button type="button" id="fmtClearBtn" title="Limpar formatação">✕</button>
+</div>
 
 <div id="adminOverlay">
   <div id="adminPanel">
@@ -1310,8 +1336,9 @@ function renderBlockRow(pageContent, block, index, numberValue){
                                       + (block.type === "quote" ? " quote" : "")
                                       + (block.type === "todo" && block.checked ? " todo-done" : "");
   content.contentEditable = canEdit ? "true" : "false";
-  content.dataset.placeholder = (index === 0 && canEdit) ? "Digite '/' para comandos" : "";
-  content.textContent = block.content || "";
+  content.dataset.placeholder = (index === 0 && canEdit) ? "Digite '/' para comandos ou selecione texto para formatar" : "";
+  content.innerHTML = block.content || "";
+  content.style.textAlign = block.align || "";
 
   if (canEdit){
     content.addEventListener("input", () => onBlockInput(block, content));
@@ -1343,35 +1370,45 @@ function focusBlock(blockId, offset){
   el.focus();
   const sel = window.getSelection();
   const range = document.createRange();
-  const textNode = el.firstChild;
-  const pos = Math.min(offset == null ? (textNode ? textNode.length : 0) : offset, textNode ? textNode.length : 0);
-  if (textNode){
-    range.setStart(textNode, pos);
-  } else {
-    range.selectNodeContents(el);
-  }
-  range.collapse(true);
+  range.selectNodeContents(el);
+  range.collapse(offset !== "end");
   sel.removeAllRanges();
   sel.addRange(range);
 }
 
-function onBlockInput(block, contentEl){
-  block.content = contentEl.textContent;
-  scheduleSavePage(currentPageId);
-  checkSlashTrigger(block, contentEl);
-  checkMarkdownShortcuts(block, contentEl);
+function splitContentEditableAtCaret(el){
+  const sel = window.getSelection();
+  if (!sel.rangeCount){
+    return { before: el.innerHTML, after: "" };
+  }
+  const range = sel.getRangeAt(0);
+  const afterRange = document.createRange();
+  afterRange.setStart(range.endContainer, range.endOffset);
+  afterRange.setEnd(el, el.childNodes.length);
+  const afterFragment = afterRange.extractContents();
+  const tempDiv = document.createElement("div");
+  tempDiv.appendChild(afterFragment);
+  return { before: el.innerHTML, after: tempDiv.innerHTML };
 }
 
-function checkSlashTrigger(block, contentEl){
-  if (block.content === "/"){
+function onBlockInput(block, contentEl){
+  block.content = contentEl.innerHTML;
+  scheduleSavePage(currentPageId);
+  const plainText = contentEl.textContent;
+  checkSlashTrigger(block, contentEl, plainText);
+  checkMarkdownShortcuts(block, contentEl, plainText);
+}
+
+function checkSlashTrigger(block, contentEl, plainText){
+  if (plainText === "/"){
     showSlashMenu(block.id, contentEl);
   } else {
     hideSlashMenu();
   }
 }
 
-function checkMarkdownShortcuts(block, contentEl){
-  const text = block.content;
+function checkMarkdownShortcuts(block, contentEl, plainText){
+  const text = plainText;
   const rules = [
     { re: /^# $/,   type: "heading1" },
     { re: /^## $/,  type: "heading2" },
@@ -1409,18 +1446,17 @@ function onBlockKeydown(e, pageContent, block, index, contentEl){
     if (!sel.isCollapsed){ return; } // deixa comportamento padrão em seleção de texto
     e.preventDefault();
     hideSlashMenu();
-    const offset = getCaretOffset(contentEl);
-    const before = block.content.slice(0, offset);
-    const after = block.content.slice(offset);
 
+    const plainText = contentEl.textContent;
     const isListType = block.type === "bulleted" || block.type === "numbered" || block.type === "todo";
-    if (isListType && block.content === ""){
+    if (isListType && plainText === ""){
       block.type = "paragraph";
       renderBlocks();
       focusBlock(block.id, 0);
       return;
     }
 
+    const { before, after } = splitContentEditableAtCaret(contentEl);
     block.content = before;
     const newBlock = {
       id: genId("b"),
@@ -1442,7 +1478,7 @@ function onBlockKeydown(e, pageContent, block, index, contentEl){
     if (offset !== 0) return;
     e.preventDefault();
     if (index === 0){
-      if (block.content === "" && pageContent.blocks.length > 1){
+      if (contentEl.textContent === "" && pageContent.blocks.length > 1){
         pageContent.blocks.splice(index, 1);
         renderBlocks();
         focusBlock(pageContent.blocks[0].id, 0);
@@ -1458,11 +1494,10 @@ function onBlockKeydown(e, pageContent, block, index, contentEl){
       scheduleSavePage(currentPageId);
       return;
     }
-    const caretPos = (prev.content || "").length;
     prev.content = (prev.content || "") + block.content;
     pageContent.blocks.splice(index, 1);
     renderBlocks();
-    focusBlock(prev.id, caretPos);
+    focusBlock(prev.id, "end");
     scheduleSavePage(currentPageId);
     return;
   }
@@ -1510,6 +1545,81 @@ document.getElementById("addBlockBtn").addEventListener("click", () => {
   focusBlock(newBlock.id, 0);
   scheduleSavePage(currentPageId);
 });
+
+/* ==========================================================================
+   BARRA DE FORMATAÇÃO FLUTUANTE (negrito/itálico/sublinhado/tachado/link/alinhamento)
+   ========================================================================== */
+let activeFormattingBlock = null;
+let activeFormattingEl = null;
+
+document.addEventListener("selectionchange", () => {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !canEdit){
+    hideSelectionToolbar();
+    return;
+  }
+  const range = sel.getRangeAt(0);
+  const container = range.commonAncestorContainer;
+  const node = container.nodeType === 1 ? container : container.parentElement;
+  const el = node ? node.closest(".block-content") : null;
+  if (!el){
+    hideSelectionToolbar();
+    return;
+  }
+  const row = el.closest(".block-row");
+  const blockId = row ? row.dataset.id : null;
+  const pageContent = pageContentCache[currentPageId];
+  const block = pageContent && pageContent.blocks ? pageContent.blocks.find(b => b.id === blockId) : null;
+  if (!block){
+    hideSelectionToolbar();
+    return;
+  }
+  activeFormattingBlock = block;
+  activeFormattingEl = el;
+  showSelectionToolbar(range);
+});
+
+function showSelectionToolbar(range){
+  const toolbar = document.getElementById("selectionToolbar");
+  const rect = range.getBoundingClientRect();
+  toolbar.hidden = false;
+  const toolbarWidth = toolbar.offsetWidth || 220;
+  const left = Math.max(8, rect.left + window.scrollX + (rect.width / 2) - toolbarWidth / 2);
+  toolbar.style.left = left + "px";
+  toolbar.style.top = (rect.top + window.scrollY - toolbar.offsetHeight - 8) + "px";
+}
+function hideSelectionToolbar(){
+  document.getElementById("selectionToolbar").hidden = true;
+}
+
+function applyInlineFormat(command, value){
+  if (!activeFormattingEl || !activeFormattingBlock) return;
+  document.execCommand(command, false, value || null);
+  activeFormattingEl.focus();
+  activeFormattingBlock.content = activeFormattingEl.innerHTML;
+  scheduleSavePage(currentPageId);
+}
+
+function setBlockAlign(align){
+  if (!activeFormattingEl || !activeFormattingBlock) return;
+  activeFormattingBlock.align = align;
+  activeFormattingEl.style.textAlign = align;
+  scheduleSavePage(currentPageId);
+}
+
+document.getElementById("fmtBoldBtn").addEventListener("mousedown", (e) => { e.preventDefault(); applyInlineFormat("bold"); });
+document.getElementById("fmtItalicBtn").addEventListener("mousedown", (e) => { e.preventDefault(); applyInlineFormat("italic"); });
+document.getElementById("fmtUnderlineBtn").addEventListener("mousedown", (e) => { e.preventDefault(); applyInlineFormat("underline"); });
+document.getElementById("fmtStrikeBtn").addEventListener("mousedown", (e) => { e.preventDefault(); applyInlineFormat("strikeThrough"); });
+document.getElementById("fmtClearBtn").addEventListener("mousedown", (e) => { e.preventDefault(); applyInlineFormat("removeFormat"); });
+document.getElementById("fmtLinkBtn").addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  const url = prompt("Digite o endereço do link:");
+  if (url) applyInlineFormat("createLink", url);
+});
+document.getElementById("fmtAlignLeftBtn").addEventListener("mousedown", (e) => { e.preventDefault(); setBlockAlign("left"); });
+document.getElementById("fmtAlignCenterBtn").addEventListener("mousedown", (e) => { e.preventDefault(); setBlockAlign("center"); });
+document.getElementById("fmtAlignRightBtn").addEventListener("mousedown", (e) => { e.preventDefault(); setBlockAlign("right"); });
 
 /* ==========================================================================
    BANCO DE TAREFAS
