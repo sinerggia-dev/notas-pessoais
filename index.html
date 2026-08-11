@@ -239,8 +239,12 @@
   .mini-stat{
     display:block;background:#fff;border:1px solid var(--sidebar-border);border-radius:12px;
     padding:3px 8px;font-size:11px;color:var(--text);white-space:nowrap;width:fit-content;
+    font-family:inherit;cursor:pointer;transition:background .12s ease, border-color .12s ease;
   }
+  .mini-stat:hover{border-color:var(--accent);}
+  .mini-stat.active{background:var(--accent-light);border-color:var(--accent-light);color:var(--accent-hover);font-weight:600;}
   .mini-stat b{margin-right:4px;color:var(--accent-hover);}
+  .mini-stat.active b{color:var(--accent-hover);}
   #taskFilterTabs{display:flex;gap:6px;flex-wrap:wrap;}
   .task-filter-tab{
     background:none;border:1px solid var(--sidebar-border);border-radius:14px;padding:5px 12px;
@@ -1261,6 +1265,7 @@ let taskFilter = "Todas";
 let taskViewMode = "table";
 let taskCompanyFilter = "Todas";
 let taskAssigneeFilter = "Todos";
+let taskPriorityFilter = "Todas";
 let taskSearchText = "";
 let taskSortKey = null;
 let taskSortDir = "asc";
@@ -1288,6 +1293,7 @@ async function renderEditor(){
     taskViewMode = "table";
     taskCompanyFilter = "Todas";
     taskAssigneeFilter = "Todos";
+    taskPriorityFilter = "Todas";
     taskSearchText = "";
     document.getElementById("taskSearchInput").value = "";
     taskSortKey = null;
@@ -1750,6 +1756,7 @@ function getCompanyOptions(tasks){
 function taskMatchesCommonFilters(task){
   if (taskCompanyFilter !== "Todas" && (task.company || "") !== taskCompanyFilter) return false;
   if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
+  if (taskPriorityFilter !== "Todas" && (task.priority || "Média") !== taskPriorityFilter) return false;
   if (taskSearchText){
     const q = taskSearchText.toLowerCase();
     const hay = ((task.title || "") + " " + (task.company || "")).toLowerCase();
@@ -2058,7 +2065,17 @@ function populateExtraFilters(allTasks){
   const prevAssignee = taskAssigneeFilter;
   assigneeSel.innerHTML = '<option value="Todos">Todos os responsáveis</option>'
     + getAssigneeOptions().map(e => `<option value="${escapeHtml(e)}">${escapeHtml(firstNameFromEmail(e))}</option>`).join("");
-  assigneeSel.value = Array.from(assigneeSel.options).some(o => o.value === prevAssignee) ? prevAssignee : "Todos";
+  if (Array.from(assigneeSel.options).some(o => o.value === prevAssignee)){
+    assigneeSel.value = prevAssignee;
+    taskAssigneeFilter = prevAssignee;
+  } else if (prevAssignee === ""){
+    // "Sem responsável" (selecionado via cartão do quadro) não existe como opção no select — mantém o filtro ativo.
+    assigneeSel.value = "Todos";
+    taskAssigneeFilter = "";
+  } else {
+    assigneeSel.value = "Todos";
+    taskAssigneeFilter = "Todos";
+  }
   taskAssigneeFilter = assigneeSel.value;
 }
 document.getElementById("companyFilterSelect").addEventListener("change", (e) => {
@@ -2145,23 +2162,57 @@ function renderTaskStats(allTasks){
 
   const assigneeCounts = {};
   base.forEach(t => {
-    const name = t.assignee ? firstNameFromEmail(t.assignee) : "Sem responsável";
-    assigneeCounts[name] = (assigneeCounts[name] || 0) + 1;
+    const email = (t.assignee || "").trim();
+    const name = email ? firstNameFromEmail(email) : "Sem responsável";
+    if (!assigneeCounts[name]) assigneeCounts[name] = { count: 0, email };
+    assigneeCounts[name].count++;
   });
-  const assigneeEntries = Object.entries(assigneeCounts).sort((a, b) => b[1] - a[1]);
+  const assigneeEntries = Object.entries(assigneeCounts).sort((a, b) => b[1].count - a[1].count);
 
-  function group(title, entries){
-    if (!entries.length) return "";
-    const items = entries.map(([label, count]) =>
-      `<span class="mini-stat"><b>${count}</b>${escapeHtml(label)}</span>`
-    ).join("");
-    return `<div class="mini-stat-group"><span class="mini-stat-group-label">${escapeHtml(title)}</span><div class="mini-stat-items">${items}</div></div>`;
+  bar.innerHTML = "";
+
+  function buildGroup(title, items){
+    if (!items.length) return;
+    const groupEl = document.createElement("div");
+    groupEl.className = "mini-stat-group";
+    const labelEl = document.createElement("span");
+    labelEl.className = "mini-stat-group-label";
+    labelEl.textContent = title;
+    groupEl.appendChild(labelEl);
+    const itemsWrap = document.createElement("div");
+    itemsWrap.className = "mini-stat-items";
+    items.forEach(item => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mini-stat" + (item.active ? " active" : "");
+      btn.innerHTML = `<b>${item.count}</b>${escapeHtml(item.label)}`;
+      btn.addEventListener("click", item.onClick);
+      itemsWrap.appendChild(btn);
+    });
+    groupEl.appendChild(itemsWrap);
+    bar.appendChild(groupEl);
   }
 
-  bar.innerHTML =
-    group("Status", Object.entries(statusCounts)) +
-    group("Prioridade", Object.entries(priorityCounts)) +
-    group("Responsável", assigneeEntries);
+  buildGroup("Status", Object.entries(statusCounts).map(([label, count]) => ({
+    label, count, active: taskFilter === label,
+    onClick: () => setTaskStatusFilter(taskFilter === label ? "Todas" : label)
+  })));
+
+  buildGroup("Prioridade", Object.entries(priorityCounts).map(([label, count]) => ({
+    label, count, active: taskPriorityFilter === label,
+    onClick: () => {
+      taskPriorityFilter = taskPriorityFilter === label ? "Todas" : label;
+      renderTasks();
+    }
+  })));
+
+  buildGroup("Responsável", assigneeEntries.map(([label, data]) => ({
+    label, count: data.count, active: taskAssigneeFilter === data.email,
+    onClick: () => {
+      taskAssigneeFilter = taskAssigneeFilter === data.email ? "Todos" : data.email;
+      renderTasks();
+    }
+  })));
 }
 
 function renderTasks(){
