@@ -223,6 +223,7 @@
 
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
+  #taskStatusPills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
   #taskFilterBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
   #taskFilterTabs{display:flex;gap:6px;flex-wrap:wrap;}
   .task-filter-tab{
@@ -539,6 +540,7 @@
           </div>
           <button type="button" id="exportTasksBtn" class="secondary-btn">⬇️ Exportar Excel</button>
         </div>
+        <div id="taskStatusPills"></div>
         <div id="taskFilterBar">
           <div id="taskFilterTabs"></div>
           <select id="companyFilterSelect"><option value="Todas">Todas as empresas</option></select>
@@ -2066,30 +2068,48 @@ document.getElementById("taskSearchInput").addEventListener("input", (e) => {
   renderTasks();
 });
 
+const TASK_STATUS_TABS = ["Todas", "A fazer", "Em andamento", "Concluído"];
+
+function setTaskStatusFilter(value){
+  taskFilter = value;
+  renderTaskFilterTabs();
+  renderTasks();
+}
+
 function renderTaskFilterTabs(){
+  // Dropdown (dentro da barra de filtros, junto com Empresa/Responsável/Busca)
   const wrap = document.getElementById("taskFilterTabs");
-  const tabs = ["Todas", "A fazer", "Em andamento", "Concluído"];
   wrap.innerHTML = "";
   const sel = document.createElement("select");
   sel.id = "statusFilterSelect";
-  tabs.forEach(t => {
+  TASK_STATUS_TABS.forEach(t => {
     const opt = document.createElement("option");
     opt.value = t;
     opt.textContent = t === "Todas" ? "Todos os status" : t;
     if (t === taskFilter) opt.selected = true;
     sel.appendChild(opt);
   });
-  sel.addEventListener("change", () => {
-    taskFilter = sel.value;
-    renderTasks();
-  });
+  sel.addEventListener("change", () => setTaskStatusFilter(sel.value));
   wrap.appendChild(sel);
+
+  // Botões (pills) — segunda forma de filtrar, lado a lado com o dropdown
+  const pillsWrap = document.getElementById("taskStatusPills");
+  pillsWrap.innerHTML = "";
+  TASK_STATUS_TABS.forEach(t => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "task-filter-tab" + (t === taskFilter ? " active" : "");
+    btn.textContent = t;
+    btn.onclick = () => setTaskStatusFilter(t);
+    pillsWrap.appendChild(btn);
+  });
 }
 
 function updateTaskViewToggle(){
   document.getElementById("tableViewBtn").classList.toggle("active", taskViewMode === "table");
   document.getElementById("kanbanViewBtn").classList.toggle("active", taskViewMode === "kanban");
   document.getElementById("taskFilterTabs").style.display = taskViewMode === "table" ? "flex" : "none";
+  document.getElementById("taskStatusPills").style.display = taskViewMode === "table" ? "flex" : "none";
   document.getElementById("taskTableWrap").style.display = taskViewMode === "table" ? "block" : "none";
   document.getElementById("taskKanban").style.display = taskViewMode === "kanban" ? "flex" : "none";
 }
