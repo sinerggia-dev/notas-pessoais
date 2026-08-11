@@ -431,10 +431,7 @@
     font-size:12px;cursor:pointer;color:var(--text);transition:background .12s ease;
   }
   .secondary-btn:hover{background:var(--hover);}
-  #adminNote{
-    font-size:11px;color:var(--text-light);margin-top:10px;line-height:1.4;
-    padding:8px 10px;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:8px;
-  }
+  #adminNoteIcon{cursor:help;font-size:14px;margin-left:6px;vertical-align:middle;}
   #adminMsg{font-size:12px;margin-top:8px;min-height:16px;}
   #adminMsg.err{color:var(--danger);}
   #adminMsg.ok{color:#2f8132;}
@@ -502,7 +499,6 @@
           <button id="logoutBtn" class="user-menu-item">Sair</button>
         </div>
       </div>
-      <input id="searchInput" type="text" placeholder="Buscar páginas...">
     </div>
     <button id="newPageBtn">+ Nova página</button>
     <div id="pageTree"></div>
@@ -623,11 +619,8 @@
       <button type="submit">Conceder acesso</button>
     </form>
     <button type="button" id="copyInviteMsgBtn" class="secondary-btn">📋 Copiar mensagem de convite</button>
+    <span id="adminNoteIcon" title="Sem e-mail automático (o padrão da Microsoft abriria a pasta crua) — use &quot;Copiar mensagem&quot; e envie você mesmo. WhatsApp/CallMeBot é opcional, só para os alertas de vencimento.">ℹ️</span>
     <div id="adminMsg"></div>
-    <div id="adminNote">
-      Sem e-mail automático (o padrão da Microsoft abriria a pasta crua) — use "Copiar mensagem" acima e envie você mesmo.
-      WhatsApp/CallMeBot é opcional, só para os alertas de vencimento.
-    </div>
 
     <h3>Meu contato (para eu também receber alertas)</h3>
     <form id="ownerContactForm">
@@ -1150,7 +1143,6 @@ document.getElementById("sidebarOverlay").addEventListener("click", closeMobileS
 
 document.getElementById("newPageBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
 document.getElementById("emptyCreateBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
-document.getElementById("searchInput").addEventListener("input", (e) => buildTree(e.target.value));
 
 /* ==========================================================================
    MENU "NOVA PÁGINA" (escolher tipo)
@@ -1774,6 +1766,16 @@ async function requestEditPassword(){
   return true;
 }
 
+const TASK_EDIT_GRACE_MS = 10 * 60 * 1000; // 10 minutos após criar a tarefa, edições não pedem senha
+function isTaskWithinGracePeriod(task){
+  if (!task || !task.createdAt) return false;
+  return (Date.now() - new Date(task.createdAt).getTime()) < TASK_EDIT_GRACE_MS;
+}
+async function guardTaskFieldEdit(task){
+  if (isTaskWithinGracePeriod(task)) return true;
+  return await requestEditPassword();
+}
+
 /* ---------- Colunas (ordem, largura, visibilidade) ---------- */
 const TASK_COLUMNS_DEF = [
   { key: "title", label: "Tarefa" },
@@ -2088,7 +2090,7 @@ function renderKanbanCard(task, assigneeOptions){
     const oldVal = task.title || "";
     if (newVal === oldVal) return;
     titleEl.textContent = oldVal;
-    if (!(await requestEditPassword())){ titleEl.textContent = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ titleEl.textContent = oldVal; return; }
     titleEl.textContent = newVal;
     task.title = newVal;
     scheduleSavePage(currentPageId);
@@ -2108,7 +2110,7 @@ function renderKanbanCard(task, assigneeOptions){
     const newVal = dueInput.value;
     const oldVal = task.dueDate || "";
     dueInput.value = oldVal;
-    if (!(await requestEditPassword())){ dueInput.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ dueInput.value = oldVal; return; }
     dueInput.value = newVal;
     task.dueDate = newVal;
     scheduleSavePage(currentPageId);
@@ -2147,7 +2149,7 @@ function renderKanbanCard(task, assigneeOptions){
     const newVal = companyInput.value;
     const oldVal = task.company || "";
     companyInput.value = oldVal;
-    if (!(await requestEditPassword())){ companyInput.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ companyInput.value = oldVal; return; }
     companyInput.value = newVal;
     task.company = newVal;
     scheduleSavePage(currentPageId);
@@ -2173,7 +2175,7 @@ function renderKanbanCard(task, assigneeOptions){
     const newVal = assigneeSel.value;
     const oldVal = task.assignee || "";
     assigneeSel.value = oldVal;
-    if (!(await requestEditPassword())){ assigneeSel.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ assigneeSel.value = oldVal; return; }
     assigneeSel.value = newVal;
     task.assignee = newVal;
     scheduleSavePage(currentPageId);
@@ -2210,7 +2212,7 @@ document.querySelectorAll(".kanban-col-body").forEach(colBody => {
     const task = content.tasks.find(t => t.id === taskId);
     if (!task) return;
     if (task.status === colBody.dataset.status) return;
-    if (!(await requestEditPassword())){ renderTasks(); return; }
+    if (!(await guardTaskFieldEdit(task))){ renderTasks(); return; }
     task.status = colBody.dataset.status;
     task.statusChangedAt = new Date().toISOString();
     renderTasks();
@@ -2233,7 +2235,7 @@ function buildTaskSelect(task, field, options, pillClass){
     const newVal = sel.value;
     const oldVal = task[field] || options[0];
     sel.value = oldVal;
-    if (!(await requestEditPassword())){ sel.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ sel.value = oldVal; return; }
     sel.value = newVal;
     task[field] = newVal;
     if (field === "status") task.statusChangedAt = new Date().toISOString();
@@ -2255,7 +2257,7 @@ function buildTitleCell(task){
     const oldVal = task.title || "";
     if (newVal === oldVal) return;
     el.textContent = oldVal;
-    if (!(await requestEditPassword())){ el.textContent = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ el.textContent = oldVal; return; }
     el.textContent = newVal;
     task.title = newVal;
     scheduleSavePage(currentPageId);
@@ -2284,7 +2286,7 @@ function buildDueCell(task){
     const newVal = input.value;
     const oldVal = task.dueDate || "";
     input.value = oldVal;
-    if (!(await requestEditPassword())){ input.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ input.value = oldVal; return; }
     input.value = newVal;
     task.dueDate = newVal;
     scheduleSavePage(currentPageId);
@@ -2304,7 +2306,7 @@ function buildCompanyCell(task){
     const newVal = input.value;
     const oldVal = task.company || "";
     input.value = oldVal;
-    if (!(await requestEditPassword())){ input.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ input.value = oldVal; return; }
     input.value = newVal;
     task.company = newVal;
     scheduleSavePage(currentPageId);
@@ -2354,7 +2356,7 @@ function buildAssigneeCell(task, assigneeOptions){
     const newVal = sel.value;
     const oldVal = task.assignee || "";
     sel.value = oldVal;
-    if (!(await requestEditPassword())){ sel.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ sel.value = oldVal; return; }
     sel.value = newVal;
     task.assignee = newVal;
     scheduleSavePage(currentPageId);
