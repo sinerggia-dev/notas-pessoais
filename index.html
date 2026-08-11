@@ -243,12 +243,15 @@
   #taskTable td:first-child, #taskTable th:first-child{padding-left:2px;}
   .col-label{cursor:pointer;}
   .col-hide-btn{
-    position:absolute;top:3px;right:2px;background:none;border:none;color:var(--text-light);
+    position:absolute;top:2px;right:12px;z-index:1;background:none;border:none;color:var(--text-light);
     font-size:11px;cursor:pointer;opacity:0;line-height:1;padding:2px;
   }
   #taskTable th:hover .col-hide-btn{opacity:1;}
-  .col-resizer{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;}
-  .col-resizer:hover{background:var(--accent-light);}
+  .col-resizer{position:absolute;top:0;right:0;width:9px;height:100%;cursor:col-resize;z-index:2;}
+  .col-resizer::after{
+    content:"";position:absolute;top:15%;bottom:15%;right:3px;width:2px;background:var(--sidebar-border);
+  }
+  .col-resizer:hover::after{background:var(--accent);}
   .col-menu-wrap{position:relative;display:inline-block;}
   .col-menu-item{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;}
   .col-menu-item:hover{background:var(--hover);}
