@@ -2271,7 +2271,6 @@ document.querySelectorAll(".kanban-col-body").forEach(colBody => {
     const task = content.tasks.find(t => t.id === taskId);
     if (!task) return;
     if (task.status === colBody.dataset.status) return;
-    if (!(await guardTaskFieldEdit(task))){ renderTasks(); return; }
     task.status = colBody.dataset.status;
     task.statusChangedAt = new Date().toISOString();
     renderTasks();
@@ -2290,12 +2289,9 @@ function buildTaskSelect(task, field, options, pillClass){
     if ((task[field] || options[0]) === opt) o.selected = true;
     sel.appendChild(o);
   });
-  sel.addEventListener("change", async () => {
+  sel.addEventListener("change", () => {
+    // Status e Prioridade mudam com frequência no dia a dia — sem pedir senha aqui.
     const newVal = sel.value;
-    const oldVal = task[field] || options[0];
-    sel.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ sel.value = oldVal; return; }
-    sel.value = newVal;
     task[field] = newVal;
     if (field === "status") task.statusChangedAt = new Date().toISOString();
     sel.className = pillClass + " " + slugify(newVal);
