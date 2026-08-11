@@ -230,7 +230,8 @@
 
   /* ---------- Banco de tarefas ---------- */
   #tasksView{display:none;}
-  #taskStatusPills{display:flex;gap:6px;margin-bottom:14px;}
+  #taskStatusRow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;}
+  #taskStatusPills{display:flex;gap:6px;flex-wrap:wrap;}
   #taskFilterBar{display:contents;}
   .filter-field{display:flex;flex-direction:column;gap:4px;}
   .filter-field-label{font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
@@ -317,11 +318,11 @@
   .priority-pill.media{background:#fff3d6;color:#8a6d1e;}
   .priority-pill.alta{background:#fde3e3;color:#b23a3a;}
   #addTaskBtn{
-    margin-top:10px;background:none;border:none;color:var(--text-light);font-size:14px;cursor:pointer;
-    padding:6px 4px;text-align:left;
+    flex-shrink:0;height:28px;box-sizing:border-box;padding:0 12px;background:var(--accent);color:#fff;
+    border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:background .12s ease;
   }
   #addTaskBtn[hidden]{display:none;}
-  #addTaskBtn:hover{color:var(--text);}
+  #addTaskBtn:hover{background:var(--accent-hover);}
   .del-task{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:14px;}
   .del-task:hover{color:var(--danger);}
   .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
@@ -520,7 +521,7 @@
   /* ---------- Impressão (respeita os filtros aplicados no Banco de Tarefas) ---------- */
   @media print{
     #mobileMenuBtn, #sidebarOverlay, #sidebar,
-    #taskViewToggle, #taskFilterBar, #taskStatusPills, #addTaskBtn, #addBlockBtn, #readOnlyBanner,
+    #taskViewToggle, #taskFilterBar, #taskStatusRow, #addBlockBtn, #readOnlyBanner,
     .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td,
     #adminOverlay, #eventOverlay, #passwordOverlay, #selectionToolbar, #slashMenu, #kindMenu{
       display:none !important;
@@ -624,7 +625,10 @@
           <button type="button" id="printTasksBtn">🖨️ Imprimir</button>
         </div>
         </div>
-        <div id="taskStatusPills"></div>
+        <div id="taskStatusRow">
+          <div id="taskStatusPills"></div>
+          <button id="addTaskBtn">+ Nova tarefa</button>
+        </div>
         <div id="taskTableWrap">
           <table id="taskTable">
             <thead>
@@ -647,7 +651,6 @@
             <div class="kanban-col-body" data-status="Concluído"></div>
           </div>
         </div>
-        <button id="addTaskBtn">+ Nova tarefa</button>
       </div>
       <div id="calendarView">
         <div id="calendarHeader">
