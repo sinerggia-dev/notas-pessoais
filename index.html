@@ -61,10 +61,10 @@
   #app.visible{display:flex;}
 
   #sidebar{
-    width:270px;min-width:270px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);
+    width:310px;min-width:310px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);
     display:flex;flex-direction:column;height:100%;
   }
-  #sidebarHeader{padding:16px 14px 10px;}
+  #sidebarHeader{padding:16px 14px 4px;}
   #sidebarHeader h2{font-size:14px;margin:0 0 12px;font-weight:700;display:flex;align-items:center;gap:6px;letter-spacing:-.01em;}
   #searchInput{
     width:100%;padding:8px 11px;border:1px solid var(--sidebar-border);border-radius:8px;font-size:13px;
@@ -72,7 +72,7 @@
   }
   #searchInput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
   #newPageBtn{
-    margin:8px 14px 6px;padding:8px 11px;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
+    margin:4px 14px 6px;padding:8px 11px;background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
     cursor:pointer;font-size:13px;color:var(--text);text-align:left;font-weight:500;
     box-shadow:var(--shadow-sm);transition:border-color .15s ease, background .15s ease;
   }
@@ -88,7 +88,7 @@
   #printFiltersSummary{display:none;}
 
   /* ---------- Usuário (avatar + menu) ---------- */
-  #userBlock{position:relative;margin-bottom:12px;}
+  #userBlock{position:relative;margin-bottom:6px;}
   .user-avatar-btn{
     display:flex;align-items:center;gap:8px;width:100%;background:#fff;border:1px solid var(--sidebar-border);
     border-radius:9px;padding:7px 9px;cursor:pointer;text-align:left;transition:background .12s ease;
@@ -112,7 +112,11 @@
   }
   .user-menu-item:hover{background:var(--hover);}
   .user-menu-item[hidden]{display:none;}
-  #pageTree{flex:1;overflow-y:auto;padding:6px 8px 12px;}
+  #pageTree{flex:1;overflow-y:auto;padding:6px 8px 12px;scrollbar-width:thin;scrollbar-color:var(--sidebar-border) transparent;}
+  #pageTree::-webkit-scrollbar{width:6px;}
+  #pageTree::-webkit-scrollbar-track{background:transparent;}
+  #pageTree::-webkit-scrollbar-thumb{background:var(--sidebar-border);border-radius:10px;}
+  #pageTree::-webkit-scrollbar-thumb:hover{background:var(--text-light);}
 
   /* ---------- Mini calendário da barra lateral (consulta de datas/feriados) ---------- */
   #sidebarMiniCal{margin:6px 2px 4px;padding:10px 8px;background:#fff;border:1px solid var(--sidebar-border);border-radius:10px;}
