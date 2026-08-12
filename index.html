@@ -313,6 +313,8 @@
     font-size:11px;cursor:pointer;color:var(--text-light);white-space:nowrap;
   }
   #clearFiltersBtn:hover{background:var(--hover);color:var(--text);border-color:var(--accent);}
+  #clearFiltersBtn.filters-active{background:var(--accent-light);color:var(--accent-hover);border-color:var(--accent-light);font-weight:600;}
+  #clearFiltersBtn.filters-active:hover{background:var(--accent-light);border-color:var(--accent);}
   .task-title{outline:none;min-width:0;white-space:normal;overflow-wrap:break-word;}
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
   .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
@@ -1927,6 +1929,14 @@ function getCompanyOptions(tasks){
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+function anyTaskFilterActive(){
+  return taskFilter !== "Todas" || taskCompanyFilter !== "Todas" || taskAssigneeFilter !== "Todos" ||
+    taskPriorityFilter !== "Todas" || !!taskDueFromFilter || !!taskDueToFilter || !!taskSearchText;
+}
+function updateClearFiltersBtnState(){
+  const btn = document.getElementById("clearFiltersBtn");
+  if (btn) btn.classList.toggle("filters-active", anyTaskFilterActive());
+}
 function taskMatchesCommonFilters(task){
   if (taskCompanyFilter !== "Todas" && (task.company || "") !== taskCompanyFilter) return false;
   if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
@@ -2451,6 +2461,7 @@ function renderTaskStats(allTasks){
 function renderTasks(){
   const content = pageContentCache[currentPageId];
   document.getElementById("addTaskBtn").hidden = !canEdit;
+  updateClearFiltersBtnState();
   if (!content || !content.tasks) return;
   const assigneeOptions = getAssigneeOptions();
   populateExtraFilters(content.tasks);
