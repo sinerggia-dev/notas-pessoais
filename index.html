@@ -119,15 +119,15 @@
   #pageTree::-webkit-scrollbar-thumb:hover{background:var(--text-light);}
 
   /* ---------- Mini calendário da barra lateral (consulta de datas/feriados) ---------- */
-  #sidebarMiniCal{margin:6px 2px 4px;padding:10px 8px;background:#fff;border:1px solid var(--sidebar-border);border-radius:10px;}
-  .smc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:4px;}
+  #sidebarMiniCal{margin:6px 2px 4px;padding:8px 8px 6px;background:#fff;border:1px solid var(--sidebar-border);border-radius:10px;}
+  .smc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:4px;}
   .smc-label{font-size:12px;font-weight:700;text-transform:capitalize;color:var(--text);}
   .smc-nav{background:none;border:1px solid var(--sidebar-border);border-radius:5px;width:20px;height:20px;font-size:12px;cursor:pointer;color:var(--text);line-height:1;padding:0;flex-shrink:0;}
   .smc-nav:hover{background:var(--hover);}
-  .smc-weekdays{display:grid;grid-template-columns:repeat(7,1fr);font-size:9px;color:var(--text-light);text-transform:uppercase;text-align:center;margin-bottom:3px;}
-  .smc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .smc-weekdays{display:grid;grid-template-columns:repeat(7,1fr);font-size:9px;color:var(--text-light);text-transform:uppercase;text-align:center;margin-bottom:2px;}
+  .smc-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:1px;column-gap:2px;}
   .smc-day{
-    aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text);
+    height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text);
     border-radius:5px;cursor:default;
   }
   .smc-day.other-month{color:#d5d3e0;}
@@ -137,13 +137,13 @@
   .smc-day.holiday-pernambuco{background:#dff3e0;color:#2f8132;font-weight:600;}
   .smc-day.holiday-facultativo{background:#fff3d6;color:#8a6d1e;font-weight:600;}
   .smc-day.today.holiday-nacional, .smc-day.today.holiday-pernambuco, .smc-day.today.holiday-facultativo{background:var(--accent);color:#fff;}
-  .smc-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;font-size:9px;color:var(--text-light);}
+  .smc-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:9px;color:var(--text-light);}
   .smc-legend span{display:flex;align-items:center;gap:3px;}
   .smc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
   .smc-dot.nacional{background:#e5484d;}
   .smc-dot.pernambuco{background:#2f8132;}
   .smc-dot.facultativo{background:#c98a1e;}
-  .smc-today-btn{margin-top:8px;width:100%;background:none;border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 0;font-size:10px;cursor:pointer;color:var(--text-light);}
+  .smc-today-btn{margin-top:6px;width:100%;background:none;border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 0;font-size:10px;cursor:pointer;color:var(--text-light);}
   .smc-today-btn:hover{background:var(--hover);color:var(--text);}
 
   .page-row{
