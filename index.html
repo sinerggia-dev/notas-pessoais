@@ -113,6 +113,35 @@
   .user-menu-item:hover{background:var(--hover);}
   .user-menu-item[hidden]{display:none;}
   #pageTree{flex:1;overflow-y:auto;padding:6px 8px 12px;}
+
+  /* ---------- Mini calendário da barra lateral (consulta de datas/feriados) ---------- */
+  #sidebarMiniCal{margin:6px 2px 4px;padding:10px 8px;background:#fff;border:1px solid var(--sidebar-border);border-radius:10px;}
+  .smc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:4px;}
+  .smc-label{font-size:12px;font-weight:700;text-transform:capitalize;color:var(--text);}
+  .smc-nav{background:none;border:1px solid var(--sidebar-border);border-radius:5px;width:20px;height:20px;font-size:12px;cursor:pointer;color:var(--text);line-height:1;padding:0;flex-shrink:0;}
+  .smc-nav:hover{background:var(--hover);}
+  .smc-weekdays{display:grid;grid-template-columns:repeat(7,1fr);font-size:9px;color:var(--text-light);text-transform:uppercase;text-align:center;margin-bottom:3px;}
+  .smc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .smc-day{
+    aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text);
+    border-radius:5px;cursor:default;
+  }
+  .smc-day.other-month{color:#d5d3e0;}
+  .smc-day.weekend{color:var(--text-light);}
+  .smc-day.today{background:var(--accent);color:#fff;font-weight:700;}
+  .smc-day.holiday-nacional{background:#fde3e3;color:#b23a3a;font-weight:600;}
+  .smc-day.holiday-pernambuco{background:#dff3e0;color:#2f8132;font-weight:600;}
+  .smc-day.holiday-facultativo{background:#fff3d6;color:#8a6d1e;font-weight:600;}
+  .smc-day.today.holiday-nacional, .smc-day.today.holiday-pernambuco, .smc-day.today.holiday-facultativo{background:var(--accent);color:#fff;}
+  .smc-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;font-size:9px;color:var(--text-light);}
+  .smc-legend span{display:flex;align-items:center;gap:3px;}
+  .smc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .smc-dot.nacional{background:#e5484d;}
+  .smc-dot.pernambuco{background:#2f8132;}
+  .smc-dot.facultativo{background:#c98a1e;}
+  .smc-today-btn{margin-top:8px;width:100%;background:none;border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 0;font-size:10px;cursor:pointer;color:var(--text-light);}
+  .smc-today-btn:hover{background:var(--hover);color:var(--text);}
+
   .page-row{
     display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border-radius:7px;
     cursor:pointer;font-size:13px;gap:6px;border-left:3px solid transparent;transition:background .12s ease;
@@ -1219,6 +1248,7 @@ function buildTree(query){
   if (q){
     const matches = indexData.pages.filter(p => (p.title || "sem título").toLowerCase().includes(q));
     matches.forEach(p => container.appendChild(renderPageRow(p, 0)));
+    container.appendChild(renderSidebarMiniCalendar());
     return;
   }
 
@@ -1230,6 +1260,178 @@ function buildTree(query){
     });
   }
   renderChildren(null, 0);
+  container.appendChild(renderSidebarMiniCalendar());
+}
+
+/* ==========================================================================
+   MINI CALENDÁRIO DA BARRA LATERAL — consulta de datas, dias da semana
+   e feriados (nacionais + Pernambuco)
+   ========================================================================== */
+const SMC_WEEKDAY_LABELS = ["D","S","T","Q","Q","S","S"];
+
+let smcViewYear = new Date().getFullYear();
+let smcViewMonth = new Date().getMonth();
+
+// Algoritmo de Meeus/Jones/Butcher pro domingo de Páscoa (base pros feriados móveis).
+function computeEasterDate(year){
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31); // 3=março, 4=abril
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+const HOLIDAY_CACHE = {};
+function getHolidaysForYear(year){
+  if (HOLIDAY_CACHE[year]) return HOLIDAY_CACHE[year];
+  const easter = computeEasterDate(year);
+  function addDays(date, days){ const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+  const list = [];
+  function add(date, name, scope){ list.push({ date: new Date(date.getFullYear(), date.getMonth(), date.getDate()), name, scope }); }
+
+  // Feriados nacionais fixos
+  add(new Date(year, 0, 1), "Confraternização Universal", "nacional");
+  add(new Date(year, 3, 21), "Tiradentes", "nacional");
+  add(new Date(year, 4, 1), "Dia do Trabalho", "nacional");
+  add(new Date(year, 8, 7), "Independência do Brasil", "nacional");
+  add(new Date(year, 9, 12), "Nossa Senhora Aparecida", "nacional");
+  add(new Date(year, 10, 2), "Finados", "nacional");
+  add(new Date(year, 10, 15), "Proclamação da República", "nacional");
+  add(new Date(year, 10, 20), "Dia Nacional de Zumbi e da Consciência Negra", "nacional");
+  add(new Date(year, 11, 25), "Natal", "nacional");
+
+  // Feriados nacionais móveis (calculados a partir da Páscoa)
+  add(addDays(easter, -48), "Carnaval (segunda-feira)", "facultativo");
+  add(addDays(easter, -47), "Carnaval (terça-feira)", "facultativo");
+  add(addDays(easter, -2), "Sexta-feira da Paixão", "nacional");
+  add(addDays(easter, 60), "Corpus Christi", "facultativo");
+
+  // Feriado estadual de Pernambuco
+  add(new Date(year, 2, 6), "Data Magna de Pernambuco (Revolução de 1817)", "pernambuco");
+
+  HOLIDAY_CACHE[year] = list;
+  return list;
+}
+
+function findHoliday(date){
+  return getHolidaysForYear(date.getFullYear())
+    .find(h => h.date.getMonth() === date.getMonth() && h.date.getDate() === date.getDate());
+}
+
+function holidayScopeLabel(scope){
+  if (scope === "pernambuco") return "feriado estadual — Pernambuco";
+  if (scope === "facultativo") return "ponto facultativo nacional";
+  return "feriado nacional";
+}
+
+function renderSidebarMiniCalendar(){
+  const wrap = document.createElement("div");
+  wrap.id = "sidebarMiniCal";
+
+  const header = document.createElement("div");
+  header.className = "smc-header";
+  const prevBtn = document.createElement("button");
+  prevBtn.type = "button"; prevBtn.className = "smc-nav"; prevBtn.title = "Mês anterior"; prevBtn.textContent = "‹";
+  const label = document.createElement("span");
+  label.className = "smc-label";
+  label.textContent = MESES_PT[smcViewMonth] + " " + smcViewYear;
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button"; nextBtn.className = "smc-nav"; nextBtn.title = "Próximo mês"; nextBtn.textContent = "›";
+  prevBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    smcViewMonth--;
+    if (smcViewMonth < 0){ smcViewMonth = 11; smcViewYear--; }
+    buildTree();
+  });
+  nextBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    smcViewMonth++;
+    if (smcViewMonth > 11){ smcViewMonth = 0; smcViewYear++; }
+    buildTree();
+  });
+  header.appendChild(prevBtn);
+  header.appendChild(label);
+  header.appendChild(nextBtn);
+  wrap.appendChild(header);
+
+  const weekdaysRow = document.createElement("div");
+  weekdaysRow.className = "smc-weekdays";
+  SMC_WEEKDAY_LABELS.forEach(d => {
+    const s = document.createElement("span");
+    s.textContent = d;
+    weekdaysRow.appendChild(s);
+  });
+  wrap.appendChild(weekdaysRow);
+
+  const grid = document.createElement("div");
+  grid.className = "smc-grid";
+  const firstDay = new Date(smcViewYear, smcViewMonth, 1);
+  const startOffset = firstDay.getDay();
+  const daysInMonth = new Date(smcViewYear, smcViewMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(smcViewYear, smcViewMonth, 0).getDate();
+  const todayD = new Date();
+
+  for (let i = 0; i < 42; i++){
+    const cell = document.createElement("div");
+    cell.className = "smc-day";
+    let cellDate;
+    if (i < startOffset){
+      cellDate = new Date(smcViewYear, smcViewMonth - 1, daysInPrevMonth - startOffset + 1 + i);
+      cell.classList.add("other-month");
+    } else if (i >= startOffset + daysInMonth){
+      cellDate = new Date(smcViewYear, smcViewMonth + 1, i - startOffset - daysInMonth + 1);
+      cell.classList.add("other-month");
+    } else {
+      cellDate = new Date(smcViewYear, smcViewMonth, i - startOffset + 1);
+    }
+    cell.textContent = cellDate.getDate();
+    if (cellDate.getDay() === 0 || cellDate.getDay() === 6) cell.classList.add("weekend");
+    if (cellDate.getFullYear() === todayD.getFullYear() && cellDate.getMonth() === todayD.getMonth() && cellDate.getDate() === todayD.getDate()){
+      cell.classList.add("today");
+    }
+    const holiday = findHoliday(cellDate);
+    if (holiday){
+      cell.classList.add("holiday-" + holiday.scope);
+      cell.title = holiday.name + " — " + holidayScopeLabel(holiday.scope);
+    } else {
+      cell.title = cellDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+    }
+    grid.appendChild(cell);
+  }
+  wrap.appendChild(grid);
+
+  const legend = document.createElement("div");
+  legend.className = "smc-legend";
+  legend.innerHTML =
+    '<span><i class="smc-dot nacional"></i>Nacional</span>' +
+    '<span><i class="smc-dot pernambuco"></i>Pernambuco</span>' +
+    '<span><i class="smc-dot facultativo"></i>Facultativo</span>';
+  wrap.appendChild(legend);
+
+  const todayBtn = document.createElement("button");
+  todayBtn.type = "button";
+  todayBtn.className = "smc-today-btn";
+  todayBtn.textContent = "Hoje";
+  todayBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const now = new Date();
+    smcViewYear = now.getFullYear();
+    smcViewMonth = now.getMonth();
+    buildTree();
+  });
+  wrap.appendChild(todayBtn);
+
+  return wrap;
 }
 
 function pageIcon(page){
