@@ -1417,11 +1417,12 @@ function initToolbarDragReorder(){
     });
     child.addEventListener("dragend", () => child.classList.remove("toolbar-dragging"));
     child.addEventListener("dragover", (e) => e.preventDefault());
-    child.addEventListener("drop", (e) => {
+    child.addEventListener("drop", async (e) => {
       e.preventDefault();
       const draggedKey = e.dataTransfer.getData("text/plain");
       const targetKey = child.dataset.tkey;
       if (!draggedKey || draggedKey === targetKey || !DEFAULT_TOOLBAR_ORDER.includes(draggedKey)) return;
+      if (!(await requestEditPassword())) return;
       const order = toolbarOrder.slice();
       const from = order.indexOf(draggedKey);
       const to = order.indexOf(targetKey);
@@ -2167,10 +2168,11 @@ function renderTaskTableHead(){
 
       th.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", key); });
       th.addEventListener("dragover", (e) => e.preventDefault());
-      th.addEventListener("drop", (e) => {
+      th.addEventListener("drop", async (e) => {
         e.preventDefault();
         const draggedKey = e.dataTransfer.getData("text/plain");
         if (!draggedKey || draggedKey === key || !DEFAULT_COL_ORDER.includes(draggedKey)) return;
+        if (!(await requestEditPassword())) return;
         const order = taskColOrder.slice();
         const from = order.indexOf(draggedKey);
         const to = order.indexOf(key);
@@ -2240,7 +2242,8 @@ function renderTaskColumnsMenu(){
   resetBtn.type = "button";
   resetBtn.className = "col-menu-reset";
   resetBtn.textContent = "↺ Restaurar padrão";
-  resetBtn.addEventListener("click", () => {
+  resetBtn.addEventListener("click", async () => {
+    if (!(await requestEditPassword())) return;
     endActiveColumnResize();
     taskColOrder = DEFAULT_COL_ORDER.slice();
     taskColWidths = Object.assign({}, DEFAULT_COL_WIDTHS);
@@ -2305,7 +2308,8 @@ makeFieldResizable(document.getElementById("assigneeFilterSelect").parentElement
 makeFieldResizable(document.getElementById("taskSearchInput").parentElement, document.getElementById("taskSearchInput"), "search", 90);
 makeFieldResizable(document.getElementById("dueFromFilter").parentElement, document.getElementById("dueFromFilter"), "dueFrom", 90);
 makeFieldResizable(document.getElementById("dueToFilter").parentElement, document.getElementById("dueToFilter"), "dueTo", 90);
-document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+document.getElementById("clearFiltersBtn").addEventListener("click", async () => {
+  if (!(await requestEditPassword())) return;
   taskFilter = "Todas";
   taskCompanyFilter = "Todas";
   taskAssigneeFilter = "Todos";
