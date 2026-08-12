@@ -2308,8 +2308,7 @@ makeFieldResizable(document.getElementById("assigneeFilterSelect").parentElement
 makeFieldResizable(document.getElementById("taskSearchInput").parentElement, document.getElementById("taskSearchInput"), "search", 90);
 makeFieldResizable(document.getElementById("dueFromFilter").parentElement, document.getElementById("dueFromFilter"), "dueFrom", 90);
 makeFieldResizable(document.getElementById("dueToFilter").parentElement, document.getElementById("dueToFilter"), "dueTo", 90);
-document.getElementById("clearFiltersBtn").addEventListener("click", async () => {
-  if (!(await requestEditPassword())) return;
+document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   taskFilter = "Todas";
   taskCompanyFilter = "Todas";
   taskAssigneeFilter = "Todos";
