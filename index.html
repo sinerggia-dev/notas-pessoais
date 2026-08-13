@@ -61,11 +61,11 @@
   #app.visible{display:flex;}
 
   #sidebar{
-    width:300px;min-width:300px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);
+    width:270px;min-width:270px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);
     display:flex;flex-direction:column;height:100%;
   }
   #sidebarHeader{padding:16px 14px 4px;}
-  #sidebarHeader h2{font-size:14px;margin:0 0 12px;font-weight:700;display:flex;align-items:center;gap:6px;letter-spacing:-.01em;}
+  #sidebarHeader h2{font-size:20px;margin:0 0 12px;font-weight:700;display:flex;align-items:center;gap:6px;letter-spacing:-.01em;}
   #searchInput{
     width:100%;padding:8px 11px;border:1px solid var(--sidebar-border);border-radius:8px;font-size:13px;
     background:#fff;transition:border-color .15s ease, box-shadow .15s ease;
@@ -119,15 +119,15 @@
   #pageTree::-webkit-scrollbar-thumb:hover{background:var(--text-light);}
 
   /* ---------- Mini calendário da barra lateral (consulta de datas/feriados) ---------- */
-  #sidebarMiniCal{margin:6px 10px 4px;padding:8px 6px 6px;background:#fff;border:1px solid var(--sidebar-border);border-radius:10px;}
+  #sidebarMiniCal{margin:6px 4px 4px;padding:6px 5px 5px;background:#fff;border:1px solid var(--sidebar-border);border-radius:10px;}
   .smc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:4px;}
-  .smc-label{font-size:12px;font-weight:700;text-transform:capitalize;color:var(--text);}
+  .smc-label{font-size:13px;font-weight:700;text-transform:capitalize;color:var(--text);}
   .smc-nav{background:none;border:1px solid var(--sidebar-border);border-radius:5px;width:20px;height:20px;font-size:12px;cursor:pointer;color:var(--text);line-height:1;padding:0;flex-shrink:0;}
   .smc-nav:hover{background:var(--hover);}
-  .smc-weekdays{display:grid;grid-template-columns:repeat(7,1fr);font-size:9px;color:var(--text-light);text-transform:uppercase;text-align:center;margin-bottom:2px;}
-  .smc-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:1px;column-gap:2px;}
+  .smc-weekdays{display:grid;grid-template-columns:repeat(7,1fr);font-size:10px;color:var(--text-light);text-transform:uppercase;text-align:center;margin-bottom:2px;}
+  .smc-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:1px;column-gap:1px;}
   .smc-day{
-    height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text);
+    height:23px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text);
     border-radius:5px;cursor:default;
   }
   .smc-day.other-month{color:#d5d3e0;}
@@ -137,13 +137,13 @@
   .smc-day.holiday-pernambuco{background:#dff3e0;color:#2f8132;font-weight:600;}
   .smc-day.holiday-facultativo{background:#fff3d6;color:#8a6d1e;font-weight:600;}
   .smc-day.today.holiday-nacional, .smc-day.today.holiday-pernambuco, .smc-day.today.holiday-facultativo{background:var(--accent);color:#fff;}
-  .smc-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:9px;color:var(--text-light);}
+  .smc-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;font-size:10px;color:var(--text-light);}
   .smc-legend span{display:flex;align-items:center;gap:3px;}
   .smc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
   .smc-dot.nacional{background:#e5484d;}
   .smc-dot.pernambuco{background:#2f8132;}
   .smc-dot.facultativo{background:#c98a1e;}
-  .smc-today-btn{margin-top:6px;width:100%;background:none;border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 0;font-size:10px;cursor:pointer;color:var(--text-light);}
+  .smc-today-btn{margin-top:6px;width:100%;background:none;border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 0;font-size:11px;cursor:pointer;color:var(--text-light);}
   .smc-today-btn:hover{background:var(--hover);color:var(--text);}
 
   .page-row{
@@ -187,7 +187,7 @@
     padding:6px 10px;border-radius:6px;margin-bottom:14px;
   }
   #pageTitle{
-    width:100%;border:none;outline:none;font-size:36px;font-weight:700;color:var(--text);
+    width:100%;border:none;outline:none;font-size:24px;font-weight:700;color:var(--text);
     padding:4px 0;margin-bottom:8px;font-family:inherit;
   }
   #pageTitle::placeholder{color:#d9d9d6;}
@@ -267,7 +267,7 @@
   #taskStatusPills{display:flex;gap:6px;flex-wrap:wrap;}
   .filter-field{display:flex;flex-direction:column;gap:4px;}
   .filter-field-label{font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
-  #sidebarTaskStats{display:none;padding:12px 8px;border-top:1px solid var(--sidebar-border);}
+  #sidebarTaskStats{display:none;padding:12px 6px;border-top:1px solid var(--sidebar-border);}
   .mini-stat-group{margin-bottom:10px;}
   .mini-stat-group:last-child{margin-bottom:0;}
   .mini-stat-group-label{display:block;font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px;}
@@ -352,6 +352,14 @@
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
   .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
   .task-items{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;text-align:right;}
+  .task-links-wrap{display:flex;align-items:center;gap:4px;}
+  .task-links-input{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
+  .task-links-input[hidden]{display:none;}
+  .task-link-icon{font-size:15px;text-decoration:none;cursor:pointer;line-height:1;}
+  .task-link-icon[hidden]{display:none;}
+  .task-link-edit-btn{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:11px;padding:2px;line-height:1;}
+  .task-link-edit-btn:hover{color:var(--text);}
+  .task-link-edit-btn[hidden]{display:none;}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
   .status-pill.a-fazer{background:#efefee;color:#55534d;}
   .status-pill.em-andamento{background:#fff3d6;color:#8a6d1e;}
@@ -551,7 +559,7 @@
     #sidebar.open{transform:translateX(0);}
     #editor{width:100%;}
     #pageView{padding:56px 16px 120px;}
-    #pageTitle{font-size:26px;}
+    #pageTitle{font-size:20px;}
     .block-gutter{opacity:1;}
     #taskTable{font-size:12px;}
     .cal-day{min-height:60px;padding:3px;}
@@ -564,7 +572,7 @@
   @media print{
     #mobileMenuBtn, #sidebarOverlay, #sidebar,
     #taskToolbarRow, #taskStatusRow, #addBlockBtn, #readOnlyBanner,
-    .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td,
+    .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td, .task-link-edit-btn,
     #adminOverlay, #eventOverlay, #passwordOverlay, #selectionToolbar, #slashMenu, #kindMenu{
       display:none !important;
     }
@@ -2251,11 +2259,12 @@ const TASK_COLUMNS_DEF = [
   { key: "statusChangedAt", label: "Atualizado em" },
   { key: "timer", label: "Tempo" },
   { key: "assignee", label: "Responsável" },
+  { key: "links", label: "Links" },
 ];
 const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
   title: 190, status: 130, priority: 110, dueDate: 130, company: 140, items: 80,
-  createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150
+  createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70
 };
 
 let taskColOrder = DEFAULT_COL_ORDER.slice();
@@ -2716,6 +2725,7 @@ document.getElementById("exportTasksBtn").addEventListener("click", () => {
     "Atualizado em": formatDateTimeBR(t.statusChangedAt),
     "Tempo (min)": Math.round(getTaskDisplaySeconds(t) / 60),
     "Responsável": t.assignee ? firstNameFromEmail(t.assignee) : "",
+    "Links": t.links || "",
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
@@ -3062,6 +3072,84 @@ function buildAssigneeCell(task, assigneeOptions){
   return td;
 }
 
+// Link salvo aparece só como um ícone 🔗 (clicável, abre em nova aba) — nunca mostra a URL/descrição crua.
+function normalizeLinkUrl(v){
+  v = (v || "").trim();
+  if (!v) return "";
+  if (!/^https?:\/\//i.test(v)) return "https://" + v;
+  return v;
+}
+function buildLinksCell(task){
+  const td = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "task-links-wrap";
+
+  const icon = document.createElement("a");
+  icon.className = "task-link-icon";
+  icon.textContent = "🔗";
+  icon.target = "_blank";
+  icon.rel = "noopener noreferrer";
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "task-link-edit-btn";
+  editBtn.title = "Editar link";
+  editBtn.textContent = "✎";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "task-links-input";
+  input.placeholder = "Colar link…";
+  input.value = task.links || "";
+  input.disabled = !canEdit;
+
+  function showDisplayMode(){
+    const url = normalizeLinkUrl(task.links);
+    if (url){
+      icon.href = url;
+      icon.title = task.links;
+      icon.hidden = false;
+      editBtn.hidden = !canEdit;
+      input.hidden = true;
+    } else {
+      icon.hidden = true;
+      editBtn.hidden = true;
+      input.hidden = false;
+    }
+  }
+
+  editBtn.addEventListener("click", () => {
+    icon.hidden = true;
+    editBtn.hidden = true;
+    input.hidden = false;
+    input.focus();
+    input.select();
+  });
+
+  input.addEventListener("blur", async () => {
+    const newVal = input.value.trim();
+    const oldVal = task.links || "";
+    if (newVal === oldVal){ showDisplayMode(); return; }
+    input.value = oldVal;
+    if (!(await guardTaskFieldEdit(task))){ showDisplayMode(); return; }
+    task.links = newVal;
+    input.value = newVal;
+    scheduleSavePage(currentPageId);
+    showDisplayMode();
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter"){ e.preventDefault(); input.blur(); }
+    if (e.key === "Escape"){ input.value = task.links || ""; input.blur(); }
+  });
+
+  wrap.appendChild(icon);
+  wrap.appendChild(editBtn);
+  wrap.appendChild(input);
+  td.appendChild(wrap);
+  showDisplayMode();
+  return td;
+}
+
 const TASK_CELL_BUILDERS = {
   title: (task) => buildTitleCell(task),
   status: (task) => buildStatusCell(task),
@@ -3073,6 +3161,7 @@ const TASK_CELL_BUILDERS = {
   statusChangedAt: (task) => buildReadonlyDateCell(task.statusChangedAt),
   timer: (task) => buildTimerCell(task),
   assignee: (task, assigneeOptions) => buildAssigneeCell(task, assigneeOptions),
+  links: (task) => buildLinksCell(task),
 };
 
 function renderTaskRow(task, assigneeOptions){
