@@ -144,6 +144,11 @@
   .smc-dot.pernambuco{background:#2f8132;}
   .smc-dot.facultativo{background:#c98a1e;}
   .smc-today-btn{margin-top:6px;width:100%;background:none;border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 0;font-size:11px;cursor:pointer;color:var(--text-light);}
+  .smc-tooltip{
+    position:fixed;z-index:300;background:#242430;color:#fff;font-size:11px;line-height:1.3;
+    padding:5px 9px;border-radius:7px;white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-md);
+  }
+  .smc-tooltip[hidden]{display:none;}
   .smc-today-btn:hover{background:var(--hover);color:var(--text);}
 
   .page-row{
@@ -1346,6 +1351,37 @@ function holidayScopeLabel(scope){
   return "feriado nacional";
 }
 
+// Tooltip customizado do mini calendário (fixed, foge do overflow:auto da árvore de páginas).
+function ensureSmcTooltip(){
+  let el = document.getElementById("smcTooltip");
+  if (!el){
+    el = document.createElement("div");
+    el.id = "smcTooltip";
+    el.className = "smc-tooltip";
+    el.hidden = true;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function showSmcTooltip(targetEl, text){
+  const tip = ensureSmcTooltip();
+  tip.textContent = text;
+  tip.hidden = false;
+  const rect = targetEl.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  left = Math.max(6, Math.min(left, window.innerWidth - tipRect.width - 6));
+  let top = rect.top - tipRect.height - 6;
+  if (top < 4) top = rect.bottom + 6;
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+function hideSmcTooltip(){
+  const tip = document.getElementById("smcTooltip");
+  if (tip) tip.hidden = true;
+}
+document.getElementById("pageTree").addEventListener("scroll", hideSmcTooltip);
+
 function renderSidebarMiniCalendar(){
   const wrap = document.createElement("div");
   wrap.id = "sidebarMiniCal";
@@ -1412,12 +1448,15 @@ function renderSidebarMiniCalendar(){
       cell.classList.add("today");
     }
     const holiday = findHoliday(cellDate);
+    let tooltipText;
     if (holiday){
       cell.classList.add("holiday-" + holiday.scope);
-      cell.title = holiday.name + " — " + holidayScopeLabel(holiday.scope);
+      tooltipText = holiday.name + " — " + holidayScopeLabel(holiday.scope);
     } else {
-      cell.title = cellDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+      tooltipText = cellDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
     }
+    cell.addEventListener("mouseenter", () => showSmcTooltip(cell, tooltipText));
+    cell.addEventListener("mouseleave", hideSmcTooltip);
     grid.appendChild(cell);
   }
   wrap.appendChild(grid);
