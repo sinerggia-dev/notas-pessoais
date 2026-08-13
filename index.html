@@ -1448,15 +1448,12 @@ function renderSidebarMiniCalendar(){
       cell.classList.add("today");
     }
     const holiday = findHoliday(cellDate);
-    let tooltipText;
     if (holiday){
       cell.classList.add("holiday-" + holiday.scope);
-      tooltipText = holiday.name + " — " + holidayScopeLabel(holiday.scope);
-    } else {
-      tooltipText = cellDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+      const tooltipText = holiday.name + " — " + holidayScopeLabel(holiday.scope);
+      cell.addEventListener("mouseenter", () => showSmcTooltip(cell, tooltipText));
+      cell.addEventListener("mouseleave", hideSmcTooltip);
     }
-    cell.addEventListener("mouseenter", () => showSmcTooltip(cell, tooltipText));
-    cell.addEventListener("mouseleave", hideSmcTooltip);
     grid.appendChild(cell);
   }
   wrap.appendChild(grid);
