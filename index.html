@@ -677,8 +677,8 @@
           <button type="button" id="printTasksBtn" data-tkey="print">🖨️ Imprimir</button>
         </div>
         <div id="taskStatusRow">
-          <div id="taskStatusPills"></div>
           <button id="addTaskBtn">+ Nova tarefa</button>
+          <div id="taskStatusPills"></div>
         </div>
         <div id="taskTableWrap">
           <table id="taskTable">
@@ -2595,7 +2595,7 @@ document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   renderTasks();
 });
 
-const TASK_STATUS_TABS = ["Todas", "Pendente", "Iniciado", "Concluído"];
+const TASK_STATUS_TABS = ["Todas", "Iniciado", "Pendente", "Concluído"];
 
 function setTaskStatusFilter(value){
   taskFilter = value;
