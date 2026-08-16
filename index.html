@@ -557,15 +557,16 @@
   /* ---------- Recolher/expandir barra lateral (desktop) ---------- */
   #sidebar{transition:width .18s ease, min-width .18s ease;}
   #sidebarCollapseBtn{
-    position:fixed;top:16px;left:270px;z-index:210;width:20px;height:44px;
+    position:fixed;top:16px;left:270px;z-index:210;width:20px;height:44px;padding:0;margin:0;
+    -webkit-appearance:none;appearance:none;line-height:1;
     display:flex;align-items:center;justify-content:center;
     background:#fff;border:1px solid var(--sidebar-border);border-left:none;border-radius:0 8px 8px 0;
     cursor:pointer;font-size:12px;color:var(--text-light);box-shadow:2px 0 6px rgba(0,0,0,.06);
     transition:left .18s ease, background .12s ease, color .12s ease;
   }
   #sidebarCollapseBtn:hover{background:var(--hover);color:var(--text);}
+  #sidebarCollapseBtn.collapsed{left:0;}
   #app.sidebar-collapsed #sidebar{width:0;min-width:0;overflow:hidden;border-right:none;}
-  #app.sidebar-collapsed #sidebarCollapseBtn{left:0;}
 
   /* ---------- Responsivo (celular) ---------- */
   @media (max-width: 768px){
@@ -1557,6 +1558,7 @@ document.getElementById("sidebarOverlay").addEventListener("click", closeMobileS
 function applySidebarCollapsed(collapsed){
   document.getElementById("app").classList.toggle("sidebar-collapsed", collapsed);
   const btn = document.getElementById("sidebarCollapseBtn");
+  btn.classList.toggle("collapsed", collapsed);
   btn.textContent = collapsed ? "›" : "‹";
   btn.title = collapsed ? "Expandir barra lateral" : "Recolher barra lateral";
 }
