@@ -366,8 +366,8 @@
   .task-link-edit-btn:hover{color:var(--text);}
   .task-link-edit-btn[hidden]{display:none;}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
-  .status-pill.a-fazer{background:#efefee;color:#55534d;}
-  .status-pill.em-andamento{background:#fff3d6;color:#8a6d1e;}
+  .status-pill.pendente{background:#efefee;color:#55534d;}
+  .status-pill.iniciado{background:#fff3d6;color:#8a6d1e;}
   .status-pill.concluido{background:#dff3e0;color:#2f8132;}
   .priority-pill.baixa{background:#efefee;color:#55534d;}
   .priority-pill.media{background:#fff3d6;color:#8a6d1e;}
@@ -690,12 +690,12 @@
         </div>
         <div id="taskKanban" class="kanban-board">
           <div class="kanban-col">
-            <h4>A fazer</h4>
-            <div class="kanban-col-body" data-status="A fazer"></div>
+            <h4>Pendente</h4>
+            <div class="kanban-col-body" data-status="Pendente"></div>
           </div>
           <div class="kanban-col">
-            <h4>Em andamento</h4>
-            <div class="kanban-col-body" data-status="Em andamento"></div>
+            <h4>Iniciado</h4>
+            <div class="kanban-col-body" data-status="Iniciado"></div>
           </div>
           <div class="kanban-col">
             <h4>Concluído</h4>
@@ -1170,6 +1170,17 @@ function defaultContentForKind(kind){
   return { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
 }
 
+// Migração dos nomes antigos de status para tarefas já salvas antes da renomeação.
+const STATUS_RENAME_MAP = { "A fazer": "Pendente", "Em andamento": "Iniciado" };
+function migrateTaskStatuses(content){
+  if (content && Array.isArray(content.tasks)){
+    content.tasks.forEach(t => {
+      if (STATUS_RENAME_MAP[t.status]) t.status = STATUS_RENAME_MAP[t.status];
+    });
+  }
+  return content;
+}
+
 async function addPage(parentId, kind){
   if (!canEdit) return;
   kind = PAGE_KINDS.includes(kind) ? kind : "notas";
@@ -1232,7 +1243,7 @@ async function openPage(id){
     const fallback = defaultContentForKind(meta.kind || "notas");
     try{
       const data = await getJsonByPath("pagina_" + id + ".json");
-      pageContentCache[id] = data || fallback;
+      pageContentCache[id] = migrateTaskStatuses(data || fallback);
     }catch(e){
       pageContentCache[id] = fallback;
     }
@@ -2203,7 +2214,7 @@ function taskMatchesCommonFilters(task){
 
 const SORT_ACCESSORS = {
   title: t => (t.title || "").toLowerCase(),
-  status: t => ({ "A fazer": 0, "Em andamento": 1, "Concluído": 2 }[t.status] ?? 0),
+  status: t => ({ "Pendente": 0, "Iniciado": 1, "Concluído": 2 }[t.status] ?? 0),
   priority: t => ({ "Baixa": 0, "Média": 1, "Alta": 2 }[t.priority] ?? 0),
   dueDate: t => t.dueDate || "",
   company: t => (t.company || "").toLowerCase(),
@@ -2584,7 +2595,7 @@ document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   renderTasks();
 });
 
-const TASK_STATUS_TABS = ["Todas", "A fazer", "Em andamento", "Concluído"];
+const TASK_STATUS_TABS = ["Todas", "Pendente", "Iniciado", "Concluído"];
 
 function setTaskStatusFilter(value){
   taskFilter = value;
@@ -2987,7 +2998,7 @@ function buildTitleCell(task){
 }
 function buildStatusCell(task){
   const td = document.createElement("td");
-  td.appendChild(buildTaskSelect(task, "status", ["A fazer", "Em andamento", "Concluído"], "status-pill"));
+  td.appendChild(buildTaskSelect(task, "status", ["Pendente", "Iniciado", "Concluído"], "status-pill"));
   return td;
 }
 function buildPriorityCell(task){
@@ -3252,7 +3263,7 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
   if (!content.tasks) content.tasks = [];
   const now = new Date().toISOString();
   content.tasks.unshift({
-    id: genId("t"), title: "", status: "A fazer", priority: "Média", assignee: "", company: "",
+    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", company: "",
     createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
   // Sem ordenação de coluna ativa, pra garantir que a tarefa recém-criada apareça no topo.
@@ -3275,7 +3286,7 @@ async function ensurePagesOfKindLoaded(kind){
     if (!pageContentCache[p.id]){
       try{
         const data = await getJsonByPath("pagina_" + p.id + ".json");
-        pageContentCache[p.id] = data || defaultContentForKind(kind);
+        pageContentCache[p.id] = migrateTaskStatuses(data || defaultContentForKind(kind));
       }catch(e){
         pageContentCache[p.id] = defaultContentForKind(kind);
       }
@@ -3332,12 +3343,12 @@ async function renderDashboard(){
   const eventsFlat = await loadAllEventsFlat();
   const todayStr = formatDateISO(new Date());
 
-  const counts = { "A fazer": 0, "Em andamento": 0, "Concluído": 0 };
+  const counts = { "Pendente": 0, "Iniciado": 0, "Concluído": 0 };
   tasksFlat.forEach(({ task }) => { counts[task.status] = (counts[task.status] || 0) + 1; });
 
   document.getElementById("dashboardStats").innerHTML = `
-    <div class="dash-stat"><span class="dash-stat-num">${counts["A fazer"]}</span><span class="dash-stat-label">A fazer</span></div>
-    <div class="dash-stat"><span class="dash-stat-num">${counts["Em andamento"]}</span><span class="dash-stat-label">Em andamento</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${counts["Pendente"]}</span><span class="dash-stat-label">Pendente</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${counts["Iniciado"]}</span><span class="dash-stat-label">Iniciado</span></div>
     <div class="dash-stat"><span class="dash-stat-num">${counts["Concluído"]}</span><span class="dash-stat-label">Concluído</span></div>`;
 
   const userCounts = {};
