@@ -554,9 +554,23 @@
   #sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:190;}
   #sidebarOverlay.visible{display:block;}
 
+  /* ---------- Recolher/expandir barra lateral (desktop) ---------- */
+  #sidebar{transition:width .18s ease, min-width .18s ease;}
+  #sidebarCollapseBtn{
+    position:fixed;top:16px;left:270px;z-index:210;width:20px;height:44px;
+    display:flex;align-items:center;justify-content:center;
+    background:#fff;border:1px solid var(--sidebar-border);border-left:none;border-radius:0 8px 8px 0;
+    cursor:pointer;font-size:12px;color:var(--text-light);box-shadow:2px 0 6px rgba(0,0,0,.06);
+    transition:left .18s ease, background .12s ease, color .12s ease;
+  }
+  #sidebarCollapseBtn:hover{background:var(--hover);color:var(--text);}
+  #app.sidebar-collapsed #sidebar{width:0;min-width:0;overflow:hidden;border-right:none;}
+  #app.sidebar-collapsed #sidebarCollapseBtn{left:0;}
+
   /* ---------- Responsivo (celular) ---------- */
   @media (max-width: 768px){
     #mobileMenuBtn{display:flex;align-items:center;justify-content:center;}
+    #sidebarCollapseBtn{display:none;}
     #sidebar{
       position:fixed;top:0;left:0;height:100vh;width:85vw;max-width:300px;z-index:200;
       transform:translateX(-100%);transition:transform .22s ease;box-shadow:2px 0 16px rgba(0,0,0,.18);
@@ -575,7 +589,7 @@
 
   /* ---------- Impressão (respeita os filtros aplicados no Banco de Tarefas) ---------- */
   @media print{
-    #mobileMenuBtn, #sidebarOverlay, #sidebar,
+    #mobileMenuBtn, #sidebarOverlay, #sidebar, #sidebarCollapseBtn,
     #taskToolbarRow, #taskStatusRow, #addBlockBtn, #readOnlyBanner,
     .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td, .task-link-edit-btn,
     #adminOverlay, #eventOverlay, #passwordOverlay, #selectionToolbar, #slashMenu, #kindMenu{
@@ -606,6 +620,7 @@
 
 <button id="mobileMenuBtn">☰</button>
 <div id="sidebarOverlay"></div>
+<button id="sidebarCollapseBtn" title="Recolher barra lateral">‹</button>
 
 <div id="app">
   <aside id="sidebar">
@@ -1537,6 +1552,20 @@ document.getElementById("mobileMenuBtn").addEventListener("click", () => {
   else openMobileSidebar();
 });
 document.getElementById("sidebarOverlay").addEventListener("click", closeMobileSidebar);
+
+/* ---------- Recolher/expandir barra lateral (desktop, dá mais espaço pro conteúdo) ---------- */
+function applySidebarCollapsed(collapsed){
+  document.getElementById("app").classList.toggle("sidebar-collapsed", collapsed);
+  const btn = document.getElementById("sidebarCollapseBtn");
+  btn.textContent = collapsed ? "›" : "‹";
+  btn.title = collapsed ? "Expandir barra lateral" : "Recolher barra lateral";
+}
+document.getElementById("sidebarCollapseBtn").addEventListener("click", () => {
+  const collapsed = !document.getElementById("app").classList.contains("sidebar-collapsed");
+  localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+  applySidebarCollapsed(collapsed);
+});
+applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
 
 document.getElementById("newPageBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
 document.getElementById("emptyCreateBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
