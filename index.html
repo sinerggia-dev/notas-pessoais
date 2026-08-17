@@ -158,6 +158,14 @@
   .page-row:hover{background:var(--hover);}
   .page-row.active{background:var(--accent-light);color:var(--accent-hover);font-weight:600;border-left-color:var(--accent);}
   .page-title-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row-toggle{
+    background:none;border:none;cursor:pointer;color:var(--text-light);font-size:9px;
+    width:14px;height:14px;padding:0;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    border-radius:4px;transition:transform .15s ease, background .12s ease, color .12s ease;
+  }
+  .row-toggle:hover{background:#fff;color:var(--text);}
+  .row-toggle.collapsed{transform:rotate(-90deg);}
+  .row-toggle-spacer{width:14px;flex-shrink:0;}
   .row-actions{display:none;gap:2px;flex-shrink:0;}
   .page-row:hover .row-actions{display:flex;}
   .icon-btn{
@@ -866,6 +874,16 @@ let pageContentCache = {};         // pageId -> { blocks: [...] }
 let currentPageId = null;
 let nextOrder = 0;
 
+// Páginas-pai recolhidas na árvore lateral (escondem as subpáginas), lembrado entre sessões.
+let collapsedPageIds = new Set();
+try{ collapsedPageIds = new Set(JSON.parse(localStorage.getItem("collapsedPages") || "[]")); }catch(e){}
+function isPageCollapsed(id){ return collapsedPageIds.has(id); }
+function toggleCollapsedPage(id){
+  if (collapsedPageIds.has(id)) collapsedPageIds.delete(id);
+  else collapsedPageIds.add(id);
+  localStorage.setItem("collapsedPages", JSON.stringify([...collapsedPageIds]));
+}
+
 let msalInstance = null;
 let accessToken = null;
 let currentUserEmail = null;
@@ -1299,8 +1317,9 @@ function buildTree(query){
   function renderChildren(parentId, depth){
     const children = indexData.pages.filter(p => (p.parentId || null) === parentId).sort((a,b) => a.order - b.order);
     children.forEach(p => {
-      container.appendChild(renderPageRow(p, depth));
-      renderChildren(p.id, depth + 1);
+      const hasChildren = indexData.pages.some(pp => (pp.parentId || null) === p.id);
+      container.appendChild(renderPageRow(p, depth, hasChildren));
+      if (hasChildren && !isPageCollapsed(p.id)) renderChildren(p.id, depth + 1);
     });
   }
   renderChildren(null, 0);
@@ -1516,17 +1535,24 @@ function pageIcon(page){
   return "📝 ";
 }
 
-function renderPageRow(page, depth){
+function renderPageRow(page, depth, hasChildren){
   const row = document.createElement("div");
   row.className = "page-row" + (page.id === currentPageId ? " active" : "");
   row.style.paddingLeft = (10 + depth * 16) + "px";
   row.dataset.id = page.id;
+  const collapsed = hasChildren && isPageCollapsed(page.id);
+  const toggleHtml = hasChildren
+    ? `<button class="row-toggle${collapsed ? " collapsed" : ""}" title="${collapsed ? "Expandir" : "Recolher"}">▾</button>`
+    : `<span class="row-toggle-spacer"></span>`;
   row.innerHTML = `
+    ${toggleHtml}
     <span class="page-title-label">${pageIcon(page)}${escapeHtml(page.title || "Sem título")}</span>
     <span class="row-actions">
       ${canEdit ? '<button class="icon-btn add-sub" title="Nova subpágina">+</button><button class="icon-btn del-page" title="Excluir">🗑</button>' : ""}
     </span>`;
   row.querySelector(".page-title-label").addEventListener("click", () => openPage(page.id));
+  const toggleBtn = row.querySelector(".row-toggle");
+  if (toggleBtn) toggleBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleCollapsedPage(page.id); buildTree(document.getElementById("searchInput").value); });
   const addSub = row.querySelector(".add-sub");
   if (addSub) addSub.addEventListener("click", (e) => { e.stopPropagation(); showKindMenu(page.id, addSub); });
   const delBtn = row.querySelector(".del-page");
