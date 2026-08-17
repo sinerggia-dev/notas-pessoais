@@ -2667,7 +2667,9 @@ function renderTaskFilterTabs(){
 function updateTaskViewToggle(){
   document.getElementById("tableViewBtn").classList.toggle("active", taskViewMode === "table");
   document.getElementById("kanbanViewBtn").classList.toggle("active", taskViewMode === "kanban");
-  document.getElementById("taskFilterTabs").style.display = taskViewMode === "table" ? "flex" : "none";
+  // No Kanban o status já é representado pelas colunas — some o campo inteiro (rótulo + dropdown),
+  // não só o dropdown, senão sobra uma caixa vazia com o rótulo "STATUS".
+  document.querySelector('.filter-field[data-tkey="status"]').style.display = taskViewMode === "table" ? "flex" : "none";
   document.getElementById("taskStatusPills").style.display = taskViewMode === "table" ? "flex" : "none";
   document.getElementById("taskTableWrap").style.display = taskViewMode === "table" ? "block" : "none";
   document.getElementById("taskKanban").style.display = taskViewMode === "kanban" ? "flex" : "none";
