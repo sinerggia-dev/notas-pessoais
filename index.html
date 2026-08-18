@@ -282,7 +282,7 @@
   #tasksView{display:none;}
   #taskStatusRow{display:flex;justify-content:flex-start;align-items:center;gap:14px;margin-bottom:14px;}
   #taskStatusPills{display:flex;gap:6px;flex-wrap:wrap;}
-  .filter-field{display:flex;flex-direction:column;gap:4px;}
+  .filter-field{display:flex;flex-direction:column;gap:4px;flex:0 1 auto;min-width:0;}
   .filter-field-label{font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em;}
   #sidebarTaskStats{display:none;padding:12px 6px;border-top:1px solid var(--sidebar-border);}
   .mini-stat-group{margin-bottom:10px;}
@@ -298,8 +298,8 @@
   .mini-stat.active{background:var(--accent-light);border-color:var(--accent-light);color:var(--accent-hover);font-weight:600;}
   .mini-stat b{margin-right:4px;color:var(--accent-hover);}
   .mini-stat.active b{color:var(--accent-hover);}
-  #taskFilterTabs{position:relative;display:inline-block;}
-  .filter-control-wrap{position:relative;display:inline-block;}
+  #taskFilterTabs{position:relative;display:inline-block;max-width:100%;min-width:0;}
+  .filter-control-wrap{position:relative;display:inline-block;max-width:100%;min-width:0;}
   .field-resizer{
     position:absolute;top:0;bottom:0;right:-7px;width:12px;cursor:col-resize;z-index:2;
   }
@@ -352,14 +352,14 @@
   .col-menu-reset:hover{color:var(--accent-hover);}
   #statusFilterSelect, #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
     height:28px;box-sizing:border-box;padding:0 9px;background:#fff;border:1px solid var(--sidebar-border);
-    border-radius:6px;font-size:11px;font-family:inherit;
+    border-radius:6px;font-size:11px;font-family:inherit;max-width:100%;
   }
-  #taskSearchInput{width:150px;flex:none;}
-  #dueFilterWrap{display:flex;align-items:center;gap:4px;}
-  .due-filter-sep{color:var(--text-light);font-size:11px;}
+  #taskSearchInput{width:150px;flex:1 1 90px;min-width:70px;max-width:220px;}
+  #dueFilterWrap{display:flex;align-items:center;gap:4px;min-width:0;}
+  .due-filter-sep{color:var(--text-light);font-size:11px;flex-shrink:0;}
   #dueFromFilter, #dueToFilter{
     height:28px;box-sizing:border-box;padding:0 6px;background:#fff;border:1px solid var(--sidebar-border);
-    border-radius:6px;font-size:11px;font-family:inherit;width:108px;
+    border-radius:6px;font-size:11px;font-family:inherit;width:108px;flex:1 1 70px;min-width:60px;max-width:130px;
   }
   #clearFiltersBtn{
     display:inline-flex;align-items:center;height:28px;box-sizing:border-box;
@@ -583,6 +583,21 @@
   #sidebarCollapseBtn:hover{background:var(--hover);color:var(--text);}
   #sidebarCollapseBtn.collapsed{left:0;}
   #app.sidebar-collapsed #sidebar{width:0;min-width:0;overflow:hidden;border-right:none;}
+
+  /* ---------- Responsivo (notebook/tablet) — compacta os filtros pra não sobrar
+     botão sozinho numa linha, sem depender de um único ponto de corte fixo ---------- */
+  @media (max-width: 1300px){
+    #taskToolbarRow{gap:6px;}
+    #companyFilterSelect, #assigneeFilterSelect, #statusFilterSelect{max-width:110px !important;}
+    #taskSearchInput{max-width:130px !important;}
+    #dueFromFilter, #dueToFilter{max-width:96px !important;}
+  }
+  @media (max-width: 1024px){
+    .filter-field-label{display:none;}
+    #taskToolbarRow{gap:5px;row-gap:8px;}
+    #taskKanban{overflow-x:auto;padding-bottom:6px;}
+    .kanban-col{flex:0 0 240px;min-width:240px;}
+  }
 
   /* ---------- Responsivo (celular) ---------- */
   @media (max-width: 768px){
