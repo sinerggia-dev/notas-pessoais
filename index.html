@@ -313,8 +313,8 @@
   }
   .task-filter-tab.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent-light);font-weight:600;}
   .task-total-badge{
-    background:var(--accent-light);border:1px solid var(--accent-light);border-radius:14px;padding:4px 10px;
-    font-size:11px;color:var(--accent);font-weight:600;
+    background:#efefee;border:1px solid #efefee;border-radius:14px;padding:4px 10px;
+    font-size:11px;color:#55534d;font-weight:600;
   }
   #taskTable{width:auto;table-layout:fixed;border-collapse:collapse;font-size:13px;}
   #taskTable th{
@@ -2795,7 +2795,7 @@ function renderTaskStats(allTasks){
   // então mostra sempre a mesma contagem que está de fato na tela.
   const visible = base.filter(t => taskFilter === "Todas" || t.status === taskFilter);
   const totalBadge = document.getElementById("taskTotalBadge");
-  if (totalBadge) totalBadge.innerHTML = `<b>${visible.length}</b> Total de Atividades`;
+  if (totalBadge) totalBadge.innerHTML = `<b>${visible.length}</b> Atividades`;
 
   const bar = document.getElementById("sidebarTaskStats");
   if (!bar) return;
