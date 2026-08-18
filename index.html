@@ -2720,8 +2720,11 @@ document.getElementById("kanbanViewBtn").addEventListener("click", () => {
 function renderTaskStats(allTasks){
   const base = allTasks.filter(taskMatchesCommonFilters);
 
+  // O badge de total respeita TODOS os filtros aplicados (inclusive o de Status),
+  // então mostra sempre a mesma contagem que está de fato na tela.
+  const visible = base.filter(t => taskFilter === "Todas" || t.status === taskFilter);
   const totalBadge = document.getElementById("taskTotalBadge");
-  if (totalBadge) totalBadge.innerHTML = `<b>${base.length}</b> no total`;
+  if (totalBadge) totalBadge.innerHTML = `<b>${visible.length}</b>${taskFilter === "Todas" ? " no total" : " filtradas"}`;
 
   const bar = document.getElementById("sidebarTaskStats");
   if (!bar) return;
