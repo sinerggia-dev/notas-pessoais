@@ -1552,7 +1552,7 @@ function renderPageRow(page, depth, hasChildren){
     </span>`;
   row.querySelector(".page-title-label").addEventListener("click", () => openPage(page.id));
   const toggleBtn = row.querySelector(".row-toggle");
-  if (toggleBtn) toggleBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleCollapsedPage(page.id); buildTree(document.getElementById("searchInput").value); });
+  if (toggleBtn) toggleBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleCollapsedPage(page.id); buildTree(); });
   const addSub = row.querySelector(".add-sub");
   if (addSub) addSub.addEventListener("click", (e) => { e.stopPropagation(); showKindMenu(page.id, addSub); });
   const delBtn = row.querySelector(".del-page");
