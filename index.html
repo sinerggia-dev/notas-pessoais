@@ -1620,8 +1620,21 @@ document.getElementById("sidebarCollapseBtn").addEventListener("click", () => {
   const collapsed = !document.getElementById("app").classList.contains("sidebar-collapsed");
   localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
   applySidebarCollapsed(collapsed);
+  // Espera a transição de largura da barra lateral terminar (180ms) pra recalcular a tabela
+  // com o espaço que sobrou/liberou.
+  setTimeout(() => { if (typeof updateTaskTableWidth === "function") updateTaskTableWidth(); }, 200);
 });
 applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+
+// A tabela de tarefas precisa se ajustar sempre que a janela mudar de tamanho, não só quando
+// os dados são renderizados de novo.
+let resizeTableTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTableTimer);
+  resizeTableTimer = setTimeout(() => {
+    if (typeof updateTaskTableWidth === "function") updateTaskTableWidth();
+  }, 120);
+});
 
 document.getElementById("newPageBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
 document.getElementById("emptyCreateBtn").addEventListener("click", (e) => showKindMenu(null, e.target));
@@ -2504,9 +2517,14 @@ function endActiveColumnResize(){
 
 function updateTaskTableWidth(){
   const table = document.getElementById("taskTable");
+  const wrap = document.getElementById("taskTableWrap");
   if (!table) return;
   const total = visibleColumnOrder().reduce((sum, k) => sum + (taskColWidths[k] || 140), 0) + 40 + 34;
-  table.style.width = total + "px";
+  // Nunca menor que a soma das colunas (aí rola horizontal), mas nunca menor que o espaço
+  // disponível na tela — sobrando espaço, o navegador distribui o excedente entre as colunas
+  // (table-layout:fixed faz isso sozinho), então a tabela sempre ocupa a largura real da janela.
+  const available = wrap ? wrap.clientWidth : 0;
+  table.style.width = Math.max(total, available) + "px";
 }
 
 function renderTaskTableHead(){
