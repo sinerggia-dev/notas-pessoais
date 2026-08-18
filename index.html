@@ -128,8 +128,9 @@
   .smc-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:1px;column-gap:1px;}
   .smc-day{
     height:23px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text);
-    border-radius:5px;cursor:default;
+    border-radius:5px;cursor:pointer;
   }
+  .smc-day:hover:not(.today):not([class*="holiday-"]){background:var(--hover);}
   .smc-day.other-month{color:#d5d3e0;}
   .smc-day.weekend{color:var(--text-light);}
   .smc-day.today{background:var(--accent);color:#fff;font-weight:700;}
@@ -259,6 +260,9 @@
   .slash-item .slash-icon{
     width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
     background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:7px;font-size:13px;
+  }
+  .slash-item-label{
+    padding:4px 9px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
   }
 
   /* ---------- Barra de formatação flutuante ---------- */
@@ -1505,6 +1509,10 @@ function renderSidebarMiniCalendar(){
       cell.addEventListener("mouseenter", () => showSmcTooltip(cell, tooltipText));
       cell.addEventListener("mouseleave", hideSmcTooltip);
     }
+    cell.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showScheduleMenu(formatDateISO(cellDate), cell);
+    });
     grid.appendChild(cell);
   }
   wrap.appendChild(grid);
@@ -1628,10 +1636,73 @@ function showKindMenu(parentId, anchorEl){
 
 document.addEventListener("mousedown", (e) => {
   const menu = document.getElementById("kindMenu");
-  if (!menu.hidden && !menu.contains(e.target) && !e.target.closest("#newPageBtn, .add-sub, #emptyCreateBtn")){
+  if (!menu.hidden && !menu.contains(e.target) && !e.target.closest("#newPageBtn, .add-sub, #emptyCreateBtn, .smc-day")){
     menu.hidden = true;
   }
 });
+
+/* ==========================================================================
+   AGENDAMENTO RÁPIDO — clicar numa data no mini calendário da barra lateral
+   ========================================================================== */
+function showScheduleMenu(dateStr, anchorEl){
+  if (!canEdit) return;
+  const menu = document.getElementById("kindMenu");
+  const [y, m, d] = dateStr.split("-");
+  menu.innerHTML = `
+    <div class="slash-item-label">Agendar em ${d}/${m}/${y}</div>
+    <div class="slash-item" data-action="task"><span class="slash-icon">✅</span><span>Nova tarefa</span></div>
+    <div class="slash-item" data-action="event"><span class="slash-icon">📅</span><span>Novo evento</span></div>`;
+  menu.querySelectorAll(".slash-item").forEach(el => {
+    el.onmousedown = (e) => {
+      e.preventDefault();
+      menu.hidden = true;
+      if (el.dataset.action === "task") scheduleTaskFromCalendar(dateStr);
+      else scheduleEventFromCalendar(dateStr);
+    };
+  });
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.left = (rect.left + window.scrollX) + "px";
+  menu.style.top = (rect.bottom + window.scrollY + 6) + "px";
+  menu.hidden = false;
+}
+
+// Agenda uma tarefa com vencimento na data escolhida, sempre na página ROADMAP (banco de tarefas).
+async function scheduleTaskFromCalendar(dateStr){
+  const roadmap = indexData.pages.find(p => p.kind === "tarefas");
+  if (!roadmap){ alert("Nenhum banco de tarefas encontrado pra agendar."); return; }
+  if (currentPageId !== roadmap.id) await openPage(roadmap.id);
+  const content = pageContentCache[roadmap.id];
+  if (!content.tasks) content.tasks = [];
+  const now = new Date().toISOString();
+  content.tasks.unshift({
+    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", company: "",
+    dueDate: dateStr, createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
+  });
+  taskSortKey = null;
+  taskFilter = "Todas";
+  if (taskViewMode !== "table"){ taskViewMode = "table"; updateTaskViewToggle(); }
+  renderTaskFilterTabs();
+  renderTasks();
+  scheduleSavePage(roadmap.id);
+  setTimeout(() => {
+    const rows = document.querySelectorAll("#taskTableBody tr");
+    const first = rows[0];
+    if (first) first.querySelector(".task-title").focus();
+  }, 30);
+}
+
+// Agenda um evento na data escolhida, sempre na página Calendário.
+async function scheduleEventFromCalendar(dateStr){
+  const calPage = indexData.pages.find(p => p.kind === "calendario");
+  if (!calPage){ alert("Nenhuma página de calendário encontrada pra agendar."); return; }
+  if (currentPageId !== calPage.id) await openPage(calPage.id);
+  // openPage sempre abre o mês atual — pula pro mês da data escolhida pra o evento já nascer visível.
+  const [y, m] = dateStr.split("-").map(Number);
+  calendarYear = y;
+  calendarMonth = m - 1;
+  renderCalendar();
+  openEventModal(dateStr, null);
+}
 
 /* ==========================================================================
    EDITOR DE PÁGINA (TÍTULO)
