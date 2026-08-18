@@ -710,8 +710,8 @@
         </div>
         <div id="taskStatusRow">
           <button id="addTaskBtn">+ Nova tarefa</button>
-          <div id="taskStatusPills"></div>
           <span id="taskTotalBadge" class="task-total-badge"></span>
+          <div id="taskStatusPills"></div>
         </div>
         <div id="taskTableWrap">
           <table id="taskTable">
@@ -2795,7 +2795,7 @@ function renderTaskStats(allTasks){
   // então mostra sempre a mesma contagem que está de fato na tela.
   const visible = base.filter(t => taskFilter === "Todas" || t.status === taskFilter);
   const totalBadge = document.getElementById("taskTotalBadge");
-  if (totalBadge) totalBadge.innerHTML = `<b>${visible.length}</b>${taskFilter === "Todas" ? " no total" : " filtradas"}`;
+  if (totalBadge) totalBadge.innerHTML = `<b>${visible.length}</b> Total de Atividades`;
 
   const bar = document.getElementById("sidebarTaskStats");
   if (!bar) return;
