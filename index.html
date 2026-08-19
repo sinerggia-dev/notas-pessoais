@@ -381,6 +381,16 @@
   .task-link-edit-btn{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:11px;padding:2px;line-height:1;}
   .task-link-edit-btn:hover{color:var(--text);}
   .task-link-edit-btn[hidden]{display:none;}
+  /* Coluna Nota: na tabela fica so o icone - o bloco de nota so expande ao clicar */
+  .task-note-wrap{display:flex;align-items:center;gap:4px;}
+  .task-note-btn{
+    background:none;border:1px solid transparent;border-radius:6px;cursor:pointer;
+    font-size:14px;line-height:1;padding:3px 5px;color:var(--text-light);
+  }
+  .task-note-btn:hover{background:var(--hover);border-color:var(--sidebar-border);color:var(--text);}
+  .task-note-btn.has-note{color:var(--accent);}
+  .task-note-add-btn{font-size:15px;font-weight:600;color:#c8c8c5;}
+  .task-note-empty{font-size:12px;color:#c8c8c5;}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
   .status-pill.pendente{background:#fde3e3;color:#b23a3a;}
   .status-pill.iniciado{background:#fff3d6;color:#8a6d1e;}
@@ -511,6 +521,35 @@
   #passwordOkBtn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;cursor:pointer;}
   #passwordOkBtn:hover{background:var(--accent-hover);}
 
+  /* ---------- Bloco de nota (coluna Nota) ---------- */
+  #noteOverlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:150;
+    align-items:center;justify-content:center;
+  }
+  #noteOverlay.visible{display:flex;}
+  #noteModal{
+    background:#fff;border-radius:12px;width:540px;max-width:92vw;padding:24px;
+    box-shadow:var(--shadow-md);animation:menuPopIn .12s ease-out;
+  }
+  #noteCloseBtn{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-light);}
+  #noteModal h2{margin:0 0 4px;font-size:16px;}
+  #noteModalTaskTitle{margin:0 0 12px;font-size:12px;color:var(--text-light);overflow-wrap:break-word;}
+  #noteTextarea{
+    width:100%;box-sizing:border-box;min-height:190px;resize:vertical;
+    padding:10px 12px;border:1px solid var(--sidebar-border);border-radius:8px;
+    font-size:13px;font-family:inherit;line-height:1.6;
+  }
+  #noteTextarea[readonly]{background:var(--sidebar-bg);cursor:default;}
+  #noteModalHint{margin:8px 0 0;font-size:11px;color:var(--text-light);}
+  #noteModalActions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;}
+  #noteModalActionsRight{display:flex;gap:8px;}
+  #noteDeleteBtn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;}
+  #noteEditBtn{background:none;border:1px solid var(--sidebar-border);border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer;color:var(--text);}
+  #noteEditBtn:hover{background:var(--hover);}
+  #noteSaveBtn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;cursor:pointer;}
+  #noteSaveBtn:hover{background:var(--accent-hover);}
+  #noteDeleteBtn[hidden], #noteEditBtn[hidden], #noteSaveBtn[hidden]{display:none;}
+
   /* ---------- Dashboard ---------- */
   #dashboardView{display:none;}
   #dashboardStats, #dashboardUserStats{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;}
@@ -624,7 +663,8 @@
     #mobileMenuBtn, #sidebarOverlay, #sidebar, #sidebarCollapseBtn,
     #taskToolbarRow, #taskStatusRow, #addBlockBtn, #readOnlyBanner,
     .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td, .task-link-edit-btn,
-    #adminOverlay, #eventOverlay, #passwordOverlay, #selectionToolbar, #slashMenu, #kindMenu{
+    .task-note-add-btn,
+    #adminOverlay, #eventOverlay, #passwordOverlay, #noteOverlay, #selectionToolbar, #slashMenu, #kindMenu{
       display:none !important;
     }
     #editor{overflow:visible !important;height:auto !important;}
@@ -842,6 +882,23 @@
     <div id="passwordModalActions">
       <button type="button" id="passwordCancelBtn">Cancelar</button>
       <button type="button" id="passwordOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="noteOverlay">
+  <div id="noteModal">
+    <button type="button" id="noteCloseBtn">&times;</button>
+    <h2>Nota</h2>
+    <p id="noteModalTaskTitle"></p>
+    <textarea id="noteTextarea" placeholder="Escreva a anotação ou a referência…"></textarea>
+    <p id="noteModalHint"></p>
+    <div id="noteModalActions">
+      <button type="button" id="noteDeleteBtn">Excluir nota</button>
+      <div id="noteModalActionsRight">
+        <button type="button" id="noteEditBtn">Editar</button>
+        <button type="button" id="noteSaveBtn">Salvar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2384,6 +2441,7 @@ const SORT_ACCESSORS = {
   statusChangedAt: t => t.statusChangedAt || "",
   timer: t => getTaskDisplaySeconds(t),
   assignee: t => firstNameFromEmail(t.assignee || "").toLowerCase(),
+  note: t => (t.note || "").trim().toLowerCase(),
 };
 
 function sortTasksList(tasks){
@@ -2468,11 +2526,12 @@ const TASK_COLUMNS_DEF = [
   { key: "timer", label: "Tempo" },
   { key: "assignee", label: "Responsável" },
   { key: "links", label: "Links" },
+  { key: "note", label: "Nota" },
 ];
 const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
   title: 190, status: 130, priority: 110, dueDate: 130, company: 140, items: 80,
-  createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70
+  createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70
 };
 
 let taskColOrder = DEFAULT_COL_ORDER.slice();
@@ -2948,6 +3007,7 @@ document.getElementById("exportTasksBtn").addEventListener("click", () => {
     "Tempo (min)": Math.round(getTaskDisplaySeconds(t) / 60),
     "Responsável": t.assignee ? firstNameFromEmail(t.assignee) : "",
     "Links": t.links || "",
+    "Nota": t.note || "",
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
@@ -3372,6 +3432,125 @@ function buildLinksCell(task){
   return td;
 }
 
+/* ---------- Coluna Nota ----------
+   Na tabela a nota fica recolhida: so um icone. O bloco de nota so expande quando
+   voce clica para criar ou abrir. Visualizar e livre; criar, editar ou excluir passa
+   pela senha de edicao (mesma regra dos demais campos, incluindo a carencia de
+   10 minutos apos criar a tarefa). */
+let noteModalTask = null;
+let noteModalEditing = false;
+let noteModalRefreshCell = null;
+
+function applyNoteModalMode(){
+  const textarea = document.getElementById("noteTextarea");
+  const hasNote = !!(((noteModalTask && noteModalTask.note) || "").trim());
+  textarea.readOnly = !noteModalEditing;
+  document.getElementById("noteEditBtn").hidden = noteModalEditing || !canEdit;
+  document.getElementById("noteSaveBtn").hidden = !noteModalEditing;
+  document.getElementById("noteDeleteBtn").hidden = !noteModalEditing || !hasNote;
+  document.getElementById("noteModalHint").textContent = noteModalEditing
+    ? "As alterações só valem depois de clicar em Salvar."
+    : (canEdit ? "Somente leitura — clique em Editar para alterar." : "Somente leitura.");
+  if (noteModalEditing) setTimeout(() => textarea.focus(), 30);
+}
+
+function openNoteModal(task, editing, refreshCell){
+  noteModalTask = task;
+  noteModalEditing = !!editing;
+  noteModalRefreshCell = refreshCell || null;
+  document.getElementById("noteModalTaskTitle").textContent = task.title || "Sem título";
+  document.getElementById("noteTextarea").value = task.note || "";
+  document.getElementById("noteOverlay").classList.add("visible");
+  applyNoteModalMode();
+}
+
+function closeNoteModal(force){
+  if (!force && noteModalEditing && noteModalTask){
+    const typed = document.getElementById("noteTextarea").value;
+    if (typed !== (noteModalTask.note || "") && !confirm("Descartar as alterações da nota?")) return;
+  }
+  document.getElementById("noteOverlay").classList.remove("visible");
+  noteModalTask = null;
+  noteModalEditing = false;
+  noteModalRefreshCell = null;
+}
+
+function commitNoteModal(value){
+  if (!noteModalTask) return;
+  noteModalTask.note = value;
+  scheduleSavePage(currentPageId);
+  if (noteModalRefreshCell) noteModalRefreshCell();
+  closeNoteModal(true);
+}
+
+document.getElementById("noteEditBtn").addEventListener("click", async () => {
+  if (!noteModalTask || !canEdit) return;
+  if (!(await guardTaskFieldEdit(noteModalTask))) return;
+  noteModalEditing = true;
+  applyNoteModalMode();
+});
+document.getElementById("noteSaveBtn").addEventListener("click", () => {
+  commitNoteModal(document.getElementById("noteTextarea").value.trim());
+});
+document.getElementById("noteDeleteBtn").addEventListener("click", () => {
+  if (!confirm("Excluir a nota desta tarefa?")) return;
+  commitNoteModal("");
+});
+document.getElementById("noteCloseBtn").addEventListener("click", () => closeNoteModal(false));
+document.getElementById("noteOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "noteOverlay") closeNoteModal(false);
+});
+document.getElementById("noteTextarea").addEventListener("keydown", (e) => {
+  if (e.key === "Escape"){ e.preventDefault(); closeNoteModal(false); }
+});
+
+function buildNoteCell(task){
+  const td = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "task-note-wrap";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+
+  const empty = document.createElement("span");
+  empty.className = "task-note-empty";
+  empty.textContent = "—";
+
+  function refresh(){
+    if ((task.note || "").trim()){
+      btn.className = "task-note-btn has-note";
+      btn.textContent = "📝";
+      btn.title = "Abrir nota";
+      btn.hidden = false;
+      empty.hidden = true;
+    } else if (canEdit){
+      btn.className = "task-note-btn task-note-add-btn";
+      btn.textContent = "+";
+      btn.title = "Criar nota";
+      btn.hidden = false;
+      empty.hidden = true;
+    } else {
+      btn.hidden = true;
+      empty.hidden = false;
+    }
+  }
+
+  btn.addEventListener("click", async () => {
+    // Nota ja criada: expande so para leitura, sem senha.
+    if ((task.note || "").trim()){ openNoteModal(task, false, refresh); return; }
+    // Criar a nota e edicao: pede a senha antes de expandir o bloco.
+    if (!canEdit) return;
+    if (!(await guardTaskFieldEdit(task))) return;
+    openNoteModal(task, true, refresh);
+  });
+
+  wrap.appendChild(btn);
+  wrap.appendChild(empty);
+  td.appendChild(wrap);
+  refresh();
+  return td;
+}
+
 const TASK_CELL_BUILDERS = {
   title: (task) => buildTitleCell(task),
   status: (task) => buildStatusCell(task),
@@ -3384,6 +3563,7 @@ const TASK_CELL_BUILDERS = {
   timer: (task) => buildTimerCell(task),
   assignee: (task, assigneeOptions) => buildAssigneeCell(task, assigneeOptions),
   links: (task) => buildLinksCell(task),
+  note: (task) => buildNoteCell(task),
 };
 
 function renderTaskRow(task, assigneeOptions){
