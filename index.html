@@ -538,12 +538,28 @@
   #noteCloseBtn{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-light);}
   #noteModal h2{margin:0 0 4px;font-size:16px;}
   #noteModalTaskTitle{margin:0 0 12px;font-size:12px;color:var(--text-light);overflow-wrap:break-word;}
-  #noteTextarea{
-    width:100%;box-sizing:border-box;min-height:190px;resize:vertical;
-    padding:10px 12px;border:1px solid var(--sidebar-border);border-radius:8px;
-    font-size:13px;font-family:inherit;line-height:1.6;
+  #noteToolbar{
+    display:flex;align-items:center;gap:2px;flex-wrap:wrap;margin-bottom:8px;padding:4px;
+    background:var(--sidebar-bg);border:1px solid var(--sidebar-border);border-radius:8px;
   }
-  #noteTextarea[readonly]{background:var(--sidebar-bg);cursor:default;}
+  #noteToolbar[hidden]{display:none;}
+  #noteToolbar button{
+    background:none;border:none;color:var(--text);width:28px;height:28px;
+    border-radius:6px;font-size:13px;cursor:pointer;
+  }
+  #noteToolbar button.fmt-text{width:auto;padding:0 8px;font-size:11px;}
+  #noteToolbar button:hover{background:var(--hover);}
+  #noteToolbar .fmt-sep{background:var(--sidebar-border);}
+  #noteEditor{
+    width:100%;box-sizing:border-box;min-height:190px;max-height:52vh;overflow-y:auto;
+    padding:10px 12px;border:1px solid var(--sidebar-border);border-radius:8px;
+    font-size:13px;font-family:inherit;line-height:1.6;outline:none;
+  }
+  #noteEditor:focus{border-color:var(--accent);}
+  #noteEditor[contenteditable="false"]{background:var(--sidebar-bg);}
+  #noteEditor:empty::before{content:attr(data-placeholder);color:#c8c8c5;}
+  #noteEditor ul, #noteEditor ol{margin:6px 0;padding-left:22px;}
+  #noteEditor a{color:var(--accent);}
   #noteModalHint{margin:8px 0 0;font-size:11px;color:var(--text-light);}
   #noteModalActions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;}
   #noteModalActionsRight{display:flex;gap:8px;}
@@ -893,7 +909,19 @@
     <button type="button" id="noteCloseBtn">&times;</button>
     <h2>Nota</h2>
     <p id="noteModalTaskTitle"></p>
-    <textarea id="noteTextarea" placeholder="Escreva a anotação ou a referência…"></textarea>
+    <div id="noteToolbar">
+      <button type="button" id="noteFmtBold" title="Negrito"><b>B</b></button>
+      <button type="button" id="noteFmtItalic" title="Itálico"><i>I</i></button>
+      <button type="button" id="noteFmtUnderline" title="Sublinhado"><u>S</u></button>
+      <button type="button" id="noteFmtStrike" title="Tachado"><s>T</s></button>
+      <span class="fmt-sep"></span>
+      <button type="button" id="noteFmtUl" class="fmt-text" title="Lista com marcadores">&bull; Lista</button>
+      <button type="button" id="noteFmtOl" class="fmt-text" title="Lista numerada">1. Lista</button>
+      <span class="fmt-sep"></span>
+      <button type="button" id="noteFmtLink" title="Link">🔗</button>
+      <button type="button" id="noteFmtClear" title="Limpar formatação">✕</button>
+    </div>
+    <div id="noteEditor" data-placeholder="Escreva a anotação ou a referência…"></div>
     <p id="noteModalHint"></p>
     <div id="noteModalActions">
       <button type="button" id="noteDeleteBtn">Excluir nota</button>
@@ -2442,7 +2470,7 @@ const SORT_ACCESSORS = {
   statusChangedAt: t => t.statusChangedAt || "",
   timer: t => getTaskDisplaySeconds(t),
   assignee: t => firstNameFromEmail(t.assignee || "").toLowerCase(),
-  note: t => (t.note || "").trim().toLowerCase(),
+  note: t => noteHtmlToText(t.note).toLowerCase(),
 };
 
 function sortTasksList(tasks){
@@ -3008,7 +3036,7 @@ document.getElementById("exportTasksBtn").addEventListener("click", () => {
     "Tempo (min)": Math.round(getTaskDisplaySeconds(t) / 60),
     "Responsável": t.assignee ? firstNameFromEmail(t.assignee) : "",
     "Links": t.links || "",
-    "Nota": t.note || "",
+    "Nota": noteHtmlToText(t.note),
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
@@ -3434,34 +3462,56 @@ function buildLinksCell(task){
 }
 
 /* ---------- Coluna Nota ----------
-   Na tabela a nota fica recolhida: so o botao "Ver". O bloco so expande quando voce
-   clica nele — abrir e escrever nao pedem senha. A senha de edicao (mesma regra dos
-   demais campos, com a carencia de 10 min apos criar a tarefa) so e pedida na hora
-   de gravar uma alteracao real: salvar sem mexer no texto apenas fecha o bloco. */
+   Na tabela a nota fica recolhida: so o botao "+" (ou o icone, quando ja existe nota).
+   O bloco so expande ao clicar — abrir e escrever nao pedem senha. A senha de edicao
+   (mesma regra dos demais campos, com a carencia de 10 min apos criar a tarefa) so e
+   pedida ao gravar uma alteracao real: salvar sem mexer no texto apenas fecha.
+   O conteudo e HTML e aceita negrito/italico/sublinhado/tachado/listas/link, pela
+   mesma execCommand usada na barra de formatacao dos blocos da pagina. */
 let noteModalTask = null;
 let noteModalRefreshCell = null;
 
+function noteHtmlToText(html){
+  const div = document.createElement("div");
+  div.innerHTML = (html || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n");
+  return (div.textContent || "").replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+function noteIsEmpty(html){ return noteHtmlToText(html) === ""; }
+// Notas gravadas como texto puro continuam abrindo certo (mantem as quebras de linha).
+function noteToHtml(v){
+  if (!v) return "";
+  if (/<[a-z][\s\S]*>/i.test(v)) return v;
+  const div = document.createElement("div");
+  div.textContent = v;
+  return div.innerHTML.replace(/\n/g, "<br>");
+}
+
 function noteModalTyped(){
-  return document.getElementById("noteTextarea").value.trim();
+  const html = document.getElementById("noteEditor").innerHTML;
+  return noteIsEmpty(html) ? "" : html;
 }
 function noteModalStored(){
-  return ((noteModalTask && noteModalTask.note) || "").trim();
+  const v = (noteModalTask && noteModalTask.note) || "";
+  return noteIsEmpty(v) ? "" : noteToHtml(v);
 }
 
 function openNoteModal(task, refreshCell){
   noteModalTask = task;
   noteModalRefreshCell = refreshCell || null;
-  const textarea = document.getElementById("noteTextarea");
-  textarea.value = task.note || "";
-  textarea.readOnly = !canEdit;
+  const editor = document.getElementById("noteEditor");
+  editor.innerHTML = noteToHtml(task.note);
+  editor.contentEditable = canEdit ? "true" : "false";
   document.getElementById("noteModalTaskTitle").textContent = task.title || "Sem título";
+  document.getElementById("noteToolbar").hidden = !canEdit;
   document.getElementById("noteSaveBtn").hidden = !canEdit;
   document.getElementById("noteDeleteBtn").hidden = !canEdit || !noteModalStored();
   document.getElementById("noteModalHint").textContent = canEdit
     ? "A senha só é pedida ao salvar, se o texto tiver mudado."
     : "Somente leitura.";
   document.getElementById("noteOverlay").classList.add("visible");
-  if (canEdit) setTimeout(() => textarea.focus(), 30);
+  if (canEdit) setTimeout(() => editor.focus(), 30);
 }
 
 function closeNoteModal(force){
@@ -3473,7 +3523,7 @@ function closeNoteModal(force){
   noteModalRefreshCell = null;
 }
 
-// So grava (e so pede senha) quando o texto realmente mudou.
+// So grava (e so pede senha) quando o conteudo realmente mudou.
 async function commitNoteModal(value){
   if (!noteModalTask) return;
   if (value === noteModalStored()){ closeNoteModal(true); return; }
@@ -3483,6 +3533,33 @@ async function commitNoteModal(value){
   if (noteModalRefreshCell) noteModalRefreshCell();
   closeNoteModal(true);
 }
+
+function applyNoteFormat(command, value){
+  const editor = document.getElementById("noteEditor");
+  if (editor.contentEditable !== "true") return;
+  editor.focus();
+  document.execCommand(command, false, value || null);
+}
+// mousedown + preventDefault: o cursor nao sai do texto ao clicar no botao.
+function bindNoteFormatBtn(id, command, prompter){
+  document.getElementById(id).addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    if (prompter){
+      const v = prompter();
+      if (v) applyNoteFormat(command, v);
+      return;
+    }
+    applyNoteFormat(command);
+  });
+}
+bindNoteFormatBtn("noteFmtBold", "bold");
+bindNoteFormatBtn("noteFmtItalic", "italic");
+bindNoteFormatBtn("noteFmtUnderline", "underline");
+bindNoteFormatBtn("noteFmtStrike", "strikeThrough");
+bindNoteFormatBtn("noteFmtUl", "insertUnorderedList");
+bindNoteFormatBtn("noteFmtOl", "insertOrderedList");
+bindNoteFormatBtn("noteFmtClear", "removeFormat");
+bindNoteFormatBtn("noteFmtLink", "createLink", () => prompt("Digite o endereço do link:"));
 
 document.getElementById("noteSaveBtn").addEventListener("click", () => {
   commitNoteModal(noteModalTyped());
@@ -3495,7 +3572,7 @@ document.getElementById("noteCloseBtn").addEventListener("click", () => closeNot
 document.getElementById("noteOverlay").addEventListener("click", (e) => {
   if (e.target.id === "noteOverlay") closeNoteModal(false);
 });
-document.getElementById("noteTextarea").addEventListener("keydown", (e) => {
+document.getElementById("noteEditor").addEventListener("keydown", (e) => {
   if (e.key === "Escape"){ e.preventDefault(); closeNoteModal(false); }
 });
 
@@ -3512,17 +3589,16 @@ function buildNoteCell(task){
   empty.textContent = "—";
 
   function refresh(){
-    const hasNote = !!((task.note || "").trim());
-    if (hasNote){
+    if (!noteIsEmpty(task.note)){
       btn.className = "task-note-btn has-note";
       btn.textContent = "📝";
-      btn.title = "Ver nota";
+      btn.title = noteHtmlToText(task.note).slice(0, 140);
       btn.hidden = false;
       empty.hidden = true;
     } else if (canEdit){
       btn.className = "task-note-btn task-note-open-btn";
-      btn.textContent = "Ver";
-      btn.title = "Abrir o bloco de nota";
+      btn.textContent = "+";
+      btn.title = "Criar nota";
       btn.hidden = false;
       empty.hidden = true;
     } else {
