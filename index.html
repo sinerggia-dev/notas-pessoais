@@ -417,13 +417,22 @@
   .del-task{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:14px;}
   .del-task:hover{color:var(--danger);}
   .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
-  /* Vencimento no dia de hoje: estrela + campo em ambar (a estrela so aparece
-     quando a linha/o card recebe a classe .due-today). */
+  /* Vencimento pintado pela situacao da tarefa. A classe fica na linha da tabela
+     (ou no card do kanban): .due-vencido / .due-hoje / .due-concluido / .due-andamento. */
   .task-due-wrap{display:flex;align-items:center;gap:5px;}
-  .task-due-flag{display:none;font-size:13px;line-height:1;flex:0 0 auto;cursor:default;}
-  tr.due-today .task-due-flag, .kanban-card.due-today .task-due-flag{display:inline-block;}
-  tr.due-today .task-due, .kanban-card.due-today .task-due{
-    border-color:#e0a11a;background:#fff8e6;color:#8a5c00;font-weight:600;
+  .task-due-flag{font-size:13px;line-height:1;flex:0 0 auto;cursor:default;}
+  .task-due-flag:empty{display:none;}
+  tr.due-vencido .task-due, .kanban-card.due-vencido .task-due{
+    border-color:#d97070;background:#fdecec;color:#b23a3a;font-weight:600;
+  }
+  tr.due-hoje .task-due, .kanban-card.due-hoje .task-due{
+    border-color:#e0a11a;background:#fff4d6;color:#8a5c00;font-weight:600;
+  }
+  tr.due-concluido .task-due, .kanban-card.due-concluido .task-due{
+    border-color:#8cc98f;background:#eaf7ea;color:#2f8132;
+  }
+  tr.due-andamento .task-due, .kanban-card.due-andamento .task-due{
+    border-color:var(--sidebar-border);background:#f4f4f2;color:var(--text-light);
   }
   .task-meta-date{font-size:11px;color:var(--text-light);}
   .task-timer-cell{display:flex;align-items:center;gap:6px;}
@@ -3113,7 +3122,7 @@ document.getElementById("printTasksBtn").addEventListener("click", () => {
 
 function renderKanbanCard(task, assigneeOptions){
   const card = document.createElement("div");
-  card.className = "kanban-card" + (isDueToday(task) ? " due-today" : "");
+  card.className = "kanban-card " + dueStateClass(task);
   card.draggable = canEdit;
   card.dataset.id = task.id;
   card.addEventListener("dragstart", (e) => {
@@ -3154,11 +3163,11 @@ function renderKanbanCard(task, assigneeOptions){
     if (!(await guardTaskFieldEdit(task))){ dueInput.value = oldVal; return; }
     dueInput.value = newVal;
     task.dueDate = newVal;
-    refreshDueTodayFlag(dueInput, task);
+    refreshDueState(dueInput, task);
     scheduleSavePage(currentPageId);
   });
   meta.appendChild(dueInput);
-  meta.appendChild(buildDueFlag());
+  meta.appendChild(buildDueFlag(task));
   card.appendChild(meta);
 
   const timerRow = document.createElement("div");
@@ -3282,7 +3291,7 @@ function buildTaskSelect(task, field, options, pillClass){
     task[field] = newVal;
     if (field === "status") task.statusChangedAt = new Date().toISOString();
     sel.className = pillClass + " " + slugify(newVal);
-    if (field === "status") refreshDueTodayFlag(sel, task);
+    if (field === "status") refreshDueState(sel, task);
     scheduleSavePage(currentPageId);
     if (taskViewMode === "kanban" && field === "status") renderTasks();
   });
@@ -3327,20 +3336,39 @@ function todayISO(){
     + String(d.getMonth() + 1).padStart(2, "0") + "-"
     + String(d.getDate()).padStart(2, "0");
 }
-// Tarefa concluida nao alerta, mesmo vencendo hoje.
-function isDueToday(task){
-  return !!task.dueDate && task.dueDate === todayISO() && task.status !== "Concluído";
+/* Situacao do vencimento. Concluida fica verde independente da data; o resto olha a
+   data: passada = vencido, hoje = hoje, futura (ou sem data) = em andamento. */
+const DUE_STATES = {
+  vencido:   { cls: "due-vencido",   icon: "\u2757", label: "Vencido" },
+  hoje:      { cls: "due-hoje",      icon: "\u2b50", label: "Vence hoje" },
+  concluido: { cls: "due-concluido", icon: "", label: "Concluído" },
+  andamento: { cls: "due-andamento", icon: "", label: "Em andamento" },
+};
+function dueState(task){
+  if ((task.status || "") === "Concluído") return "concluido";
+  if (!task.dueDate) return "andamento";
+  const hoje = todayISO();
+  if (task.dueDate < hoje) return "vencido";
+  if (task.dueDate === hoje) return "hoje";
+  return "andamento";
 }
-// Marca a linha da tabela (ou o card do kanban) que contem este elemento.
-function refreshDueTodayFlag(el, task){
+function dueStateClass(task){ return DUE_STATES[dueState(task)].cls; }
+// Repinta a linha da tabela (ou o card do kanban) que contem este elemento.
+function refreshDueState(el, task){
   const host = el.closest("tr") || el.closest(".kanban-card");
-  if (host) host.classList.toggle("due-today", isDueToday(task));
+  if (!host) return;
+  const info = DUE_STATES[dueState(task)];
+  Object.keys(DUE_STATES).forEach(k => host.classList.remove(DUE_STATES[k].cls));
+  host.classList.add(info.cls);
+  const flag = host.querySelector(".task-due-flag");
+  if (flag){ flag.textContent = info.icon; flag.title = info.label; }
 }
-function buildDueFlag(){
+function buildDueFlag(task){
+  const info = DUE_STATES[dueState(task)];
   const flag = document.createElement("span");
   flag.className = "task-due-flag";
-  flag.textContent = "\u2b50";
-  flag.title = "Vence hoje";
+  flag.textContent = info.icon;
+  flag.title = info.label;
   return flag;
 }
 
@@ -3360,11 +3388,11 @@ function buildDueCell(task){
     if (!(await guardTaskFieldEdit(task))){ input.value = oldVal; return; }
     input.value = newVal;
     task.dueDate = newVal;
-    refreshDueTodayFlag(input, task);
+    refreshDueState(input, task);
     scheduleSavePage(currentPageId);
   });
   wrap.appendChild(input);
-  wrap.appendChild(buildDueFlag());
+  wrap.appendChild(buildDueFlag(task));
   td.appendChild(wrap);
   return td;
 }
@@ -3735,7 +3763,7 @@ const TASK_CELL_BUILDERS = {
 function renderTaskRow(task, assigneeOptions){
   const tr = document.createElement("tr");
   tr.dataset.id = task.id;
-  if (isDueToday(task)) tr.classList.add("due-today");
+  tr.classList.add(dueStateClass(task));
 
   const tdSelect = document.createElement("td");
   tdSelect.className = "task-select-td";
