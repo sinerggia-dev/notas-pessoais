@@ -350,7 +350,7 @@
     margin-top:4px;padding:8px 8px 2px;font-size:12px;color:var(--accent);cursor:pointer;
   }
   .col-menu-reset:hover{color:var(--accent-hover);}
-  #statusFilterSelect, #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
+  #statusFilterSelect, #dueStateFilterSelect, #companyFilterSelect, #assigneeFilterSelect, #taskSearchInput{
     height:28px;box-sizing:border-box;padding:0 9px;background:#fff;border:1px solid var(--sidebar-border);
     border-radius:6px;font-size:11px;font-family:inherit;max-width:100%;
   }
@@ -670,7 +670,7 @@
      botão sozinho numa linha, sem depender de um único ponto de corte fixo ---------- */
   @media (max-width: 1300px){
     #taskToolbarRow{gap:6px;}
-    #companyFilterSelect, #assigneeFilterSelect, #statusFilterSelect{max-width:110px !important;}
+    #companyFilterSelect, #assigneeFilterSelect, #statusFilterSelect, #dueStateFilterSelect{max-width:110px !important;}
     #taskSearchInput{max-width:130px !important;}
     #dueFromFilter, #dueToFilter{max-width:96px !important;}
   }
@@ -782,6 +782,16 @@
             <label class="filter-field-label">Status</label>
             <div id="taskFilterTabs"></div>
           </div>
+          <div class="filter-field" data-tkey="dueState">
+            <label class="filter-field-label">Vencimento</label>
+            <div class="filter-control-wrap"><select id="dueStateFilterSelect" title="Situação do vencimento">
+              <option value="Todos">Todos</option>
+              <option value="vencido">❗ Vencido</option>
+              <option value="hoje">⭐ Vence hoje</option>
+              <option value="andamento">Em andamento</option>
+              <option value="concluido">Concluído</option>
+            </select></div>
+          </div>
           <div class="filter-field" data-tkey="company">
             <label class="filter-field-label">Empresa</label>
             <div class="filter-control-wrap"><select id="companyFilterSelect"><option value="Todas">Todas</option></select></div>
@@ -791,7 +801,7 @@
             <div class="filter-control-wrap"><select id="assigneeFilterSelect"><option value="Todos">Todos</option></select></div>
           </div>
           <div class="filter-field" data-tkey="due">
-            <label class="filter-field-label">Vencimento</label>
+            <label class="filter-field-label">Período</label>
             <div id="dueFilterWrap">
               <div class="filter-control-wrap"><input type="date" id="dueFromFilter" title="Vencimento a partir de"></div>
               <span class="due-filter-sep">–</span>
@@ -1873,6 +1883,7 @@ let taskPriorityFilter = "Todas";
 let taskDueFromFilter = "";
 let taskDueToFilter = "";
 let taskSearchText = "";
+let taskDueStateFilter = "Todos";   // Todos | vencido | hoje | andamento | concluido
 let taskSortKey = null;
 let taskSortDir = "asc";
 let selectedTaskIds = new Set();
@@ -1919,15 +1930,21 @@ function makeFieldResizable(wrapEl, controlEl, key, minWidth){
 }
 
 /* ---------- Ordem ajustável da barra de ferramentas (arrastar pra reordenar) ---------- */
-const DEFAULT_TOOLBAR_ORDER = ["tableView", "kanbanView", "status", "company", "assignee", "due", "search", "clear", "export", "print"];
+const DEFAULT_TOOLBAR_ORDER = ["tableView", "kanbanView", "status", "dueState", "company", "assignee", "due", "search", "clear", "export", "print"];
 let toolbarOrder = DEFAULT_TOOLBAR_ORDER.slice();
 (function loadToolbarOrder(){
   try{
     const saved = JSON.parse(localStorage.getItem("np_task_toolbar_order_v1"));
     if (Array.isArray(saved) && saved.length){
       const kept = saved.filter(k => DEFAULT_TOOLBAR_ORDER.includes(k));
-      const missing = DEFAULT_TOOLBAR_ORDER.filter(k => !kept.includes(k));
-      toolbarOrder = kept.concat(missing);
+      // Controle novo (adicionado numa atualizacao) entra ao lado do vizinho que ele
+      // tem na ordem padrao, em vez de aparecer jogado no fim da barra.
+      DEFAULT_TOOLBAR_ORDER.filter(k => !kept.includes(k)).forEach(k => {
+        const antes = DEFAULT_TOOLBAR_ORDER.slice(0, DEFAULT_TOOLBAR_ORDER.indexOf(k))
+          .reverse().find(p => kept.includes(p));
+        kept.splice(antes ? kept.indexOf(antes) + 1 : 0, 0, k);
+      });
+      toolbarOrder = kept;
     }
   }catch(e){}
 })();
@@ -2465,7 +2482,8 @@ function getCompanyOptions(tasks){
 
 function anyTaskFilterActive(){
   return taskFilter !== "Todas" || taskCompanyFilter !== "Todas" || taskAssigneeFilter !== "Todos" ||
-    taskPriorityFilter !== "Todas" || !!taskDueFromFilter || !!taskDueToFilter || !!taskSearchText;
+    taskPriorityFilter !== "Todas" || taskDueStateFilter !== "Todos" ||
+    !!taskDueFromFilter || !!taskDueToFilter || !!taskSearchText;
 }
 function updateClearFiltersBtnState(){
   const btn = document.getElementById("clearFiltersBtn");
@@ -2500,6 +2518,7 @@ function taskMatchesCommonFilters(task){
   if (taskCompanyFilter !== "Todas" && (task.company || "") !== taskCompanyFilter) return false;
   if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
   if (taskPriorityFilter !== "Todas" && (task.priority || "Média") !== taskPriorityFilter) return false;
+  if (taskDueStateFilter !== "Todos" && dueState(task) !== taskDueStateFilter) return false;
   if (taskDueFromFilter && (!task.dueDate || task.dueDate < taskDueFromFilter)) return false;
   if (taskDueToFilter && (!task.dueDate || task.dueDate > taskDueToFilter)) return false;
   if (taskSearchText.trim()){
@@ -2881,6 +2900,11 @@ document.getElementById("dueToFilter").addEventListener("change", (e) => {
   taskDueToFilter = e.target.value;
   renderTasks();
 });
+document.getElementById("dueStateFilterSelect").addEventListener("change", (e) => {
+  taskDueStateFilter = e.target.value;
+  renderTasks();
+});
+makeFieldResizable(document.getElementById("dueStateFilterSelect").parentElement, document.getElementById("dueStateFilterSelect"), "dueState", 70);
 makeFieldResizable(document.getElementById("companyFilterSelect").parentElement, document.getElementById("companyFilterSelect"), "company", 70);
 makeFieldResizable(document.getElementById("assigneeFilterSelect").parentElement, document.getElementById("assigneeFilterSelect"), "assignee", 70);
 makeFieldResizable(document.getElementById("taskSearchInput").parentElement, document.getElementById("taskSearchInput"), "search", 90);
@@ -2891,9 +2915,11 @@ document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   taskCompanyFilter = "Todas";
   taskAssigneeFilter = "Todos";
   taskPriorityFilter = "Todas";
+  taskDueStateFilter = "Todos";
   taskDueFromFilter = "";
   taskDueToFilter = "";
   taskSearchText = "";
+  document.getElementById("dueStateFilterSelect").value = "Todos";
   document.getElementById("dueFromFilter").value = "";
   document.getElementById("dueToFilter").value = "";
   document.getElementById("taskSearchInput").value = "";
@@ -3104,6 +3130,7 @@ function buildActiveFiltersSummary(){
   if (taskCompanyFilter !== "Todas") parts.push("Empresa: " + taskCompanyFilter);
   if (taskAssigneeFilter !== "Todos") parts.push("Responsável: " + (taskAssigneeFilter ? firstNameFromEmail(taskAssigneeFilter) : "Sem responsável"));
   if (taskPriorityFilter !== "Todas") parts.push("Prioridade: " + taskPriorityFilter);
+  if (taskDueStateFilter !== "Todos") parts.push("Vencimento: " + DUE_STATES[taskDueStateFilter].label);
   if (taskDueFromFilter || taskDueToFilter){
     const de = taskDueFromFilter ? formatDateBR(taskDueFromFilter) : "…";
     const ate = taskDueToFilter ? formatDateBR(taskDueToFilter) : "…";
