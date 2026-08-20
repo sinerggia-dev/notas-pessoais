@@ -417,6 +417,14 @@
   .del-task{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:14px;}
   .del-task:hover{color:var(--danger);}
   .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+  /* Vencimento no dia de hoje: estrela + campo em ambar (a estrela so aparece
+     quando a linha/o card recebe a classe .due-today). */
+  .task-due-wrap{display:flex;align-items:center;gap:5px;}
+  .task-due-flag{display:none;font-size:13px;line-height:1;flex:0 0 auto;cursor:default;}
+  tr.due-today .task-due-flag, .kanban-card.due-today .task-due-flag{display:inline-block;}
+  tr.due-today .task-due, .kanban-card.due-today .task-due{
+    border-color:#e0a11a;background:#fff8e6;color:#8a5c00;font-weight:600;
+  }
   .task-meta-date{font-size:11px;color:var(--text-light);}
   .task-timer-cell{display:flex;align-items:center;gap:6px;}
   .timer-toggle-btn{
@@ -3105,7 +3113,7 @@ document.getElementById("printTasksBtn").addEventListener("click", () => {
 
 function renderKanbanCard(task, assigneeOptions){
   const card = document.createElement("div");
-  card.className = "kanban-card";
+  card.className = "kanban-card" + (isDueToday(task) ? " due-today" : "");
   card.draggable = canEdit;
   card.dataset.id = task.id;
   card.addEventListener("dragstart", (e) => {
@@ -3146,9 +3154,11 @@ function renderKanbanCard(task, assigneeOptions){
     if (!(await guardTaskFieldEdit(task))){ dueInput.value = oldVal; return; }
     dueInput.value = newVal;
     task.dueDate = newVal;
+    refreshDueTodayFlag(dueInput, task);
     scheduleSavePage(currentPageId);
   });
   meta.appendChild(dueInput);
+  meta.appendChild(buildDueFlag());
   card.appendChild(meta);
 
   const timerRow = document.createElement("div");
@@ -3272,6 +3282,7 @@ function buildTaskSelect(task, field, options, pillClass){
     task[field] = newVal;
     if (field === "status") task.statusChangedAt = new Date().toISOString();
     sel.className = pillClass + " " + slugify(newVal);
+    if (field === "status") refreshDueTodayFlag(sel, task);
     scheduleSavePage(currentPageId);
     if (taskViewMode === "kanban" && field === "status") renderTasks();
   });
@@ -3308,8 +3319,35 @@ function buildPriorityCell(task){
   td.appendChild(buildTaskSelect(task, "priority", ["Baixa", "Média", "Alta"], "priority-pill"));
   return td;
 }
+/* Data de hoje no fuso local. Nao usar toISOString(), que e UTC: as 21h no Brasil
+   ele ja devolve o dia seguinte e o alerta apareceria na tarefa errada. */
+function todayISO(){
+  const d = new Date();
+  return d.getFullYear() + "-"
+    + String(d.getMonth() + 1).padStart(2, "0") + "-"
+    + String(d.getDate()).padStart(2, "0");
+}
+// Tarefa concluida nao alerta, mesmo vencendo hoje.
+function isDueToday(task){
+  return !!task.dueDate && task.dueDate === todayISO() && task.status !== "Concluído";
+}
+// Marca a linha da tabela (ou o card do kanban) que contem este elemento.
+function refreshDueTodayFlag(el, task){
+  const host = el.closest("tr") || el.closest(".kanban-card");
+  if (host) host.classList.toggle("due-today", isDueToday(task));
+}
+function buildDueFlag(){
+  const flag = document.createElement("span");
+  flag.className = "task-due-flag";
+  flag.textContent = "\u2b50";
+  flag.title = "Vence hoje";
+  return flag;
+}
+
 function buildDueCell(task){
   const td = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "task-due-wrap";
   const input = document.createElement("input");
   input.type = "date";
   input.className = "task-due";
@@ -3322,9 +3360,12 @@ function buildDueCell(task){
     if (!(await guardTaskFieldEdit(task))){ input.value = oldVal; return; }
     input.value = newVal;
     task.dueDate = newVal;
+    refreshDueTodayFlag(input, task);
     scheduleSavePage(currentPageId);
   });
-  td.appendChild(input);
+  wrap.appendChild(input);
+  wrap.appendChild(buildDueFlag());
+  td.appendChild(wrap);
   return td;
 }
 function buildCompanyCell(task){
@@ -3694,6 +3735,7 @@ const TASK_CELL_BUILDERS = {
 function renderTaskRow(task, assigneeOptions){
   const tr = document.createElement("tr");
   tr.dataset.id = task.id;
+  if (isDueToday(task)) tr.classList.add("due-today");
 
   const tdSelect = document.createElement("td");
   tdSelect.className = "task-select-td";
