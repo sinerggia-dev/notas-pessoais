@@ -564,6 +564,8 @@
   #noteModalActions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;}
   #noteModalActionsRight{display:flex;gap:8px;}
   #noteDeleteBtn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;}
+  #noteCancelBtn{background:none;border:1px solid var(--sidebar-border);border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer;color:var(--text);}
+  #noteCancelBtn:hover{background:var(--hover);}
   #noteSaveBtn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;cursor:pointer;}
   #noteSaveBtn:hover{background:var(--accent-hover);}
   #noteDeleteBtn[hidden], #noteSaveBtn[hidden]{display:none;}
@@ -926,6 +928,7 @@
     <div id="noteModalActions">
       <button type="button" id="noteDeleteBtn">Excluir nota</button>
       <div id="noteModalActionsRight">
+        <button type="button" id="noteCancelBtn">Fechar</button>
         <button type="button" id="noteSaveBtn">Salvar</button>
       </div>
     </div>
@@ -3568,6 +3571,7 @@ document.getElementById("noteDeleteBtn").addEventListener("click", () => {
   if (!confirm("Excluir a nota desta tarefa?")) return;
   commitNoteModal("");
 });
+document.getElementById("noteCancelBtn").addEventListener("click", () => closeNoteModal(false));
 document.getElementById("noteCloseBtn").addEventListener("click", () => closeNoteModal(false));
 document.getElementById("noteOverlay").addEventListener("click", (e) => {
   if (e.target.id === "noteOverlay") closeNoteModal(false);
