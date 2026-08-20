@@ -1382,6 +1382,8 @@ async function deletePage(id){
   const page = getPageMeta(id);
   if (!page) return;
   if (!confirm(`Excluir "${page.title || "Sem título"}" e todas as subpáginas dela?`)) return;
+  // Apagar pagina leva embora blocos/tarefas/eventos junto — pede a senha, como na tarefa.
+  if (!(await requestDeletePassword(`a página "${page.title || "Sem título"}" e as subpáginas dela`))) return;
 
   const toDelete = new Set([id]);
   let changed = true;
@@ -2584,8 +2586,8 @@ document.getElementById("passwordOverlay").addEventListener("click", (e) => {
 });
 
 const TASK_PASSWORD = "123456";
-async function requestDeletePassword(){
-  const pass = await askPassword("Digite a senha para excluir esta tarefa");
+async function requestDeletePassword(alvo){
+  const pass = await askPassword("Digite a senha para excluir " + (alvo || "esta tarefa"));
   if (pass === null) return false;
   if (pass !== TASK_PASSWORD){
     alert("Senha incorreta.");
