@@ -783,7 +783,7 @@
           </div>
           <div class="filter-field" data-tkey="search">
             <label class="filter-field-label">Buscar</label>
-            <div class="filter-control-wrap"><input type="text" id="taskSearchInput" placeholder="Título ou empresa..."></div>
+            <div class="filter-control-wrap"><input type="text" id="taskSearchInput" placeholder="Buscar em tudo..." title="Busca em todos os campos da tarefa e dentro das notas"></div>
           </div>
           <button type="button" id="clearFiltersBtn" data-tkey="clear">✕ Limpar filtros</button>
           <button type="button" id="exportTasksBtn" data-tkey="export">⬇️ Exportar</button>
@@ -2454,16 +2454,42 @@ function updateClearFiltersBtnState(){
   const btn = document.getElementById("clearFiltersBtn");
   if (btn) btn.classList.toggle("filters-active", anyTaskFilterActive());
 }
+/* Busca geral: junta tudo que a tarefa tem de texto — inclusive o conteudo do
+   bloco de nota — num unico "palheiro". Sem acento e em minusculas, para que
+   "cotacao" ache "Cotação". */
+function stripAccents(v){
+  return (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+function normalizeForSearch(v){
+  return stripAccents(String(v || "")).toLowerCase();
+}
+function taskSearchHaystack(task){
+  return normalizeForSearch([
+    task.title,
+    task.company,
+    task.status,
+    task.priority,
+    task.links,
+    task.assignee,
+    firstNameFromEmail(task.assignee || ""),
+    noteHtmlToText(task.note),
+    task.items != null && task.items !== "" ? String(task.items) : "",
+    task.dueDate ? formatDateBR(task.dueDate) : "",
+    task.dueDate || "",
+  ].filter(Boolean).join(" | "));
+}
+
 function taskMatchesCommonFilters(task){
   if (taskCompanyFilter !== "Todas" && (task.company || "") !== taskCompanyFilter) return false;
   if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
   if (taskPriorityFilter !== "Todas" && (task.priority || "Média") !== taskPriorityFilter) return false;
   if (taskDueFromFilter && (!task.dueDate || task.dueDate < taskDueFromFilter)) return false;
   if (taskDueToFilter && (!task.dueDate || task.dueDate > taskDueToFilter)) return false;
-  if (taskSearchText){
-    const q = taskSearchText.toLowerCase();
-    const hay = ((task.title || "") + " " + (task.company || "")).toLowerCase();
-    if (!hay.includes(q)) return false;
+  if (taskSearchText.trim()){
+    // Varias palavras: todas precisam aparecer (em qualquer campo, em qualquer ordem).
+    const termos = normalizeForSearch(taskSearchText).split(/\s+/).filter(Boolean);
+    const hay = taskSearchHaystack(task);
+    if (!termos.every(t => hay.includes(t))) return false;
   }
   return true;
 }
