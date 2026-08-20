@@ -373,6 +373,12 @@
   .task-title:empty::before{content:"Sem título";color:#c8c8c5;}
   .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
   .task-items{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;text-align:right;}
+  .task-assignee{
+    border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;
+    font-size:12px;font-family:inherit;width:100%;background:#fff;color:var(--text);
+  }
+  .task-assignee:focus{outline:none;border-color:var(--accent);}
+  .task-assignee:disabled{background:var(--sidebar-bg);}
   .task-links-wrap{display:flex;align-items:center;gap:4px;}
   .task-links-input{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
   .task-links-input[hidden]{display:none;}
@@ -3169,6 +3175,7 @@ function renderKanbanCard(task, assigneeOptions){
     const opt = document.createElement("option");
     opt.value = email;
     opt.textContent = firstNameFromEmail(email);
+    opt.style.color = assigneeTextColor(email) || "";
     if (task.assignee === email) opt.selected = true;
     assigneeSel.appendChild(opt);
   });
@@ -3178,9 +3185,11 @@ function renderKanbanCard(task, assigneeOptions){
     assigneeSel.value = oldVal;
     if (!(await guardTaskFieldEdit(task))){ assigneeSel.value = oldVal; return; }
     assigneeSel.value = newVal;
+    paintAssigneeSelect(assigneeSel);
     task.assignee = newVal;
     scheduleSavePage(currentPageId);
   });
+  paintAssigneeSelect(assigneeSel);
   card.appendChild(assigneeSel);
 
   if (canEdit){
@@ -3358,9 +3367,26 @@ function buildTimerCell(task){
   td.appendChild(span);
   return td;
 }
+/* Cor da fonte por responsavel: quem nao esta no mapa fica com a cor padrao do texto.
+   A chave e o primeiro nome (o mesmo que aparece no select), em minusculas. */
+const ASSIGNEE_TEXT_COLORS = {
+  natanael: "#6f6f6b",
+  ivanilda: "#2f6fd0",
+};
+function assigneeTextColor(email){
+  if (!email) return "";
+  return ASSIGNEE_TEXT_COLORS[firstNameFromEmail(email).toLowerCase()] || "";
+}
+// Pinta o select (fechado) e cada opcao da lista com a cor da pessoa.
+function paintAssigneeSelect(sel){
+  sel.style.color = assigneeTextColor(sel.value) || "";
+  sel.style.fontWeight = assigneeTextColor(sel.value) ? "600" : "";
+}
+
 function buildAssigneeCell(task, assigneeOptions){
   const td = document.createElement("td");
   const sel = document.createElement("select");
+  sel.className = "task-assignee";
   sel.disabled = !canEdit;
   const blank = document.createElement("option");
   blank.value = "";
@@ -3370,6 +3396,7 @@ function buildAssigneeCell(task, assigneeOptions){
     const opt = document.createElement("option");
     opt.value = email;
     opt.textContent = firstNameFromEmail(email);
+    opt.style.color = assigneeTextColor(email) || "";
     if (task.assignee === email) opt.selected = true;
     sel.appendChild(opt);
   });
@@ -3377,11 +3404,13 @@ function buildAssigneeCell(task, assigneeOptions){
     const newVal = sel.value;
     const oldVal = task.assignee || "";
     sel.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ sel.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task))){ sel.value = oldVal; paintAssigneeSelect(sel); return; }
     sel.value = newVal;
     task.assignee = newVal;
+    paintAssigneeSelect(sel);
     scheduleSavePage(currentPageId);
   });
+  paintAssigneeSelect(sel);
   td.appendChild(sel);
   return td;
 }
