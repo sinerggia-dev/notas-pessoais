@@ -2559,8 +2559,12 @@ function getAssigneeOptions(){
    comum ao colar do Excel/web) ou largura zero (\u200b). Isso limpa tudo. */
 function normalizeCompany(v){
   return String(v == null ? "" : v)
-    .replace(/[\u200b-\u200d\ufeff]/g, "")   // largura zero, sem representacao visual
-    .replace(/\s+/g, " ")                      // \s cobre espaco comum, tab e \u00a0
+    // NFKC junta formas compativeis (largura total, ligaduras) sem mexer no acento.
+    .normalize("NFKC")
+    // Caracteres de formatacao que nao desenham nada: hifen suave, juntadores,
+    // marcas de direcao, largura zero, BOM.
+    .replace(/[\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u206a-\u206f\ufeff]/g, "")
+    .replace(/\s+/g, " ")                      // \s cobre espaco comum, tab e
     .trim();
 }
 // Chave de agrupamento: alem dos invisiveis, ignora maiuscula/minuscula e acento.
