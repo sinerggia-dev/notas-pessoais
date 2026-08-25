@@ -669,6 +669,8 @@
   }
   #sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:190;}
   #sidebarOverlay.visible{display:block;}
+  /* Nunca escurecer a tela de login, mesmo que a classe fique pendurada. */
+  body:not(.sessao-aberta) #sidebarOverlay{display:none;}
 
   /* ---------- Recolher/expandir barra lateral (desktop) ---------- */
   #sidebar{transition:width .18s ease, min-width .18s ease;}
@@ -701,7 +703,8 @@
 
   /* ---------- Responsivo (celular) ---------- */
   @media (max-width: 768px){
-    #mobileMenuBtn{display:flex;align-items:center;justify-content:center;}
+    /* Só com a sessão aberta: na tela de login a barra lateral nem existe ainda. */
+    body.sessao-aberta #mobileMenuBtn{display:flex;align-items:center;justify-content:center;}
     #sidebarCollapseBtn{display:none;}
     #sidebar{
       position:fixed;top:0;left:0;height:100vh;width:85vw;max-width:300px;z-index:200;
@@ -1164,6 +1167,7 @@ function doLogout(){
   workspaceDriveId = null;
   workspaceFolderId = null;
   document.getElementById("app").classList.remove("visible");
+  setSessionUI(false);
   document.getElementById("noAccessScreen").style.display = "none";
   document.getElementById("loginScreen").style.display = "flex";
   if (msalInstance && account){
@@ -1340,6 +1344,7 @@ async function afterLogin(){
   }
 
   document.getElementById("app").classList.add("visible");
+  setSessionUI(true);
   document.getElementById("newPageBtn").hidden = !canEdit;
   document.getElementById("adminBtn").hidden = !isOwner;
   document.getElementById("userEmailShort").textContent = "Olá " + firstNameFromEmail(currentUserEmail) + (canEdit ? "" : " (visualização)");
@@ -1358,6 +1363,7 @@ async function afterLogin(){
 }
 
 function showNoAccess(){
+  setSessionUI(false);
   document.getElementById("noAccessScreen").style.display = "flex";
   document.getElementById("noAccessMsg").textContent =
     `A conta ${currentUserEmail} ainda não tem acesso a este espaço de notas. Peça para o administrador te adicionar.`;
@@ -1742,6 +1748,11 @@ function renderPageRow(page, depth, hasChildren){
    ========================================================================== */
 function isMobileViewport(){
   return window.matchMedia("(max-width: 768px)").matches;
+}
+// Marca no <body> que a sessao esta aberta — o hamburguer do celular depende disso.
+function setSessionUI(aberta){
+  document.body.classList.toggle("sessao-aberta", !!aberta);
+  if (!aberta) closeMobileSidebar();
 }
 function openMobileSidebar(){
   document.getElementById("sidebar").classList.add("open");
