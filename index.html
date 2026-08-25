@@ -1423,6 +1423,11 @@ function migrateTaskStatuses(content){
   if (content && Array.isArray(content.tasks)){
     content.tasks.forEach(t => {
       if (STATUS_RENAME_MAP[t.status]) t.status = STATUS_RENAME_MAP[t.status];
+      // Tira os invisiveis do nome da empresa (ver normalizeCompany).
+      if (t.company){
+        const limpo = normalizeCompany(t.company);
+        if (limpo !== t.company) t.company = limpo;
+      }
     });
   }
   return content;
@@ -2549,10 +2554,43 @@ function getAssigneeOptions(){
   return Array.from(emails);
 }
 
+/* Duas empresas identicas na lista quase sempre sao a mesma coisa com um
+   caractere invisivel no meio: espaco sobrando, espaco nao-separavel (\u00a0,
+   comum ao colar do Excel/web) ou largura zero (\u200b). Isso limpa tudo. */
+function normalizeCompany(v){
+  return String(v == null ? "" : v)
+    .replace(/[\u200b-\u200d\ufeff]/g, "")   // largura zero, sem representacao visual
+    .replace(/\s+/g, " ")                      // \s cobre espaco comum, tab e \u00a0
+    .trim();
+}
+// Chave de agrupamento: alem dos invisiveis, ignora maiuscula/minuscula e acento.
+function companyKey(v){
+  return stripAccents(normalizeCompany(v)).toLowerCase();
+}
+
 function getCompanyOptions(tasks){
-  const set = new Set();
-  (tasks || []).forEach(t => { if (t.company) set.add(t.company); });
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
+  // Agrupa as variantes e mostra a grafia mais usada de cada empresa.
+  const grupos = new Map();
+  (tasks || []).forEach(t => {
+    const nome = normalizeCompany(t.company);
+    if (!nome) return;
+    const chave = companyKey(nome);
+    if (!grupos.has(chave)) grupos.set(chave, new Map());
+    const contagem = grupos.get(chave);
+    contagem.set(nome, (contagem.get(nome) || 0) + 1);
+  });
+  const nomes = [];
+  grupos.forEach(contagem => {
+    let melhor = null, melhorQtd = -1;
+    contagem.forEach((qtd, nome) => {
+      // Desempate pela ordem alfabetica, pra lista nao mudar sozinha.
+      if (qtd > melhorQtd || (qtd === melhorQtd && nome.localeCompare(melhor) < 0)){
+        melhor = nome; melhorQtd = qtd;
+      }
+    });
+    nomes.push(melhor);
+  });
+  return nomes.sort((a, b) => a.localeCompare(b));
 }
 
 function anyTaskFilterActive(){
@@ -2591,7 +2629,7 @@ function taskSearchHaystack(task){
 }
 
 function taskMatchesCommonFilters(task){
-  if (taskCompanyFilter !== "Todas" && (task.company || "") !== taskCompanyFilter) return false;
+  if (taskCompanyFilter !== "Todas" && companyKey(task.company) !== companyKey(taskCompanyFilter)) return false;
   if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
   if (taskPriorityFilter !== "Todas" && (task.priority || "Média") !== taskPriorityFilter) return false;
   if (taskDueStateFilter !== "Todos" && dueState(task) !== taskDueStateFilter) return false;
@@ -3511,7 +3549,7 @@ function buildCompanyCell(task){
   input.value = task.company || "";
   input.disabled = !canEdit;
   input.addEventListener("change", async () => {
-    const newVal = input.value;
+    const newVal = normalizeCompany(input.value);
     const oldVal = task.company || "";
     input.value = oldVal;
     if (!(await guardTaskFieldEdit(task))){ input.value = oldVal; return; }
