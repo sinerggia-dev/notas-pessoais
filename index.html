@@ -718,6 +718,42 @@
       width:85vw;min-width:0;max-width:300px;overflow:visible;
       border-right:1px solid var(--sidebar-border);
     }
+    /* ---- Filtros no celular ----
+       Grade de 6 colunas: cada campo declara quantas colunas ocupa, entao a
+       barra fica igual em qualquer largura de tela em vez de depender de onde
+       o flex-wrap resolveu quebrar. O rotulo volta (o corte de 1024px o esconde),
+       senao nao se sabe do que e cada caixa. */
+    .filter-field-label{display:block;font-size:10px;}
+    #taskToolbarRow{
+      display:grid;grid-template-columns:repeat(6, 1fr);gap:12px 8px;align-items:end;
+      margin-bottom:16px;
+    }
+    #taskToolbarRow > [data-tkey]{grid-column:span 3;min-width:0;}
+    #taskToolbarRow > [data-tkey="due"],
+    #taskToolbarRow > [data-tkey="search"]{grid-column:span 6;}
+    #taskToolbarRow > [data-tkey="clear"],
+    #taskToolbarRow > [data-tkey="export"],
+    #taskToolbarRow > [data-tkey="print"]{grid-column:span 2;}
+    #tableViewBtn, #kanbanViewBtn{width:100%;justify-content:center;}
+    #taskFilterTabs, .filter-control-wrap{display:block;width:100%;}
+    /* !important: a largura arrastada no computador fica em style inline. */
+    #statusFilterSelect, #dueStateFilterSelect, #companyFilterSelect,
+    #assigneeFilterSelect, #taskSearchInput, #dueFromFilter, #dueToFilter{
+      width:100% !important;max-width:none !important;height:34px;font-size:13px;
+    }
+    #dueFilterWrap > .filter-control-wrap{flex:1 1 0;}
+    /* Os tres botoes de acao dividem uma linha; o texto pode quebrar em duas. */
+    #clearFiltersBtn, #exportTasksBtn, #printTasksBtn{
+      width:100%;height:auto;min-height:34px;padding:6px 4px;font-size:11px;
+      white-space:normal;text-align:center;justify-content:center;line-height:1.2;
+    }
+    /* Arrastar a bordinha pra mudar largura nao funciona no toque. */
+    .field-resizer{display:none;}
+    /* Nova tarefa e o total numa linha, os atalhos de status na linha de baixo. */
+    #taskStatusRow{flex-wrap:wrap;gap:10px;}
+    #addTaskBtn{flex:1 1 140px;}
+    #taskStatusPills{flex:1 1 100%;}
+
     #editor{width:100%;}
     #pageView{padding:56px 16px 120px;}
     #pageTitle{font-size:20px;}
