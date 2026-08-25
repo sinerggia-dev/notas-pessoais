@@ -708,6 +708,13 @@
       transform:translateX(-100%);transition:transform .22s ease;box-shadow:2px 0 16px rgba(0,0,0,.18);
     }
     #sidebar.open{transform:translateX(0);}
+    /* "Recolhida" e um estado do desktop. No celular a barra e um painel deslizante,
+       entao a largura zero do recolhido tem que ser desfeita aqui — senao quem
+       recolheu no computador abre no celular e o hamburguer nao mostra nada. */
+    #app.sidebar-collapsed #sidebar{
+      width:85vw;min-width:0;max-width:300px;overflow:visible;
+      border-right:1px solid var(--sidebar-border);
+    }
     #editor{width:100%;}
     #pageView{padding:56px 16px 120px;}
     #pageTitle{font-size:20px;}
@@ -1766,7 +1773,8 @@ document.getElementById("sidebarCollapseBtn").addEventListener("click", () => {
   // com o espaço que sobrou/liberou.
   setTimeout(() => { if (typeof updateTaskTableWidth === "function") updateTaskTableWidth(); }, 200);
 });
-applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+// No celular o botao de recolher nem aparece — nao herda o estado salvo no computador.
+applySidebarCollapsed(!isMobileViewport() && localStorage.getItem("sidebarCollapsed") === "1");
 
 // A tabela de tarefas precisa se ajustar sempre que a janela mudar de tamanho, não só quando
 // os dados são renderizados de novo.
