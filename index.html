@@ -407,8 +407,13 @@
   /* Linha de cabecalho de cada empresa na tabela agrupada */
   tr.task-group-row td{
     background:var(--sidebar-bg);border-bottom:1px solid var(--sidebar-border);
-    padding:7px 4px;position:sticky;left:0;
+    padding:7px 4px;
   }
+  /* Colados na esquerda: com muitas colunas, a empresa e a caixa continuam
+     visiveis enquanto a tabela rola na horizontal. */
+  tr.task-group-row td.task-group-check{position:sticky;left:0;z-index:2;width:34px;text-align:center;}
+  tr.task-group-row td.task-group-label{position:sticky;left:34px;z-index:1;}
+  tr.task-group-row input[type=checkbox]{cursor:pointer;}
   .task-group-btn{
     display:inline-flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;
     font-family:inherit;font-size:12px;font-weight:700;color:var(--text);
@@ -3394,8 +3399,29 @@ function renderTableGrouped(tbody, tarefas, assigneeOptions){
 
     const trGrupo = document.createElement("tr");
     trGrupo.className = "task-group-row";
+
+    // Caixa de selecao da empresa inteira.
+    const tdCheck = document.createElement("td");
+    tdCheck.className = "task-group-check";
+    const cbGrupo = document.createElement("input");
+    cbGrupo.type = "checkbox";
+    const ids = grupo.itens.map(t => t.id);
+    const todos = ids.length > 0 && ids.every(id => selectedTaskIds.has(id));
+    cbGrupo.checked = todos;
+    // Meio-marcada quando so parte da empresa esta selecionada.
+    cbGrupo.indeterminate = !todos && ids.some(id => selectedTaskIds.has(id));
+    cbGrupo.title = "Selecionar todas as atividades de " + grupo.nome;
+    cbGrupo.addEventListener("change", () => {
+      if (cbGrupo.checked) ids.forEach(id => selectedTaskIds.add(id));
+      else ids.forEach(id => selectedTaskIds.delete(id));
+      renderTasks();
+    });
+    tdCheck.appendChild(cbGrupo);
+    trGrupo.appendChild(tdCheck);
+
     const td = document.createElement("td");
-    td.colSpan = colunas;
+    td.className = "task-group-label";
+    td.colSpan = colunas - 1;   // a caixa ja ocupa a primeira coluna
 
     const btn = document.createElement("button");
     btn.type = "button";
