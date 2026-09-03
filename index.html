@@ -379,6 +379,29 @@
   }
   .task-assignee:focus{outline:none;border-color:var(--accent);}
   .task-assignee:disabled{background:var(--sidebar-bg);}
+  /* Varios responsaveis: botao na celula + menu de caixas de selecao.
+     O menu e position:fixed porque a celula da tabela tem overflow:hidden
+     e cortaria um menu posicionado por absolute. */
+  .task-people-btn{
+    width:100%;text-align:left;border:1px solid var(--sidebar-border);border-radius:6px;
+    padding:4px 6px;font-size:12px;font-family:inherit;background:#fff;color:var(--text);
+    cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .task-people-btn:hover:not(:disabled){background:var(--hover);}
+  .task-people-btn:disabled{background:var(--sidebar-bg);cursor:default;}
+  .task-people-btn.vazio{color:#c8c8c5;}
+  .task-people-menu{
+    position:fixed;z-index:220;min-width:190px;max-height:240px;overflow-y:auto;
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:8px;
+    box-shadow:var(--shadow-md);padding:6px;
+  }
+  .task-people-menu[hidden]{display:none;}
+  .task-people-item{
+    display:flex;align-items:center;gap:7px;padding:5px 7px;font-size:12px;
+    border-radius:6px;cursor:pointer;white-space:nowrap;
+  }
+  .task-people-item:hover{background:var(--hover);}
+  .kanban-card .task-people-btn{font-size:11px;padding:3px 5px;}
   .task-links-wrap{display:flex;align-items:center;gap:4px;}
   .task-links-input{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
   .task-links-input[hidden]{display:none;}
@@ -1423,6 +1446,8 @@ function migrateTaskStatuses(content){
   if (content && Array.isArray(content.tasks)){
     content.tasks.forEach(t => {
       if (STATUS_RENAME_MAP[t.status]) t.status = STATUS_RENAME_MAP[t.status];
+      // Um responsavel so (formato antigo) vira lista de um.
+      if (!Array.isArray(t.assignees)) t.assignees = t.assignee ? [t.assignee] : [];
       // Tira os invisiveis do nome da empresa (ver normalizeCompany).
       if (t.company){
         const limpo = normalizeCompany(t.company);
@@ -1905,7 +1930,7 @@ async function scheduleTaskFromCalendar(dateStr){
   if (!content.tasks) content.tasks = [];
   const now = new Date().toISOString();
   content.tasks.unshift({
-    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", company: "",
+    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
     dueDate: dateStr, createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
   taskSortKey = null;
@@ -2548,6 +2573,24 @@ setInterval(() => {
   });
 }, 1000);
 
+/* ---------- Responsaveis (varios por atividade) ----------
+   Gravado em task.assignees (lista de e-mails). task.assignee continua
+   espelhado com o primeiro, porque dados antigos e o script de alertas
+   ainda entendem esse campo. */
+function taskAssignees(task){
+  if (!task) return [];
+  if (Array.isArray(task.assignees)) return task.assignees.filter(Boolean);
+  return task.assignee ? [task.assignee] : [];
+}
+function setTaskAssignees(task, lista){
+  const limpa = Array.from(new Set((lista || []).filter(Boolean)));
+  task.assignees = limpa;
+  task.assignee = limpa[0] || "";
+}
+function assigneesLabel(task){
+  return taskAssignees(task).map(e => firstNameFromEmail(e)).join(", ");
+}
+
 function getAssigneeOptions(){
   const emails = new Set([OWNER_EMAIL]);
   usersData.usuarios.forEach(u => emails.add(u.email));
@@ -2622,8 +2665,8 @@ function taskSearchHaystack(task){
     task.status,
     task.priority,
     task.links,
-    task.assignee,
-    firstNameFromEmail(task.assignee || ""),
+    taskAssignees(task).join(" "),
+    assigneesLabel(task),
     noteHtmlToText(task.note),
     attachName(task),
     task.items != null && task.items !== "" ? String(task.items) : "",
@@ -2634,7 +2677,12 @@ function taskSearchHaystack(task){
 
 function taskMatchesCommonFilters(task){
   if (taskCompanyFilter !== "Todas" && companyKey(task.company) !== companyKey(taskCompanyFilter)) return false;
-  if (taskAssigneeFilter !== "Todos" && (task.assignee || "") !== taskAssigneeFilter) return false;
+  if (taskAssigneeFilter !== "Todos"){
+    const pessoas = taskAssignees(task);
+    // "" e o filtro "Sem responsavel", acionado pelo cartao do quadro.
+    if (taskAssigneeFilter === ""){ if (pessoas.length) return false; }
+    else if (!pessoas.includes(taskAssigneeFilter)) return false;
+  }
   if (taskPriorityFilter !== "Todas" && (task.priority || "Média") !== taskPriorityFilter) return false;
   if (taskDueStateFilter !== "Todos" && dueState(task) !== taskDueStateFilter) return false;
   if (taskDueFromFilter && (!task.dueDate || task.dueDate < taskDueFromFilter)) return false;
@@ -2658,7 +2706,7 @@ const SORT_ACCESSORS = {
   createdAt: t => t.createdAt || "",
   statusChangedAt: t => t.statusChangedAt || "",
   timer: t => getTaskDisplaySeconds(t),
-  assignee: t => firstNameFromEmail(t.assignee || "").toLowerCase(),
+  assignee: t => assigneesLabel(t).toLowerCase(),
   note: t => noteHtmlToText(t.note).toLowerCase(),
   attach: t => attachName(t).toLowerCase(),
 };
@@ -3126,12 +3174,17 @@ function renderTaskStats(allTasks){
   const priorityCounts = { "Alta": 0, "Média": 0, "Baixa": 0 };
   base.forEach(t => { const p = t.priority || "Média"; priorityCounts[p] = (priorityCounts[p] || 0) + 1; });
 
+  // Tarefa com varios responsaveis conta uma vez para cada um — a soma
+  // desses numeros passa do total de tarefas, e e isso mesmo.
   const assigneeCounts = {};
   base.forEach(t => {
-    const email = (t.assignee || "").trim();
-    const name = email ? firstNameFromEmail(email) : "Sem responsável";
-    if (!assigneeCounts[name]) assigneeCounts[name] = { count: 0, email };
-    assigneeCounts[name].count++;
+    const pessoas = taskAssignees(t);
+    const chaves = pessoas.length ? pessoas : [""];
+    chaves.forEach(email => {
+      const name = email ? firstNameFromEmail(email) : "Sem responsável";
+      if (!assigneeCounts[name]) assigneeCounts[name] = { count: 0, email };
+      assigneeCounts[name].count++;
+    });
   });
   const assigneeEntries = Object.entries(assigneeCounts).sort((a, b) => b[1].count - a[1].count);
 
@@ -3232,7 +3285,7 @@ document.getElementById("exportTasksBtn").addEventListener("click", () => {
     "Criado em": formatDateTimeBR(t.createdAt),
     "Atualizado em": formatDateTimeBR(t.statusChangedAt),
     "Tempo (min)": Math.round(getTaskDisplaySeconds(t) / 60),
-    "Responsável": t.assignee ? firstNameFromEmail(t.assignee) : "",
+    "Responsável": assigneesLabel(t),
     "Links": t.links || "",
     "Nota": noteHtmlToText(t.note),
     "Anexo": attachName(t),
@@ -3357,33 +3410,7 @@ function renderKanbanCard(task, assigneeOptions){
   });
   card.appendChild(companyInput);
 
-  const assigneeSel = document.createElement("select");
-  assigneeSel.className = "kanban-assignee";
-  assigneeSel.disabled = !canEdit;
-  const blankOpt = document.createElement("option");
-  blankOpt.value = "";
-  blankOpt.textContent = "Não atribuído";
-  assigneeSel.appendChild(blankOpt);
-  assigneeOptions.forEach(email => {
-    const opt = document.createElement("option");
-    opt.value = email;
-    opt.textContent = firstNameFromEmail(email);
-    opt.style.color = assigneeTextColor(email) || "";
-    if (task.assignee === email) opt.selected = true;
-    assigneeSel.appendChild(opt);
-  });
-  assigneeSel.addEventListener("change", async () => {
-    const newVal = assigneeSel.value;
-    const oldVal = task.assignee || "";
-    assigneeSel.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ assigneeSel.value = oldVal; return; }
-    assigneeSel.value = newVal;
-    paintAssigneeSelect(assigneeSel);
-    task.assignee = newVal;
-    scheduleSavePage(currentPageId);
-  });
-  paintAssigneeSelect(assigneeSel);
-  card.appendChild(assigneeSel);
+  meta.appendChild(buildPeoplePicker(task, assigneeOptions));
 
   if (canEdit){
     const delBtn = document.createElement("button");
@@ -3544,25 +3571,71 @@ function buildDueCell(task){
   td.appendChild(wrap);
   return td;
 }
+/* Empresa em lista suspensa: escolher de uma lista fecha a porta para variacoes
+   de digitacao virarem "empresas" novas. Criar uma empresa passa a ser um ato
+   deliberado, pela opcao "+ Nova empresa". */
+const OPCAO_NOVA_EMPRESA = "\u0000nova-empresa";
+
 function buildCompanyCell(task){
   const td = document.createElement("td");
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "task-company";
-  input.placeholder = "Empresa";
-  input.value = task.company || "";
-  input.disabled = !canEdit;
-  input.addEventListener("change", async () => {
-    const newVal = normalizeCompany(input.value);
-    const oldVal = task.company || "";
-    input.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ input.value = oldVal; return; }
-    input.value = newVal;
-    task.company = newVal;
-    scheduleSavePage(currentPageId);
-    populateExtraFilters(pageContentCache[currentPageId].tasks);
+  const sel = document.createElement("select");
+  sel.className = "task-company";
+  sel.disabled = !canEdit;
+
+  const atual = normalizeCompany(task.company);
+  const content = pageContentCache[currentPageId];
+  const nomes = getCompanyOptions(content ? content.tasks : []);
+  // A empresa da tarefa pode nao estar na lista (unica com aquele nome ainda).
+  if (atual && !nomes.some(n => companyKey(n) === companyKey(atual))) nomes.push(atual);
+  nomes.sort((a, b) => a.localeCompare(b));
+
+  const vazio = document.createElement("option");
+  vazio.value = "";
+  vazio.textContent = "Sem empresa";
+  sel.appendChild(vazio);
+
+  nomes.forEach(nome => {
+    const o = document.createElement("option");
+    o.value = nome;
+    o.textContent = nome;
+    if (atual && companyKey(nome) === companyKey(atual)) o.selected = true;
+    sel.appendChild(o);
   });
-  td.appendChild(input);
+
+  if (canEdit){
+    const nova = document.createElement("option");
+    nova.value = OPCAO_NOVA_EMPRESA;
+    nova.textContent = "+ Nova empresa…";
+    sel.appendChild(nova);
+  }
+
+  sel.addEventListener("change", async () => {
+    const escolhido = sel.value;
+    const anterior = atual;
+    sel.value = anterior;              // so confirma depois da senha
+
+    let novoVal;
+    let criouNova = false;
+    if (escolhido === OPCAO_NOVA_EMPRESA){
+      const digitado = normalizeCompany(prompt("Nome da nova empresa:") || "");
+      if (!digitado) return;
+      novoVal = digitado;
+      criouNova = !nomes.some(n => companyKey(n) === companyKey(digitado));
+    } else {
+      novoVal = normalizeCompany(escolhido);
+    }
+    if (companyKey(novoVal) === companyKey(anterior)) return;
+    if (!(await guardTaskFieldEdit(task))) return;
+
+    task.company = novoVal;
+    scheduleSavePage(currentPageId);
+    populateExtraFilters(content ? content.tasks : []);
+    // Empresa nova precisa aparecer nas listas das outras linhas.
+    if (criouNova) renderTasks();
+    else sel.value = novoVal;
+  });
+
+  td.appendChild(sel);
   return td;
 }
 function buildItemsCell(task){
@@ -3626,35 +3699,121 @@ function paintAssigneeSelect(sel){
   sel.style.fontWeight = assigneeTextColor(sel.value) ? "600" : "";
 }
 
+/* Menu de responsaveis: botao na celula que abre caixas de selecao.
+   As marcacoes ficam num rascunho local; so ao fechar, se algo mudou, e que a
+   senha e pedida e a alteracao e gravada — assim nao pede senha a cada clique.
+   O menu e position:fixed: a celula da tabela tem overflow:hidden e cortaria
+   um menu absoluto. */
+function buildPeoplePicker(task, assigneeOptions){
+  const wrap = document.createElement("div");
+  wrap.className = "task-people-wrap";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "task-people-btn";
+  btn.disabled = !canEdit;
+
+  const menu = document.createElement("div");
+  menu.className = "task-people-menu";
+  menu.hidden = true;
+
+  let rascunho = taskAssignees(task).slice();
+
+  function pintar(){
+    const pessoas = taskAssignees(task);
+    if (!pessoas.length){
+      btn.textContent = "Não atribuído";
+      btn.classList.add("vazio");
+      btn.style.color = "";
+      btn.style.fontWeight = "";
+      btn.title = canEdit ? "Escolher responsáveis" : "";
+      return;
+    }
+    btn.textContent = assigneesLabel(task);
+    btn.classList.remove("vazio");
+    // Cor por pessoa so faz sentido quando ha uma so.
+    const cor = pessoas.length === 1 ? assigneeTextColor(pessoas[0]) : "";
+    btn.style.color = cor || "";
+    btn.style.fontWeight = cor ? "600" : "";
+    btn.title = pessoas.join(", ");
+  }
+
+  function posicionar(){
+    const r = btn.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 210)) + "px";
+    menu.style.top = (r.bottom + 4) + "px";
+  }
+
+  function aoClicarFora(e){
+    if (!wrap.contains(e.target)) fechar(true);
+  }
+  function aoRolar(){ fechar(true); }
+  function aoTeclar(e){ if (e.key === "Escape"){ e.preventDefault(); fechar(false); } }
+
+  async function fechar(aplicar){
+    if (menu.hidden) return;
+    menu.hidden = true;
+    document.removeEventListener("mousedown", aoClicarFora, true);
+    window.removeEventListener("scroll", aoRolar, true);
+    document.removeEventListener("keydown", aoTeclar, true);
+    if (!aplicar) return;
+
+    const antes = taskAssignees(task);
+    const mudou = antes.length !== rascunho.length || antes.some(e => !rascunho.includes(e));
+    if (!mudou) return;
+    if (!(await guardTaskFieldEdit(task))) return;
+
+    setTaskAssignees(task, rascunho);
+    pintar();
+    scheduleSavePage(currentPageId);
+  }
+
+  function abrir(){
+    rascunho = taskAssignees(task).slice();
+    Array.from(menu.querySelectorAll("input[type=checkbox]")).forEach(cb => {
+      cb.checked = rascunho.includes(cb.value);
+    });
+    menu.hidden = false;
+    posicionar();
+    document.addEventListener("mousedown", aoClicarFora, true);
+    window.addEventListener("scroll", aoRolar, true);
+    document.addEventListener("keydown", aoTeclar, true);
+  }
+
+  btn.addEventListener("click", () => {
+    if (!canEdit) return;
+    if (menu.hidden) abrir();
+    else fechar(true);
+  });
+
+  assigneeOptions.forEach(email => {
+    const item = document.createElement("label");
+    item.className = "task-people-item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = email;
+    const nome = document.createElement("span");
+    nome.textContent = firstNameFromEmail(email);
+    const cor = assigneeTextColor(email);
+    if (cor){ nome.style.color = cor; nome.style.fontWeight = "600"; }
+    cb.addEventListener("change", () => {
+      if (cb.checked){ if (!rascunho.includes(email)) rascunho.push(email); }
+      else rascunho = rascunho.filter(x => x !== email);
+    });
+    item.appendChild(cb);
+    item.appendChild(nome);
+    menu.appendChild(item);
+  });
+
+  wrap.appendChild(btn);
+  wrap.appendChild(menu);
+  pintar();
+  return wrap;
+}
+
 function buildAssigneeCell(task, assigneeOptions){
   const td = document.createElement("td");
-  const sel = document.createElement("select");
-  sel.className = "task-assignee";
-  sel.disabled = !canEdit;
-  const blank = document.createElement("option");
-  blank.value = "";
-  blank.textContent = "Não atribuído";
-  sel.appendChild(blank);
-  assigneeOptions.forEach(email => {
-    const opt = document.createElement("option");
-    opt.value = email;
-    opt.textContent = firstNameFromEmail(email);
-    opt.style.color = assigneeTextColor(email) || "";
-    if (task.assignee === email) opt.selected = true;
-    sel.appendChild(opt);
-  });
-  sel.addEventListener("change", async () => {
-    const newVal = sel.value;
-    const oldVal = task.assignee || "";
-    sel.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ sel.value = oldVal; paintAssigneeSelect(sel); return; }
-    sel.value = newVal;
-    task.assignee = newVal;
-    paintAssigneeSelect(sel);
-    scheduleSavePage(currentPageId);
-  });
-  paintAssigneeSelect(sel);
-  td.appendChild(sel);
+  td.appendChild(buildPeoplePicker(task, assigneeOptions));
   return td;
 }
 
@@ -4128,7 +4287,7 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
   if (!content.tasks) content.tasks = [];
   const now = new Date().toISOString();
   content.tasks.unshift({
-    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", company: "",
+    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
     createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
   // Sem ordenação de coluna ativa, pra garantir que a tarefa recém-criada apareça no topo.
@@ -4218,8 +4377,9 @@ async function renderDashboard(){
 
   const userCounts = {};
   tasksFlat.forEach(({ task }) => {
-    const person = task.assignee ? firstNameFromEmail(task.assignee) : "Não atribuído";
-    userCounts[person] = (userCounts[person] || 0) + 1;
+    const pessoas = taskAssignees(task);
+    const nomes = pessoas.length ? pessoas.map(e => firstNameFromEmail(e)) : ["Não atribuído"];
+    nomes.forEach(person => { userCounts[person] = (userCounts[person] || 0) + 1; });
   });
   const userStatsEl = document.getElementById("dashboardUserStats");
   const userNames = Object.keys(userCounts).sort((a, b) => userCounts[b] - userCounts[a]);

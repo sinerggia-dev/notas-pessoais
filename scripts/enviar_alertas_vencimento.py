@@ -84,6 +84,26 @@ def montar_contatos(usuarios_doc):
     return contatos
 
 
+def extrair_responsaveis(tarefa):
+    """Responsaveis da tarefa, sem repeticao e em minusculas.
+
+    O app grava a lista em "assignees". Tarefas antigas tem so "assignee" (um
+    e-mail), e esse formato continua sendo aceito.
+    """
+    brutos = tarefa.get("assignees")
+    if not isinstance(brutos, list):
+        brutos = []
+    if not brutos and tarefa.get("assignee"):
+        brutos = [tarefa.get("assignee")]
+
+    pessoas = []
+    for item in brutos:
+        email = (item or "").strip().lower()
+        if email and email not in pessoas:
+            pessoas.append(email)
+    return pessoas
+
+
 def coletar_tarefas_por_pessoa(token, folder_id, indice):
     hoje = date.today()
     por_pessoa = {}
@@ -96,8 +116,8 @@ def coletar_tarefas_por_pessoa(token, folder_id, indice):
             if tarefa.get("status") == "Concluído":
                 continue
             due = tarefa.get("dueDate")
-            assignee = (tarefa.get("assignee") or "").strip().lower()
-            if not due or not assignee:
+            pessoas = extrair_responsaveis(tarefa)
+            if not due or not pessoas:
                 continue
             try:
                 due_date = date.fromisoformat(due)
@@ -106,11 +126,13 @@ def coletar_tarefas_por_pessoa(token, folder_id, indice):
             dias = (due_date - hoje).days
             if dias not in JANELAS:
                 continue
-            por_pessoa.setdefault(assignee, []).append({
-                "titulo": tarefa.get("title") or "Sem título",
-                "pagina": page.get("title") or "Sem título",
-                "rotulo": JANELAS[dias],
-            })
+            # Uma atividade pode ter varios responsaveis: todos recebem o alerta.
+            for pessoa in pessoas:
+                por_pessoa.setdefault(pessoa, []).append({
+                    "titulo": tarefa.get("title") or "Sem título",
+                    "pagina": page.get("title") or "Sem título",
+                    "rotulo": JANELAS[dias],
+                })
 
     return por_pessoa
 
