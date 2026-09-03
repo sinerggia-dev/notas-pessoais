@@ -382,6 +382,28 @@
   /* Varios responsaveis: botao na celula + menu de caixas de selecao.
      O menu e position:fixed porque a celula da tabela tem overflow:hidden
      e cortaria um menu posicionado por absolute. */
+  /* Barra de controle dos grupos — so aparece com o agrupamento ligado */
+  #taskGroupBar{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;
+    padding:7px 10px;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);
+    border-radius:8px;
+  }
+  #taskGroupBar[hidden]{display:none;}
+  .group-bar-label{
+    font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-light);
+  }
+  #taskGroupBar button{
+    display:inline-flex;align-items:center;height:26px;background:#fff;
+    border:1px solid var(--sidebar-border);border-radius:6px;padding:0 10px;
+    font-size:11px;font-family:inherit;color:var(--text);cursor:pointer;white-space:nowrap;
+  }
+  #taskGroupBar button:hover{background:var(--hover);border-color:var(--accent);}
+  #groupSortSelect{
+    height:26px;box-sizing:border-box;padding:0 8px;background:#fff;font-size:11px;
+    font-family:inherit;border:1px solid var(--sidebar-border);border-radius:6px;color:var(--text);
+  }
+  #taskGroupBar .group-bar-sep{flex:1 1 auto;}
+
   /* Linha de cabecalho de cada empresa na tabela agrupada */
   tr.task-group-row td{
     background:var(--sidebar-bg);border-bottom:1px solid var(--sidebar-border);
@@ -807,7 +829,7 @@
   /* ---------- Impressão (respeita os filtros aplicados no Banco de Tarefas) ---------- */
   @media print{
     #mobileMenuBtn, #sidebarOverlay, #sidebar, #sidebarCollapseBtn,
-    #taskToolbarRow, #taskStatusRow, #addBlockBtn, #readOnlyBanner,
+    #taskToolbarRow, #taskStatusRow, #taskGroupBar, #addBlockBtn, #readOnlyBanner,
     .del-task, .col-hide-btn, .col-resizer, .col-select-th, .task-select-td, .task-link-edit-btn,
     .task-note-open-btn, .task-attach-btn, .task-attach-del,
     #adminOverlay, #eventOverlay, #passwordOverlay, #noteOverlay, #selectionToolbar, #slashMenu, #kindMenu{
@@ -924,6 +946,19 @@
           <button id="addTaskBtn">+ Nova tarefa</button>
           <span id="taskTotalBadge" class="task-total-badge"></span>
           <div id="taskStatusPills"></div>
+        </div>
+        <div id="taskGroupBar" hidden>
+          <span class="group-bar-label">Empresas</span>
+          <button type="button" id="expandAllGroupsBtn" title="Abrir todas as empresas">⊞ Expandir tudo</button>
+          <button type="button" id="collapseAllGroupsBtn" title="Fechar todas as empresas">⊟ Recolher tudo</button>
+          <span class="group-bar-sep"></span>
+          <label class="group-bar-label" for="groupSortSelect">Ordenar por</label>
+          <select id="groupSortSelect">
+            <option value="nome">Empresa (A–Z)</option>
+            <option value="nome-desc">Empresa (Z–A)</option>
+            <option value="qtd-desc">Mais atividades</option>
+            <option value="qtd">Menos atividades</option>
+          </select>
         </div>
         <div id="taskTableWrap">
           <table id="taskTable">
@@ -2015,6 +2050,9 @@ try{ gruposFechados = new Set(JSON.parse(localStorage.getItem("np_task_groups_cl
 function salvarGruposFechados(){
   localStorage.setItem("np_task_groups_closed_v1", JSON.stringify([...gruposFechados]));
 }
+let taskGroupSort = localStorage.getItem("np_task_group_sort_v1") || "nome";
+// Chaves das empresas do ultimo desenho — e o que "Recolher tudo" precisa fechar.
+let ultimasChavesDeGrupo = [];
 let taskSortKey = null;
 let taskSortDir = "asc";
 let selectedTaskIds = new Set();
@@ -3172,11 +3210,28 @@ function updateTaskViewToggle(){
   const btnGrupo = document.getElementById("groupCompanyBtn");
   btnGrupo.style.display = taskViewMode === "table" ? "" : "none";
   btnGrupo.classList.toggle("active", taskGroupByCompany);
+  document.getElementById("taskGroupBar").hidden = !(taskViewMode === "table" && taskGroupByCompany);
+  document.getElementById("groupSortSelect").value = taskGroupSort;
 }
 
 document.getElementById("tableViewBtn").addEventListener("click", () => {
   taskViewMode = "table";
   updateTaskViewToggle();
+  renderTasks();
+});
+document.getElementById("expandAllGroupsBtn").addEventListener("click", () => {
+  gruposFechados.clear();
+  salvarGruposFechados();
+  renderTasks();
+});
+document.getElementById("collapseAllGroupsBtn").addEventListener("click", () => {
+  ultimasChavesDeGrupo.forEach(chave => gruposFechados.add(chave));
+  salvarGruposFechados();
+  renderTasks();
+});
+document.getElementById("groupSortSelect").addEventListener("change", (e) => {
+  taskGroupSort = e.target.value;
+  localStorage.setItem("np_task_group_sort_v1", taskGroupSort);
   renderTasks();
 });
 document.getElementById("groupCompanyBtn").addEventListener("click", () => {
@@ -3309,12 +3364,19 @@ function renderTableGrouped(tbody, tarefas, assigneeOptions){
     grupos.get(chave).itens.push(t);
   });
 
-  // Empresas em ordem alfabetica; "Sem empresa" sempre por ultimo.
+  // "Sem empresa" fica sempre por ultimo, qualquer que seja a ordenacao.
   const ordenados = [...grupos.values()].sort((a, b) => {
     if (a.nome === SEM) return 1;
     if (b.nome === SEM) return -1;
-    return a.nome.localeCompare(b.nome);
+    switch (taskGroupSort){
+      case "nome-desc": return b.nome.localeCompare(a.nome);
+      // Empate na quantidade cai no alfabetico, pra ordem nao variar sozinha.
+      case "qtd-desc":  return (b.itens.length - a.itens.length) || a.nome.localeCompare(b.nome);
+      case "qtd":       return (a.itens.length - b.itens.length) || a.nome.localeCompare(b.nome);
+      default:          return a.nome.localeCompare(b.nome);
+    }
   });
+  ultimasChavesDeGrupo = ordenados.map(g => g.chave);
 
   const colunas = visibleColumnOrder().length + 2;   // + caixa de selecao + coluna de acoes
 
