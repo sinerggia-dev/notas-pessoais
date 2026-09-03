@@ -484,6 +484,7 @@
   .status-pill.pendente{background:#fde3e3;color:#b23a3a;}
   .status-pill.iniciado{background:#fff3d6;color:#8a6d1e;}
   .status-pill.concluido{background:#dff3e0;color:#2f8132;}
+  .status-pill.cancelado{background:#ececeb;color:#75736d;text-decoration:line-through;}
   .priority-pill.baixa{background:#efefee;color:#55534d;}
   .priority-pill.media{background:#fff3d6;color:#8a6d1e;}
   .priority-pill.alta{background:#ffe4cc;color:#a15c07;}
@@ -512,6 +513,9 @@
   }
   tr.due-andamento .task-due, .kanban-card.due-andamento .task-due{
     border-color:var(--sidebar-border);background:#f4f4f2;color:var(--text-light);
+  }
+  tr.due-cancelado .task-due, .kanban-card.due-cancelado .task-due{
+    border-color:var(--sidebar-border);background:#ececeb;color:#8a8a86;text-decoration:line-through;
   }
   .task-meta-date{font-size:11px;color:var(--text-light);}
   .task-timer-cell{display:flex;align-items:center;gap:6px;}
@@ -916,6 +920,7 @@
               <option value="hoje">⭐ Vence hoje</option>
               <option value="andamento">Em andamento</option>
               <option value="concluido">Concluído</option>
+              <option value="cancelado">Cancelado</option>
             </select></div>
           </div>
           <div class="filter-field" data-tkey="company">
@@ -980,6 +985,10 @@
           <div class="kanban-col">
             <h4>Concluído</h4>
             <div class="kanban-col-body" data-status="Concluído"></div>
+          </div>
+          <div class="kanban-col">
+            <h4>Cancelado</h4>
+            <div class="kanban-col-body" data-status="Cancelado"></div>
           </div>
         </div>
       </div>
@@ -2762,7 +2771,7 @@ function taskMatchesCommonFilters(task){
 
 const SORT_ACCESSORS = {
   title: t => (t.title || "").toLowerCase(),
-  status: t => ({ "Pendente": 0, "Iniciado": 1, "Concluído": 2 }[t.status] ?? 0),
+  status: t => ({ "Pendente": 0, "Iniciado": 1, "Concluído": 2, "Cancelado": 3 }[t.status] ?? 0),
   priority: t => ({ "Baixa": 0, "Média": 1, "Alta": 2 }[t.priority] ?? 0),
   dueDate: t => t.dueDate || "",
   company: t => (t.company || "").toLowerCase(),
@@ -3159,7 +3168,7 @@ document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   renderTasks();
 });
 
-const TASK_STATUS_TABS = ["Todas", "Iniciado", "Pendente", "Concluído"];
+const TASK_STATUS_TABS = ["Todas", "Iniciado", "Pendente", "Concluído", "Cancelado"];
 
 function setTaskStatusFilter(value){
   taskFilter = value;
@@ -3653,7 +3662,7 @@ function buildTitleCell(task){
 }
 function buildStatusCell(task){
   const td = document.createElement("td");
-  td.appendChild(buildTaskSelect(task, "status", ["Pendente", "Iniciado", "Concluído"], "status-pill"));
+  td.appendChild(buildTaskSelect(task, "status", ["Pendente", "Iniciado", "Concluído", "Cancelado"], "status-pill"));
   return td;
 }
 function buildPriorityCell(task){
@@ -3675,10 +3684,14 @@ const DUE_STATES = {
   vencido:   { cls: "due-vencido",   icon: "\u2757", label: "Vencido" },
   hoje:      { cls: "due-hoje",      icon: "\u2b50", label: "Vence hoje" },
   concluido: { cls: "due-concluido", icon: "", label: "Concluído" },
+  cancelado: { cls: "due-cancelado", icon: "", label: "Cancelado" },
   andamento: { cls: "due-andamento", icon: "", label: "Em andamento" },
 };
 function dueState(task){
-  if ((task.status || "") === "Concluído") return "concluido";
+  const situacao = task.status || "";
+  if (situacao === "Concluído") return "concluido";
+  // Cancelada nao vence nem atrasa: sai de qualquer alerta.
+  if (situacao === "Cancelado") return "cancelado";
   if (!task.dueDate) return "andamento";
   const hoje = todayISO();
   if (task.dueDate < hoje) return "vencido";
@@ -4525,13 +4538,14 @@ async function renderDashboard(){
   const eventsFlat = await loadAllEventsFlat();
   const todayStr = formatDateISO(new Date());
 
-  const counts = { "Pendente": 0, "Iniciado": 0, "Concluído": 0 };
+  const counts = { "Pendente": 0, "Iniciado": 0, "Concluído": 0, "Cancelado": 0 };
   tasksFlat.forEach(({ task }) => { counts[task.status] = (counts[task.status] || 0) + 1; });
 
   document.getElementById("dashboardStats").innerHTML = `
     <div class="dash-stat"><span class="dash-stat-num">${counts["Pendente"]}</span><span class="dash-stat-label">Pendente</span></div>
     <div class="dash-stat"><span class="dash-stat-num">${counts["Iniciado"]}</span><span class="dash-stat-label">Iniciado</span></div>
-    <div class="dash-stat"><span class="dash-stat-num">${counts["Concluído"]}</span><span class="dash-stat-label">Concluído</span></div>`;
+    <div class="dash-stat"><span class="dash-stat-num">${counts["Concluído"]}</span><span class="dash-stat-label">Concluído</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${counts["Cancelado"]}</span><span class="dash-stat-label">Cancelado</span></div>`;
 
   const userCounts = {};
   tasksFlat.forEach(({ task }) => {
@@ -4550,7 +4564,7 @@ async function renderDashboard(){
   }
 
   const upcomingTasks = tasksFlat
-    .filter(({ task }) => task.dueDate && task.status !== "Concluído" && task.dueDate >= todayStr)
+    .filter(({ task }) => task.dueDate && task.status !== "Concluído" && task.status !== "Cancelado" && task.dueDate >= todayStr)
     .sort((a, b) => a.task.dueDate.localeCompare(b.task.dueDate))
     .slice(0, 10);
 
@@ -4665,7 +4679,7 @@ function renderCalendar(){
 
     (calendarTasksByDate[dateStr] || []).forEach(t => {
       const pill = document.createElement("button");
-      pill.className = "cal-task-pill" + (t.status === "Concluído" ? " cal-task-done" : "");
+      pill.className = "cal-task-pill" + (t.status === "Concluído" || t.status === "Cancelado" ? " cal-task-done" : "");
       pill.textContent = "✅ " + t.title;
       pill.title = t.pageTitle;
       pill.onclick = () => openPage(t.pageId);

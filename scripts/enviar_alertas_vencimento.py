@@ -113,7 +113,8 @@ def coletar_tarefas_por_pessoa(token, folder_id, indice):
             continue
         conteudo = get_json_by_path(token, folder_id, f"pagina_{page['id']}.json") or {"tasks": []}
         for tarefa in conteudo.get("tasks", []):
-            if tarefa.get("status") == "Concluído":
+            # Concluida ou cancelada nao gera alerta de vencimento.
+            if tarefa.get("status") in ("Concluído", "Cancelado"):
                 continue
             due = tarefa.get("dueDate")
             pessoas = extrair_responsaveis(tarefa)
