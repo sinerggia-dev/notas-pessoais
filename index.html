@@ -382,6 +382,22 @@
   /* Varios responsaveis: botao na celula + menu de caixas de selecao.
      O menu e position:fixed porque a celula da tabela tem overflow:hidden
      e cortaria um menu posicionado por absolute. */
+  /* Linha de cabecalho de cada empresa na tabela agrupada */
+  tr.task-group-row td{
+    background:var(--sidebar-bg);border-bottom:1px solid var(--sidebar-border);
+    padding:7px 4px;position:sticky;left:0;
+  }
+  .task-group-btn{
+    display:inline-flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;
+    font-family:inherit;font-size:12px;font-weight:700;color:var(--text);
+    padding:3px 6px;border-radius:6px;text-transform:uppercase;letter-spacing:.03em;
+  }
+  .task-group-btn:hover{background:var(--hover);}
+  .task-group-caret{color:var(--text-light);font-size:9px;width:9px;text-align:center;}
+  .task-group-count{
+    font-weight:600;font-size:11px;color:var(--text-light);letter-spacing:0;text-transform:none;
+    background:#fff;border:1px solid var(--sidebar-border);border-radius:10px;padding:1px 8px;
+  }
   .task-people-btn{
     width:100%;text-align:left;border:1px solid var(--sidebar-border);border-radius:6px;
     padding:4px 6px;font-size:12px;font-family:inherit;background:#fff;color:var(--text);
@@ -865,6 +881,7 @@
         <div id="taskToolbarRow">
           <button id="tableViewBtn" class="view-toggle-btn active" data-tkey="tableView">☰ Tabela</button>
           <button id="kanbanViewBtn" class="view-toggle-btn" data-tkey="kanbanView">▦ Kanban</button>
+          <button id="groupCompanyBtn" class="view-toggle-btn" data-tkey="group" title="Agrupar as atividades por empresa">▤ Agrupar</button>
           <div class="filter-field" data-tkey="status">
             <label class="filter-field-label">Status</label>
             <div id="taskFilterTabs"></div>
@@ -1989,6 +2006,15 @@ let taskDueFromFilter = "";
 let taskDueToFilter = "";
 let taskSearchText = "";
 let taskDueStateFilter = "Todos";   // Todos | vencido | hoje | andamento | concluido
+
+/* Agrupamento por empresa: uma linha de cabecalho por empresa, que abre e fecha.
+   A preferencia e quais grupos estao fechados ficam no navegador. */
+let taskGroupByCompany = localStorage.getItem("np_task_group_company_v1") !== "0";
+let gruposFechados = new Set();
+try{ gruposFechados = new Set(JSON.parse(localStorage.getItem("np_task_groups_closed_v1") || "[]")); }catch(e){}
+function salvarGruposFechados(){
+  localStorage.setItem("np_task_groups_closed_v1", JSON.stringify([...gruposFechados]));
+}
 let taskSortKey = null;
 let taskSortDir = "asc";
 let selectedTaskIds = new Set();
@@ -2035,7 +2061,7 @@ function makeFieldResizable(wrapEl, controlEl, key, minWidth){
 }
 
 /* ---------- Ordem ajustável da barra de ferramentas (arrastar pra reordenar) ---------- */
-const DEFAULT_TOOLBAR_ORDER = ["tableView", "kanbanView", "status", "dueState", "company", "assignee", "due", "search", "clear", "export", "print"];
+const DEFAULT_TOOLBAR_ORDER = ["tableView", "kanbanView", "group", "status", "dueState", "company", "assignee", "due", "search", "clear", "export", "print"];
 let toolbarOrder = DEFAULT_TOOLBAR_ORDER.slice();
 (function loadToolbarOrder(){
   try{
@@ -3142,10 +3168,20 @@ function updateTaskViewToggle(){
   document.getElementById("taskStatusPills").style.display = taskViewMode === "table" ? "flex" : "none";
   document.getElementById("taskTableWrap").style.display = taskViewMode === "table" ? "block" : "none";
   document.getElementById("taskKanban").style.display = taskViewMode === "kanban" ? "flex" : "none";
+  // Agrupar so faz sentido na tabela: no quadro as colunas ja sao o agrupamento.
+  const btnGrupo = document.getElementById("groupCompanyBtn");
+  btnGrupo.style.display = taskViewMode === "table" ? "" : "none";
+  btnGrupo.classList.toggle("active", taskGroupByCompany);
 }
 
 document.getElementById("tableViewBtn").addEventListener("click", () => {
   taskViewMode = "table";
+  updateTaskViewToggle();
+  renderTasks();
+});
+document.getElementById("groupCompanyBtn").addEventListener("click", () => {
+  taskGroupByCompany = !taskGroupByCompany;
+  localStorage.setItem("np_task_group_company_v1", taskGroupByCompany ? "1" : "0");
   updateTaskViewToggle();
   renderTasks();
 });
@@ -3256,8 +3292,68 @@ function renderTasks(){
     (taskFilter === "Todas" || t.status === taskFilter) && taskMatchesCommonFilters(t)
   );
   const sorted = sortTasksList(filtered);
-  sorted.forEach(task => tbody.appendChild(renderTaskRow(task, assigneeOptions)));
+  if (taskGroupByCompany) renderTableGrouped(tbody, sorted, assigneeOptions);
+  else sorted.forEach(task => tbody.appendChild(renderTaskRow(task, assigneeOptions)));
   renderSelectAllHeaderCell(sorted);
+}
+
+/* Monta a tabela em blocos por empresa. A ordenacao escolhida no cabecalho
+   continua valendo — ela ordena dentro de cada empresa. */
+function renderTableGrouped(tbody, tarefas, assigneeOptions){
+  const SEM = "Sem empresa";
+  const grupos = new Map();
+  tarefas.forEach(t => {
+    const nome = normalizeCompany(t.company) || SEM;
+    const chave = companyKey(nome) || "\u0000sem";
+    if (!grupos.has(chave)) grupos.set(chave, { nome, chave, itens: [] });
+    grupos.get(chave).itens.push(t);
+  });
+
+  // Empresas em ordem alfabetica; "Sem empresa" sempre por ultimo.
+  const ordenados = [...grupos.values()].sort((a, b) => {
+    if (a.nome === SEM) return 1;
+    if (b.nome === SEM) return -1;
+    return a.nome.localeCompare(b.nome);
+  });
+
+  const colunas = visibleColumnOrder().length + 2;   // + caixa de selecao + coluna de acoes
+
+  ordenados.forEach(grupo => {
+    const fechado = gruposFechados.has(grupo.chave);
+
+    const trGrupo = document.createElement("tr");
+    trGrupo.className = "task-group-row";
+    const td = document.createElement("td");
+    td.colSpan = colunas;
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "task-group-btn";
+    const caret = document.createElement("span");
+    caret.className = "task-group-caret";
+    caret.textContent = fechado ? "\u25b6" : "\u25bc";
+    const nome = document.createElement("span");
+    nome.textContent = grupo.nome;
+    const contagem = document.createElement("span");
+    contagem.className = "task-group-count";
+    contagem.textContent = grupo.itens.length + (grupo.itens.length === 1 ? " atividade" : " atividades");
+    btn.appendChild(caret);
+    btn.appendChild(nome);
+    btn.appendChild(contagem);
+    btn.addEventListener("click", () => {
+      if (gruposFechados.has(grupo.chave)) gruposFechados.delete(grupo.chave);
+      else gruposFechados.add(grupo.chave);
+      salvarGruposFechados();
+      renderTasks();
+    });
+
+    td.appendChild(btn);
+    trGrupo.appendChild(td);
+    tbody.appendChild(trGrupo);
+
+    if (!fechado)
+      grupo.itens.forEach(t => tbody.appendChild(renderTaskRow(t, assigneeOptions)));
+  });
 }
 
 function renderKanban(content, assigneeOptions){
