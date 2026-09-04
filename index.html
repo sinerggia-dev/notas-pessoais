@@ -3618,16 +3618,7 @@ function renderKanbanCard(task, assigneeOptions){
   dueInput.className = "task-due";
   dueInput.value = task.dueDate || "";
   dueInput.disabled = !canEdit;
-  dueInput.addEventListener("change", async () => {
-    const newVal = dueInput.value;
-    const oldVal = task.dueDate || "";
-    dueInput.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ dueInput.value = oldVal; return; }
-    dueInput.value = newVal;
-    task.dueDate = newVal;
-    refreshDueState(dueInput, task);
-    scheduleSavePage(currentPageId);
-  });
+  bindDueInput(dueInput, task);
   meta.appendChild(dueInput);
   meta.appendChild(buildDueFlag(task));
   card.appendChild(meta);
@@ -3812,6 +3803,39 @@ function buildDueFlag(task){
   return flag;
 }
 
+/* O campo de data grava ao SAIR do campo, nao a cada mudanca de valor.
+   Motivo: com uma data ja preenchida (24/08/2026), digitar so o dia ja monta uma
+   data completa e valida (2026-08-01), o que disparava o "change" e pedia a senha
+   no meio da digitacao, antes do mes e do ano. Ao sair do campo, o valor final e
+   um so — uma pergunta de senha, com a data que a pessoa realmente quis. */
+function bindDueInput(input, task){
+  let gravando = false;
+  async function gravar(){
+    if (gravando) return;
+    const novo = input.value;
+    const antigo = task.dueDate || "";
+    if (novo === antigo) return;
+    gravando = true;
+    try{
+      input.value = antigo;
+      if (!(await guardTaskFieldEdit(task))) return;
+      input.value = novo;
+      task.dueDate = novo;
+      refreshDueState(input, task);
+      scheduleSavePage(currentPageId);
+    } finally {
+      gravando = false;
+    }
+  }
+  input.addEventListener("blur", gravar);
+  // Escolha pelo calendario quando o campo nao esta em foco: grava na hora.
+  input.addEventListener("change", () => { if (document.activeElement !== input) gravar(); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter"){ e.preventDefault(); input.blur(); }
+    if (e.key === "Escape"){ input.value = task.dueDate || ""; input.blur(); }
+  });
+}
+
 function buildDueCell(task){
   const td = document.createElement("td");
   const wrap = document.createElement("div");
@@ -3821,16 +3845,7 @@ function buildDueCell(task){
   input.className = "task-due";
   input.value = task.dueDate || "";
   input.disabled = !canEdit;
-  input.addEventListener("change", async () => {
-    const newVal = input.value;
-    const oldVal = task.dueDate || "";
-    input.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ input.value = oldVal; return; }
-    input.value = newVal;
-    task.dueDate = newVal;
-    refreshDueState(input, task);
-    scheduleSavePage(currentPageId);
-  });
+  bindDueInput(input, task);
   wrap.appendChild(input);
   wrap.appendChild(buildDueFlag(task));
   td.appendChild(wrap);
