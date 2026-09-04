@@ -32,7 +32,12 @@
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;}
   /* Sem isto, campo com fundo escuro fica com o texto preto padrao do navegador. */
-  input, select, textarea, option{color:var(--text);}
+  input, select, textarea{color:var(--text);}
+  /* A lista aberta de um <select> quem desenha e o sistema, e no Windows ela vem com
+     fundo branco. Herdando so a cor do tema, as opcoes ficavam quase brancas sobre
+     branco — sumiam, e so a linha realcada dava para ler. Por isso a opcao precisa
+     declarar o fundo tambem, e nao apenas a cor. */
+  option{color:var(--text); background-color:var(--surface);}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     color:var(--text);
@@ -505,13 +510,16 @@
   .task-attach-busy{font-size:11px;color:var(--text-light);}
   .task-attach-empty{font-size:12px;color:var(--text-dim);}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
-  .status-pill.pendente{background:#fde3e3;color:#b23a3a;}
-  .status-pill.iniciado{background:#fff3d6;color:#8a6d1e;}
-  .status-pill.concluido{background:#dff3e0;color:#2f8132;}
-  .status-pill.cancelado{background:#ececeb;color:#75736d;text-decoration:line-through;}
-  .priority-pill.baixa{background:#efefee;color:#55534d;}
-  .priority-pill.media{background:#fff3d6;color:#8a6d1e;}
-  .priority-pill.alta{background:#ffe4cc;color:#a15c07;}
+  /* As pilhas sao 12px em negrito — texto normal para o WCAG, que pede 4,5:1. Quatro
+     delas estavam entre 4,0 e 4,4. Os tons abaixo sao o menor escurecimento que alcanca
+     o minimo mantendo o matiz; medidos, nao escolhidos no olho. */
+  .status-pill.pendente{background:#fde3e3;color:#b23a3a;}   /* 4,85:1 */
+  .status-pill.iniciado{background:#fff3d6;color:#896c1d;}   /* 4,51:1 */
+  .status-pill.concluido{background:#dff3e0;color:#2d7b30;}  /* 4,52:1 */
+  .status-pill.cancelado{background:#ececeb;color:#6d6b66;text-decoration:line-through;} /* 4,50:1 */
+  .priority-pill.baixa{background:#efefee;color:#55534d;}    /* 6,68:1 */
+  .priority-pill.media{background:#fff3d6;color:#896c1d;}    /* 4,51:1 */
+  .priority-pill.alta{background:#ffe4cc;color:#9b5906;}     /* 4,50:1 */
   #addTaskBtn{
     flex-shrink:0;height:28px;box-sizing:border-box;padding:0 12px;background:var(--accent-btn);color:#fff;
     border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:background .12s ease;
