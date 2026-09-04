@@ -146,7 +146,7 @@
   .smc-day.today{background:var(--accent-btn);color:#fff;font-weight:700;}
   .smc-day.holiday-nacional{background:#fde3e3;color:#b23a3a;font-weight:600;}
   .smc-day.holiday-pernambuco{background:#dff3e0;color:#2f8132;font-weight:600;}
-  .smc-day.holiday-facultativo{background:var(--surface)3d6;color:#8a6d1e;font-weight:600;}
+  .smc-day.holiday-facultativo{background:#fff3d6;color:#8a6d1e;font-weight:600;}
   .smc-day.today.holiday-nacional, .smc-day.today.holiday-pernambuco, .smc-day.today.holiday-facultativo{background:var(--accent-btn);color:#fff;}
   .smc-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;font-size:10px;color:var(--text-light);}
   .smc-legend span{display:flex;align-items:center;gap:3px;}
@@ -207,12 +207,13 @@
   #pageView{max-width:760px;margin:0 auto;padding:60px 60px 200px;display:none;}
   #pageView.wide{max-width:none;margin:0;padding-left:40px;padding-right:40px;}
   #readOnlyBanner{
-    display:none;background:var(--surface)8e6;border:1px solid #f0dca0;color:#8a6d1e;font-size:12px;
+    display:none;background:#fff8e6;border:1px solid #f0dca0;color:#8a6d1e;font-size:12px;
     padding:6px 10px;border-radius:6px;margin-bottom:14px;
   }
   #pageTitle{
     width:100%;border:none;outline:none;font-size:24px;font-weight:700;color:var(--text);
     padding:4px 0;margin-bottom:8px;font-family:inherit;
+    background:transparent;
   }
   #pageTitle::placeholder{color:var(--text-dim);}
 
@@ -497,11 +498,11 @@
   .task-attach-empty{font-size:12px;color:var(--text-dim);}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
   .status-pill.pendente{background:#fde3e3;color:#b23a3a;}
-  .status-pill.iniciado{background:var(--surface)3d6;color:#8a6d1e;}
+  .status-pill.iniciado{background:#fff3d6;color:#8a6d1e;}
   .status-pill.concluido{background:#dff3e0;color:#2f8132;}
   .status-pill.cancelado{background:#ececeb;color:#75736d;text-decoration:line-through;}
   .priority-pill.baixa{background:#efefee;color:#55534d;}
-  .priority-pill.media{background:var(--surface)3d6;color:#8a6d1e;}
+  .priority-pill.media{background:#fff3d6;color:#8a6d1e;}
   .priority-pill.alta{background:#ffe4cc;color:#a15c07;}
   #addTaskBtn{
     flex-shrink:0;height:28px;box-sizing:border-box;padding:0 12px;background:var(--accent-btn);color:#fff;
@@ -521,7 +522,7 @@
     border-color:#d97070;background:#fdecec;color:#b23a3a;font-weight:600;
   }
   tr.due-hoje .task-due, .kanban-card.due-hoje .task-due{
-    border-color:#e0a11a;background:var(--surface)4d6;color:#8a5c00;font-weight:600;
+    border-color:#e0a11a;background:#fff4d6;color:#8a5c00;font-weight:600;
   }
   tr.due-concluido .task-due, .kanban-card.due-concluido .task-due{
     border-color:#8cc98f;background:#eaf7ea;color:#2f8132;
