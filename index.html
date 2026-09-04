@@ -690,6 +690,21 @@
   #noteEditor:empty::before{content:attr(data-placeholder);color:var(--text-dim);}
   #noteEditor ul, #noteEditor ol{margin:6px 0;padding-left:22px;}
   #noteEditor a{color:var(--accent);}
+  /* Texto colado de fora (Outlook, Word, site) vem com cor e fundo proprios em
+     style inline — cinza escuro sobre papel branco. No tema escuro isso fica
+     ilegivel, e style inline vence herança: so !important desfaz. Nao se perde
+     nada, porque a barra da nota nao oferece escolha de cor. */
+  #noteEditor, #noteEditor *:not(a){color:var(--text) !important;}
+  #noteEditor a, #noteEditor a *{color:var(--accent) !important;}
+  #noteEditor *{background-color:transparent !important;}
+  /* Mesmo problema nos blocos das paginas. Aqui herda, para nao apagar a cor
+     propria da citacao (.block-content.quote). */
+  .block-content *:not(a){color:inherit !important;}
+  .block-content a, .block-content a *{color:var(--accent) !important;}
+  .block-content *{background-color:transparent !important;}
+  /* O titulo da tarefa tambem recebe texto colado. */
+  .task-title *:not(a){color:inherit !important;}
+  .task-title *{background-color:transparent !important;}
   #noteModalHint{margin:8px 0 0;font-size:11px;color:var(--text-light);}
   #noteModalActions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;}
   #noteModalActionsRight{display:flex;gap:8px;}
