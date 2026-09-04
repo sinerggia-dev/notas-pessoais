@@ -415,7 +415,8 @@
     border:1px solid var(--sidebar-border);border-radius:6px;padding:0 10px;
     font-size:11px;font-family:inherit;color:var(--text);cursor:pointer;white-space:nowrap;
   }
-  #taskGroupBar button:hover{background:var(--hover);border-color:var(--accent);}
+  #taskGroupBar button:hover:not(:disabled){background:var(--hover);border-color:var(--accent);}
+  #taskGroupBar button:disabled{opacity:.45;cursor:default;}
   #groupSortSelect{
     height:26px;box-sizing:border-box;padding:0 8px;background:var(--surface);font-size:11px;
     font-family:inherit;border:1px solid var(--sidebar-border);border-radius:6px;color:var(--text);
@@ -425,7 +426,7 @@
   /* Linha de cabecalho de cada empresa na tabela agrupada */
   tr.task-group-row td{
     background:var(--sidebar-bg);border-bottom:1px solid var(--sidebar-border);
-    padding:7px 4px;
+    padding:7px 4px;overflow:visible;text-overflow:clip;
   }
   /* Colados na esquerda: com muitas colunas, a empresa e a caixa continuam
      visiveis enquanto a tabela rola na horizontal. */
@@ -3446,8 +3447,23 @@ function renderTableGrouped(tbody, tarefas, assigneeOptions){
 
   const colunas = visibleColumnOrder().length + 2;   // + caixa de selecao + coluna de acoes
 
+  // Com filtro ativo, abre tudo: manter recolhido esconderia justamente as
+  // atividades que o filtro selecionou (era o caso do atalho "Hoje").
+  const comFiltro = anyTaskFilterActive();
+  // Com filtro ativo os grupos ficam abertos a forca, entao recolher nao teria
+  // efeito: melhor o botao dizer isso do que parecer quebrado.
+  const btnAbrir = document.getElementById("expandAllGroupsBtn");
+  const btnFechar = document.getElementById("collapseAllGroupsBtn");
+  [btnAbrir, btnFechar].forEach(b => {
+    if (!b) return;
+    b.disabled = comFiltro;
+    b.title = comFiltro
+      ? "Com filtro ativo os grupos ficam abertos — limpe os filtros para recolher"
+      : (b === btnAbrir ? "Abrir todas as empresas" : "Fechar todas as empresas");
+  });
+
   ordenados.forEach(grupo => {
-    const fechado = gruposFechados.has(grupo.chave);
+    const fechado = !comFiltro && gruposFechados.has(grupo.chave);
 
     const trGrupo = document.createElement("tr");
     trGrupo.className = "task-group-row";
