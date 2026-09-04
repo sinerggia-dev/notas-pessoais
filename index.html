@@ -694,17 +694,26 @@
      style inline — cinza escuro sobre papel branco. No tema escuro isso fica
      ilegivel, e style inline vence herança: so !important desfaz. Nao se perde
      nada, porque a barra da nota nao oferece escolha de cor. */
-  #noteEditor, #noteEditor *:not(a){color:var(--text) !important;}
-  #noteEditor a, #noteEditor a *{color:var(--accent) !important;}
-  #noteEditor *{background-color:transparent !important;}
+  /* `color` sozinho nao basta: `-webkit-text-fill-color` vence `color`, e o Outlook
+     manda os dois. Era esse que deixava e-mail colado cinza mesmo com a regra acima.
+     `opacity` tambem precisa ser desfeita — ela esmaece sem mexer na cor. */
+  #noteEditor, #noteEditor *:not(a){
+    color:var(--text) !important; -webkit-text-fill-color:var(--text) !important;
+  }
+  #noteEditor a, #noteEditor a *{
+    color:var(--accent) !important; -webkit-text-fill-color:var(--accent) !important;
+  }
+  #noteEditor *{background-color:transparent !important; opacity:1 !important;}
   /* Mesmo problema nos blocos das paginas. Aqui herda, para nao apagar a cor
      propria da citacao (.block-content.quote). */
-  .block-content *:not(a){color:inherit !important;}
-  .block-content a, .block-content a *{color:var(--accent) !important;}
-  .block-content *{background-color:transparent !important;}
+  .block-content *:not(a){color:inherit !important; -webkit-text-fill-color:currentColor !important;}
+  .block-content a, .block-content a *{
+    color:var(--accent) !important; -webkit-text-fill-color:var(--accent) !important;
+  }
+  .block-content *{background-color:transparent !important; opacity:1 !important;}
   /* O titulo da tarefa tambem recebe texto colado. */
-  .task-title *:not(a){color:inherit !important;}
-  .task-title *{background-color:transparent !important;}
+  .task-title *:not(a){color:inherit !important; -webkit-text-fill-color:currentColor !important;}
+  .task-title *{background-color:transparent !important; opacity:1 !important;}
   #noteModalHint{margin:8px 0 0;font-size:11px;color:var(--text-light);}
   #noteModalActions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;}
   #noteModalActionsRight{display:flex;gap:8px;}
@@ -4304,6 +4313,45 @@ document.getElementById("noteOverlay").addEventListener("click", (e) => {
 });
 document.getElementById("noteEditor").addEventListener("keydown", (e) => {
   if (e.key === "Escape"){ e.preventDefault(); closeNoteModal(false); }
+});
+
+/* Texto colado do Outlook, Teams ou Word chega com a folha de estilo da origem grudada:
+   cor, fundo, fonte, tamanho, tudo em style inline pensado para papel branco. O CSS do
+   editor desfaz quase tudo, mas nao vence `style="color:X !important"` — inline com
+   !important nao ha regra de autor que derrube. Entao a limpeza tem de ser aqui.
+
+   O que fica: a estrutura (negrito, italico, listas, paragrafos) e o href dos links.
+   O que sai: todo atributo de aparencia. A barra da nota nao oferece escolha de cor,
+   entao nao ha o que preservar. */
+const ATRIBUTOS_QUE_FICAM = { A: ["href"] };
+
+function limparHtmlColado(html){
+  const caixa = document.createElement("div");
+  caixa.innerHTML = html;
+  caixa.querySelectorAll("style, script, meta, link, title").forEach((el) => el.remove());
+  caixa.querySelectorAll("*").forEach((el) => {
+    const ficam = ATRIBUTOS_QUE_FICAM[el.tagName] || [];
+    // Copia a lista: remover atributo enquanto se percorre `el.attributes` pula itens.
+    Array.from(el.attributes).forEach((a) => {
+      if (ficam.indexOf(a.name.toLowerCase()) < 0) el.removeAttribute(a.name);
+    });
+  });
+  return caixa.innerHTML;
+}
+
+document.getElementById("noteEditor").addEventListener("paste", (e) => {
+  const dados = e.clipboardData;
+  if (!dados) return;
+  const html = dados.getData("text/html");
+  const texto = dados.getData("text/plain");
+  if (!html && !texto) return;
+  e.preventDefault();
+  if (html){
+    document.execCommand("insertHTML", false, limparHtmlColado(html));
+  } else {
+    // Sem HTML no clipboard, insertText preserva as quebras de linha.
+    document.execCommand("insertText", false, texto);
+  }
 });
 
 function buildNoteCell(task){
