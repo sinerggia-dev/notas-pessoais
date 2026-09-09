@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.18.0/lib/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     /* color-scheme:dark faz o navegador desenhar em modo escuro o que e dele:
@@ -843,6 +844,34 @@
     background:var(--surface);border:1px solid var(--sidebar-border);border-radius:6px;
   }
   .ap-vazio{color:var(--ap-muted);font-size:14px;padding:20px 0}
+  /* Controles com o mesmo desenho do relatório: caixa única, botões de pílula. */
+  .ap-busca{
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 24px;
+    padding:13px 15px;background:var(--ap-surface);border:1px solid var(--ap-rule);border-radius:6px;
+  }
+  .ap-busca-rot{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ap-muted);font-weight:600;flex:0 0 auto}
+  .ap-busca input[type=search]{
+    flex:1 1 200px;min-width:0;height:34px;padding:0 11px;font-size:14px;font-family:inherit;
+    color:var(--ap-ink);background:var(--ap-paper);border:1px solid var(--ap-rule);border-radius:5px;
+  }
+  .ap-busca input[type=search]:focus{outline:2px solid var(--ap-verde);outline-offset:1px}
+  .ap-fp{height:34px;padding:0 12px;font-size:12.5px;font-family:inherit;cursor:pointer;
+    color:var(--ap-ink2);background:var(--ap-paper);border:1px solid var(--ap-rule);
+    border-radius:5px;white-space:nowrap}
+  .ap-fp b{font-family:"IBM Plex Mono",monospace;font-weight:500;margin-left:4px;color:var(--ap-muted)}
+  .ap-fp:hover{border-color:var(--ap-verde)}
+  .ap-fp.ativo{background:var(--ap-sunk);border-color:var(--ap-verde);color:var(--ap-verde);font-weight:600}
+  .ap-fp.ativo b{color:var(--ap-verde)}
+  .ap-pdf{height:34px;padding:0 14px;font-size:13px;font-family:inherit;cursor:pointer;
+    color:#12160f;background:var(--ap-verde);border:1px solid var(--ap-verde);
+    border-radius:5px;font-weight:600;white-space:nowrap}
+  .ap-pdf:hover{opacity:.9}
+  .ap-pdf:disabled{opacity:.55;cursor:default}
+  .ap-status{flex:1 1 100%;font-size:12px;color:var(--ap-muted);
+    font-family:"IBM Plex Mono",monospace}
+  .ap-status:empty{display:none}
+  #apresentacaoView [hidden]{display:none !important}
   @media (max-width:640px){
     #apresentacaoView{padding:22px 18px 32px}
     .ap-reg{grid-template-columns:1fr;gap:6px}
@@ -1714,7 +1743,7 @@ function defaultContentForKind(kind){
   if (kind === "calendario") return { events: [] };
   if (kind === "dashboard") return {};
   // A apresentação guarda só qual empresa ela mostra; os dados vêm das tarefas.
-  if (kind === "apresentacao") return { empresa: "" };
+  if (kind === "apresentacao") return { empresa: "", naoConta: "" };
   return { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
 }
 
@@ -5114,24 +5143,34 @@ async function renderApresentacao(){
   const flat = await loadAllTasksFlat();
   const empresas = getCompanyOptions(flat.map(x => x.task));
 
-  // Sem empresa escolhida ainda, assume a primeira — a página nasce mostrando algo.
   let empresa = content.empresa || "";
-  if (!empresa || !empresas.some(n => companyKey(n) === companyKey(empresa))) {
-    empresa = empresas[0] || "";
-  }
+  if (!empresa || !empresas.some(n => companyKey(n) === companyKey(empresa))) empresa = empresas[0] || "";
 
   alvo.innerHTML = "";
 
   if (canEdit){
     const cfg = document.createElement("div");
     cfg.className = "ap-config";
-    cfg.innerHTML = '<label for="apEmpresaSel">Empresa desta apresentação</label>' +
+    cfg.innerHTML =
+      '<label for="apEmpresaSel">Empresa</label>' +
       '<select id="apEmpresaSel">' + empresas.map(n =>
         '<option value="' + escapeHtml(n) + '"' + (companyKey(n) === companyKey(empresa) ? " selected" : "") +
-        '>' + escapeHtml(n) + '</option>').join("") + '</select>';
+        '>' + escapeHtml(n) + '</option>').join("") + '</select>' +
+      '<label for="apNaoConta" title="Turmas cujo título contém este texto não contam como módulo">' +
+        'Não contar como módulo</label>' +
+      '<input id="apNaoConta" type="text" placeholder="ex.: Navegando com Maestria" ' +
+        'value="' + escapeHtml(content.naoConta || "") + '" style="height:32px;padding:0 10px;' +
+        'font-size:13px;font-family:inherit;color:var(--text);background:var(--surface);' +
+        'border:1px solid var(--sidebar-border);border-radius:6px;min-width:210px">';
     alvo.appendChild(cfg);
-    cfg.querySelector("select").addEventListener("change", async (e) => {
+    cfg.querySelector("#apEmpresaSel").addEventListener("change", async (e) => {
       content.empresa = e.target.value;
+      pageContentCache[currentPageId] = content;
+      scheduleSavePage(currentPageId);
+      await renderApresentacao();
+    });
+    cfg.querySelector("#apNaoConta").addEventListener("change", async (e) => {
+      content.naoConta = e.target.value.trim();
       pageContentCache[currentPageId] = content;
       scheduleSavePage(currentPageId);
       await renderApresentacao();
@@ -5144,10 +5183,21 @@ async function renderApresentacao(){
   }
 
   const a = analiseEmpresa(flat, empresa);
+
+  // "Módulo" = turma realizada que não é a excluída nesta página. Sem o campo
+  // preenchido, toda turma conta — a exclusão é escolha de quem monta a página.
+  const excluir = (content.naoConta || "").trim();
+  const chaveEx = excluir ? companyKey(excluir) : "";
+  const contaModulo = (x) => !chaveEx || companyKey(x.task.title).indexOf(chaveEx) === -1;
+  a.pessoas.forEach(v => { v.mods = v.feitos.filter(contaModulo).length; });
+  const comModulo = a.pessoas.filter(v => v.mods > 0).length;
+  const semModulo = a.pessoas.length - comModulo;
+
   const meta = getPageMeta(currentPageId) || {};
   const titulo = (meta.title || "").trim() || ("Trilha " + empresa);
   const hoje = formatDateBR(formatDateISO(new Date()));
 
+  /* ---------- capa ---------- */
   alvo.insertAdjacentHTML("beforeend",
     '<header class="ap-capa">' +
       '<div class="ap-eyebrow">' + escapeHtml(empresa) + '</div>' +
@@ -5159,18 +5209,65 @@ async function renderApresentacao(){
         ' turmas · ' + a.pessoas.length + ' pessoas · atualizado em ' + hoje + '</p>' +
     '</header>');
 
+  /* ---------- cartões ---------- */
   const cartoes = [
-    ["ok", a.pctTurmas + "%", "da trilha realizada<br>" + a.feitas.length + " de " + a.turmas.length + " turmas"],
-    ["aviso", String(a.abertas.length), "a realizar" + (a.semData ? "<br>" + a.semData + " sem data" : "")],
-    ["ok", a.pctVagas + "%", "das participações feitas<br>" + a.vagasFeitas + " de " + (a.vagasFeitas + a.vagasAbertas)],
-    ["aviso", String(a.vagasAbertas), "participações a realizar"],
-    ["", String(a.pessoas.length), "pessoas na trilha"],
+    ["ok", a.pctTurmas + "%", "da trilha realizada<br><b>" + a.feitas.length + " de " + a.turmas.length + "</b> treinamentos"],
+    ["aviso", (100 - a.pctTurmas) + "%", "a realizar<br><b>" + a.abertas.length + "</b> pendentes"],
+    ["ok", a.pctVagas + "%", "das participações realizadas<br><b>" + a.vagasFeitas + " de " + (a.vagasFeitas + a.vagasAbertas) + "</b> lugares em turma"],
+    ["aviso", (100 - a.pctVagas) + "%", "das participações a realizar<br><b>" + a.vagasAbertas + "</b> lugares"],
+    ["ok", String(comModulo), "funcionários treinados em algum módulo<br><b>de " + a.pessoas.length + "</b>" +
+      (excluir ? " · fora " + escapeHtml(excluir) : "")],
+    [semModulo ? "aviso" : "ok", String(semModulo), "ainda sem nenhum módulo" +
+      (excluir ? "<br>só passaram por " + escapeHtml(excluir) : "")],
   ];
   alvo.insertAdjacentHTML("beforeend", '<div class="ap-painel">' + cartoes.map(c =>
     '<div class="ap-cel ' + c[0] + '"><span class="v">' + escapeHtml(c[1]) +
     '</span><span class="r">' + c[2] + '</span></div>').join("") + '</div>');
 
-  /* ---- realizadas: razão cronológica ---- */
+  /* ---------- participação por pessoa (logo após os cartões) ---------- */
+  const maior = a.pessoas.length ? Math.max.apply(null, a.pessoas.map(v => v.tot)) : 1;
+  alvo.insertAdjacentHTML("beforeend",
+    '<section class="ap-secao"><div class="ap-cab"><h2>Participação por pessoa</h2>' +
+    '<span class="ap-conta">' + a.pessoas.length + ' pessoas · ' + (a.vagasFeitas + a.vagasAbertas) +
+      ' participações · ' + a.pctVagas + '% realizadas</span></div>' +
+    '<p class="ap-nota">Cada pessoa com o que já realizou e o que ainda tem a realizar, em ordem ' +
+      'cronológica: da turma mais antiga para a mais recente, e por último as que ainda não têm ' +
+      'data. O percentual é sobre a trilha dela, não sobre a trilha inteira — quem foi escalado ' +
+      'para duas turmas e fez uma está em 50%. Da mais adiantada para a menos adiantada.</p>' +
+    '<div class="ap-busca">' +
+      '<span class="ap-busca-rot">Buscar funcionário</span>' +
+      '<input id="apBusca" type="search" autocomplete="off" placeholder="Digite um nome, ex.: Ronaldo">' +
+      '<button type="button" class="ap-pdf" id="apPdf">⬇ Baixar PDF</button>' +
+      '<button type="button" class="ap-fp ativo" data-part="todos">Todos <b>' + a.pessoas.length + '</b></button>' +
+      '<button type="button" class="ap-fp" data-part="com">Com módulo <b>' + comModulo + '</b></button>' +
+      '<button type="button" class="ap-fp" data-part="sem">Sem módulo <b>' + semModulo + '</b></button>' +
+      '<p class="ap-status" id="apStatus"></p>' +
+    '</div>' +
+    '<div id="apPessoas">' +
+      a.pessoas.map(v =>
+        '<article class="ap-pes" data-busca="' + escapeHtml(stripAccents(v.nome + " " + v.email).toLowerCase()) +
+          '" data-mods="' + v.mods + '">' +
+          '<header class="ap-pes-topo"><h3>' + escapeHtml(v.nome) + '</h3>' +
+            '<span class="ap-mail">' + escapeHtml(v.email) + '</span>' +
+            '<span class="ap-vao"></span>' +
+            '<span class="ap-pc">' + v.pct + '%</span>' +
+            '<span class="ap-frac">' + v.feitos.length + ' de ' + v.tot + '</span>' +
+            '<span class="ap-barra">' +
+              '<span style="flex:' + v.feitos.length + ';background:var(--ap-verde)"></span>' +
+              '<span style="flex:' + v.faltam.length + ';background:var(--ap-ambar)"></span>' +
+              '<span style="flex:' + Math.max(0, maior - v.tot) + '"></span>' +
+            '</span></header>' +
+          '<div class="ap-listas">' +
+            '<div><span class="ap-rot" style="color:var(--ap-verde)">✓ Realizado · ' + v.feitos.length + '</span>' +
+              apLista(v.feitos, "feito") + '</div>' +
+            '<div><span class="ap-rot" style="color:var(--ap-ambar)">○ A realizar · ' + v.faltam.length + '</span>' +
+              apLista(v.faltam, "falta") + '</div>' +
+          '</div>' +
+        '</article>').join("") +
+      '<p class="ap-vazio" id="apVazio" hidden>Nenhum funcionário com esse nome.</p>' +
+    '</div></section>');
+
+  /* ---------- turmas realizadas ---------- */
   alvo.insertAdjacentHTML("beforeend",
     '<section class="ap-secao"><div class="ap-cab"><h2>Turmas realizadas</h2>' +
     '<span class="ap-conta">' + a.feitas.length + ' turmas · da mais antiga à mais recente</span></div>' +
@@ -5188,7 +5285,7 @@ async function renderApresentacao(){
       '</article>').join("") +
     '</section>');
 
-  /* ---- a realizar: cartões ---- */
+  /* ---------- turmas a realizar ---------- */
   alvo.insertAdjacentHTML("beforeend",
     '<section class="ap-secao"><div class="ap-cab"><h2>Turmas a realizar</h2>' +
     '<span class="ap-conta">' + a.abertas.length + ' turmas · ' + a.vagasAbertas + ' participações</span></div>' +
@@ -5208,35 +5305,172 @@ async function renderApresentacao(){
       : '<p class="ap-vazio">Nada pendente.</p>') +
     '</section>');
 
-  /* ---- participação por pessoa ---- */
-  if (a.pessoas.length){
-    const maior = Math.max.apply(null, a.pessoas.map(v => v.tot));
-    alvo.insertAdjacentHTML("beforeend",
-      '<section class="ap-secao"><div class="ap-cab"><h2>Participação por pessoa</h2>' +
-      '<span class="ap-conta">' + a.pessoas.length + ' pessoas · ' + (a.vagasFeitas + a.vagasAbertas) + ' participações</span></div>' +
-      '<p class="ap-nota">O percentual é sobre a trilha de cada um, não sobre a trilha inteira: ' +
-        'quem foi escalado para duas turmas e fez uma está em 50%.</p>' +
-      a.pessoas.map(v =>
-        '<article class="ap-pes">' +
-          '<header class="ap-pes-topo"><h3>' + escapeHtml(v.nome) + '</h3>' +
-            '<span class="ap-mail">' + escapeHtml(v.email) + '</span>' +
-            '<span class="ap-vao"></span>' +
-            '<span class="ap-pc">' + v.pct + '%</span>' +
-            '<span class="ap-frac">' + v.feitos.length + ' de ' + v.tot + '</span>' +
-            '<span class="ap-barra">' +
-              '<span style="flex:' + v.feitos.length + ';background:var(--ap-verde)"></span>' +
-              '<span style="flex:' + v.faltam.length + ';background:var(--ap-ambar)"></span>' +
-              '<span style="flex:' + Math.max(0, maior - v.tot) + '"></span>' +
-            '</span></header>' +
-          '<div class="ap-listas">' +
-            '<div><span class="ap-rot" style="color:var(--ap-verde)">✓ Realizado · ' + v.feitos.length + '</span>' +
-              apLista(v.feitos, "feito") + '</div>' +
-            '<div><span class="ap-rot" style="color:var(--ap-ambar)">○ A realizar · ' + v.faltam.length + '</span>' +
-              apLista(v.faltam, "falta") + '</div>' +
-          '</div>' +
-        '</article>').join("") +
-      '</section>');
+  ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semModulo);
+}
+
+/* Busca, filtro e PDF da apresentação. Mesma lógica do relatório publicado:
+   busca sem acento, filtro por módulo, e os dois valendo ao mesmo tempo. */
+function ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semModulo){
+  const campo = document.getElementById("apBusca");
+  const status = document.getElementById("apStatus");
+  const vazio = document.getElementById("apVazio");
+  const botoes = document.querySelectorAll("#apresentacaoView .ap-fp");
+  const btnPdf = document.getElementById("apPdf");
+  if (!campo) return;
+  let parte = "todos";
+
+  function visiveis(){
+    const termos = stripAccents(campo.value).toLowerCase().split(/\s+/).filter(Boolean);
+    const blocos = document.querySelectorAll("#apPessoas > .ap-pes");
+    const fora = [];
+    let n = 0;
+    Array.prototype.forEach.call(blocos, (el, i) => {
+      const chave = el.getAttribute("data-busca") || "";
+      const mods = parseInt(el.getAttribute("data-mods") || "0", 10);
+      let bate = termos.every(t => chave.indexOf(t) !== -1);
+      if (bate && parte !== "todos") bate = parte === "com" ? mods > 0 : mods === 0;
+      el.hidden = !bate;
+      if (bate){ n++; fora.push(a.pessoas[i]); }
+    });
+    const filtrando = termos.length > 0 || parte !== "todos";
+    vazio.hidden = n > 0 || !filtrando;
+    status.textContent = filtrando ? "Mostrando " + n + " de " + a.pessoas.length + " funcionários" : "";
+    return fora;
   }
+
+  function marca(){
+    Array.prototype.forEach.call(botoes, b => {
+      const meu = b.getAttribute("data-part") === parte;
+      b.classList.toggle("ativo", meu);
+      b.setAttribute("aria-pressed", meu ? "true" : "false");
+    });
+  }
+
+  campo.addEventListener("input", visiveis);
+  campo.addEventListener("keydown", (e) => { if (e.key === "Escape"){ campo.value = ""; visiveis(); } });
+  Array.prototype.forEach.call(botoes, b => b.addEventListener("click", () => {
+    parte = b.getAttribute("data-part");
+    marca();
+    visiveis();
+  }));
+
+  btnPdf.addEventListener("click", () => {
+    if (!window.jspdf){ status.textContent = "O gerador de PDF não carregou. Recarregue a página."; return; }
+    btnPdf.disabled = true;
+    const antes = btnPdf.textContent;
+    btnPdf.textContent = "Montando…";
+    setTimeout(() => {
+      try{
+        const pessoas = visiveis();
+        const desc = [];
+        if (campo.value.trim()) desc.push('busca "' + campo.value.trim() + '"');
+        if (parte !== "todos") desc.push(parte === "com" ? "só com módulo" : "só sem módulo");
+        montaPdfApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, desc.join(" · "));
+        status.textContent = "PDF gerado.";
+      }catch(e){
+        status.textContent = "Erro ao montar o PDF: " + (e && e.message ? e.message : e);
+      }
+      btnPdf.disabled = false;
+      btnPdf.textContent = antes;
+    }, 30);
+  });
+
+  marca();
+}
+
+function montaPdfApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, filtro){
+  const MARG = 18, LARG = 210, ALT = 297, UTIL = LARG - MARG * 2;
+  const TINTA = [28, 33, 28], FRACO = [110, 114, 98], VERDE = [30, 84, 62], AMBAR = [138, 92, 12];
+  const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+  let y = MARG;
+
+  function cabe(mm){ if (y + mm > ALT - MARG){ doc.addPage(); y = MARG; } }
+  function txt(t, o){
+    o = o || {};
+    doc.setFont("helvetica", o.estilo || "normal");
+    doc.setFontSize(o.tam || 10);
+    doc.setTextColor.apply(doc, o.cor || TINTA);
+    const rec = o.recuo || 0;
+    const linhas = doc.splitTextToSize(String(t), UTIL - rec);
+    const h = (o.tam || 10) * 0.42;
+    linhas.forEach(l => { cabe(h + 1); doc.text(l, MARG + rec, y); y += h; });
+    y += (o.depois === undefined ? 1.5 : o.depois);
+  }
+  function par(esq, dir, o){
+    o = o || {};
+    cabe(6);
+    doc.setFont("helvetica", o.estilo || "normal");
+    doc.setFontSize(o.tam || 10);
+    doc.setTextColor.apply(doc, o.cor || TINTA);
+    doc.text(String(esq), MARG + (o.recuo || 0), y);
+    doc.setTextColor.apply(doc, o.corDir || FRACO);
+    doc.text(String(dir), LARG - MARG, y, { align: "right" });
+    y += (o.tam || 10) * 0.42 + (o.depois === undefined ? 1.5 : o.depois);
+  }
+  function regua(){ cabe(6); doc.setDrawColor(200, 200, 188); doc.setLineWidth(0.2);
+    doc.line(MARG, y, LARG - MARG, y); y += 5; }
+  function secao(t, c){ cabe(20); y += 5; par(t, c || "", { tam: 14, estilo: "bold", depois: 2 }); regua(); }
+  function lista(itens, rot, cor){
+    txt(rot, { tam: 8, estilo: "bold", cor: cor, recuo: 3, depois: 1.2 });
+    if (!itens.length){ txt("—", { tam: 9, cor: FRACO, recuo: 6, depois: 1 }); return; }
+    itens.forEach(x => par(apTituloCurto(x.task.title), x.task.dueDate ? formatDateBR(x.task.dueDate) : "sem data",
+      { tam: 9, recuo: 6, depois: 0.6, corDir: x.task.dueDate ? FRACO : AMBAR }));
+    y += 1;
+  }
+  function turma(x){
+    cabe(26);
+    par(apTituloCurto(x.task.title), x.task.dueDate ? formatDateBR(x.task.dueDate) : "sem data",
+      { tam: 11, estilo: "bold", depois: 1, corDir: x.task.dueDate ? VERDE : AMBAR });
+    if (x.nota.tema.length) txt("Tema: " + x.nota.tema.join(" · "), { tam: 9, cor: FRACO, recuo: 3, depois: 1.5 });
+    txt("Participantes (" + x.nota.participantes.length + ")", { tam: 8, estilo: "bold", cor: FRACO, depois: 1.2 });
+    x.nota.participantes.forEach(p => par(p.nome, p.email, { tam: 9, recuo: 3, depois: 0.6 }));
+    y += 3;
+  }
+
+  txt(titulo, { tam: 20, estilo: "bold", depois: 1.5 });
+  txt(empresa, { tam: 10, cor: FRACO, depois: 1 });
+  txt(a.turmas.length + " turmas · " + a.pessoas.length + " pessoas · atualizado em " +
+      formatDateBR(formatDateISO(new Date())), { tam: 8, cor: FRACO, depois: 2 });
+  if (filtro) txt("Filtro aplicado: " + filtro, { tam: 9, cor: AMBAR, depois: 2 });
+  regua();
+
+  secao("Resumo");
+  [[a.pctTurmas + "%", "da trilha realizada — " + a.feitas.length + " de " + a.turmas.length + " treinamentos"],
+   [(100 - a.pctTurmas) + "%", "a realizar — " + a.abertas.length + " pendentes"],
+   [a.pctVagas + "%", "das participações realizadas — " + a.vagasFeitas + " de " + (a.vagasFeitas + a.vagasAbertas)],
+   [(100 - a.pctVagas) + "%", "das participações a realizar — " + a.vagasAbertas + " lugares"],
+   [String(comModulo), "treinados em algum módulo, de " + a.pessoas.length + (excluir ? " (fora " + excluir + ")" : "")],
+   [String(semModulo), "ainda sem nenhum módulo"]
+  ].forEach(r => par(r[1], r[0], { tam: 10, depois: 1.2, corDir: TINTA }));
+
+  secao("Participação por pessoa", pessoas.length + " de " + a.pessoas.length);
+  pessoas.forEach(v => {
+    cabe(30);
+    par(v.nome, v.pct + "%  (" + v.feitos.length + " de " + v.tot + ")",
+      { tam: 11, estilo: "bold", depois: 0.8, corDir: TINTA });
+    txt(v.email, { tam: 8, cor: FRACO, depois: 1.5 });
+    lista(v.feitos, "Realizado (" + v.feitos.length + ")", VERDE);
+    lista(v.faltam, "A realizar (" + v.faltam.length + ")", AMBAR);
+    y += 2;
+  });
+
+  secao("Turmas realizadas", a.feitas.length + " turmas");
+  a.feitas.forEach(turma);
+  secao("Turmas a realizar", a.abertas.length + " turmas");
+  a.abertas.forEach(turma);
+
+  const total = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= total; i++){
+    doc.setPage(i);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor.apply(doc, FRACO);
+    doc.text(titulo, MARG, ALT - 10);
+    doc.text("página " + i + " de " + total, LARG - MARG, ALT - 10, { align: "right" });
+  }
+
+  const nome = (titulo + "-" + formatDateISO(new Date())).replace(/[^\w\-]+/g, "-") + ".pdf";
+  doc.save(nome);
 }
 
 async function renderDashboard(){
