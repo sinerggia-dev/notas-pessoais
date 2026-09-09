@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     /* color-scheme:dark faz o navegador desenhar em modo escuro o que e dele:
@@ -874,6 +875,13 @@
     border-radius:5px;font-weight:600;white-space:nowrap}
   .ap-pptx:hover{background:var(--ap-rule)}
   .ap-pptx:disabled{opacity:.55;cursor:default}
+  .ap-pptx.ap-sec{background:transparent;border-color:var(--ap-rule);color:var(--ap-muted);
+    font-weight:400;padding:0 10px}
+  .ap-pptx.ap-sec:hover{color:var(--ap-ink);border-color:var(--ap-muted);background:transparent}
+  /* Palco da captura: fora da tela, largura fixa, para o print nao depender do
+     tamanho da janela. Nao pode ser display:none — o html2canvas precisa de um
+     elemento realmente renderizado. */
+  #apPalco{position:fixed;left:-20000px;top:0;width:1280px;z-index:-1;pointer-events:none}
   .ap-status{flex:1 1 100%;font-size:12px;color:var(--ap-muted);
     font-family:"IBM Plex Mono",monospace}
   .ap-status:empty{display:none}
@@ -5267,6 +5275,8 @@ async function renderApresentacao(){
       '<input id="apBusca" type="search" autocomplete="off" placeholder="Digite um nome, ex.: Ronaldo">' +
       '<button type="button" class="ap-pdf" id="apPdf">⬇ Baixar PDF</button>' +
       '<button type="button" class="ap-pptx" id="apPptx">⬇ Baixar PPTX</button>' +
+      '<button type="button" class="ap-pptx ap-sec" id="apPptxTab" ' +
+        'title="Slides com texto editável, em tabelas, no lugar da imagem da tela">editável</button>' +
       '<button type="button" class="ap-fp ativo" data-part="todos">Todos <b>' + a.pessoas.length + '</b></button>' +
       '<button type="button" class="ap-fp" data-part="com">Com módulo <b>' + comModulo + '</b></button>' +
       '<button type="button" class="ap-fp" data-part="sem">Sem módulo <b>' + semModulo + '</b></button>' +
@@ -5383,25 +5393,47 @@ function ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semMo
     visiveis();
   }));
 
+  function descricaoFiltro(){
+    const d = [];
+    if (campo.value.trim()) d.push('busca "' + campo.value.trim() + '"');
+    if (parte !== "todos") d.push(parte === "com" ? "só com módulo" : "só sem módulo");
+    return d.join(" · ");
+  }
+
+  // PPTX principal: imagem das telas, como um print da página.
   const btnPptx = document.getElementById("apPptx");
-  if (btnPptx) btnPptx.addEventListener("click", () => {
-    if (!window.PptxGenJS){ status.textContent = "O gerador de PowerPoint não carregou. Recarregue a página."; return; }
+  if (btnPptx) btnPptx.addEventListener("click", async () => {
     btnPptx.disabled = true;
     const rotulo = btnPptx.textContent;
-    btnPptx.textContent = "Montando…";
+    btnPptx.textContent = "Capturando…";
+    status.textContent = "Gerando as imagens dos slides…";
+    try{
+      visiveis();                    // garante o filtro aplicado antes de clonar
+      await montaPptxPrint(titulo, descricaoFiltro());
+      status.textContent = "PPTX gerado.";
+    }catch(e){
+      status.textContent = "Erro ao montar o PPTX: " + (e && e.message ? e.message : e);
+    }
+    btnPptx.disabled = false;
+    btnPptx.textContent = rotulo;
+  });
+
+  // Secundário: slides com texto editável, em tabelas.
+  const btnPptxTab = document.getElementById("apPptxTab");
+  if (btnPptxTab) btnPptxTab.addEventListener("click", () => {
+    if (!window.PptxGenJS){ status.textContent = "O gerador de PowerPoint não carregou. Recarregue a página."; return; }
+    btnPptxTab.disabled = true;
+    const rotulo = btnPptxTab.textContent;
+    btnPptxTab.textContent = "Montando…";
     setTimeout(() => {
       try{
-        const pessoas = visiveis();
-        const desc = [];
-        if (campo.value.trim()) desc.push('busca "' + campo.value.trim() + '"');
-        if (parte !== "todos") desc.push(parte === "com" ? "só com módulo" : "só sem módulo");
-        montaPptxApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, desc.join(" · "));
-        status.textContent = "PPTX gerado.";
+        montaPptxApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, visiveis(), descricaoFiltro());
+        status.textContent = "PPTX editável gerado.";
       }catch(e){
         status.textContent = "Erro ao montar o PPTX: " + (e && e.message ? e.message : e);
       }
-      btnPptx.disabled = false;
-      btnPptx.textContent = rotulo;
+      btnPptxTab.disabled = false;
+      btnPptxTab.textContent = rotulo;
     }, 30);
   });
 
@@ -5429,7 +5461,120 @@ function ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semMo
   marca();
 }
 
-/* ---------- PowerPoint ----------
+/* ---------- PowerPoint em modo "print" ----------
+   Cada slide e uma imagem da propria pagina, na ordem em que ela aparece.
+   Fatia pelos blocos de topo: a quebra cai entre secoes e cartoes, nunca no
+   meio de uma linha de texto. */
+const AP_LARG_CAPTURA = 1280;
+const AP_ALT_SLIDE = Math.round(AP_LARG_CAPTURA * 5.625 / 10);
+
+async function montaPptxPrint(titulo, filtro){
+  if (!window.html2canvas) throw new Error("html2canvas nao carregou");
+  if (!window.PptxGenJS) throw new Error("PptxGenJS nao carregou");
+
+  const view = document.getElementById("apresentacaoView");
+
+  // Fontes precisam estar prontas: senao a captura sai com a fonte de fallback
+  // e o print nao fica igual a tela.
+  if (document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+
+  const palco = document.createElement("div");
+  palco.id = "apPalco";
+  const clone = view.cloneNode(true);
+  clone.style.display = "block";
+  clone.style.width = AP_LARG_CAPTURA + "px";
+  clone.style.borderRadius = "0";
+  clone.removeAttribute("id");
+  // Fora do print: barra de configuracao e controles de busca/filtro.
+  Array.prototype.forEach.call(clone.querySelectorAll(".ap-config, .ap-busca"), el => el.remove());
+  // Pessoa escondida pelo filtro nao entra no print.
+  Array.prototype.forEach.call(clone.querySelectorAll(".ap-pes[hidden], .vazio-busca, .ap-vazio[hidden]"), el => el.remove());
+  palco.appendChild(clone);
+  document.body.appendChild(palco);
+
+  const fundo = getComputedStyle(view).backgroundColor || "#151814";
+
+  try{
+    function alturaDe(el){
+      return el.offsetHeight + (parseFloat(getComputedStyle(el).marginTop) || 0);
+    }
+
+    /* Unidades de captura: um bloco que caiba num slide vale por si; um bloco
+       mais alto que o slide desce um nivel e entrega os filhos. Sem isso a
+       secao de pessoas viraria um slide unico com a imagem encolhida numa tira
+       ilegivel. Limito a profundidade para nao acabar capturando palavra por
+       palavra num layout inesperado. */
+    function unidades(el, profundidade){
+      const h = alturaDe(el);
+      const filhos = Array.prototype.slice.call(el.children);
+      if (h <= AP_ALT_SLIDE || profundidade >= 2 || filhos.length < 2) return [el];
+      let saida = [];
+      filhos.forEach(f => { saida = saida.concat(unidades(f, profundidade + 1)); });
+      return saida;
+    }
+
+    let planos = [];
+    Array.prototype.slice.call(clone.children).forEach(el => {
+      planos = planos.concat(unidades(el, 0));
+    });
+
+    // Junta as unidades em fatias de, no maximo, uma altura de slide.
+    const grupos = [];
+    let atual = [], altura = 0;
+    planos.forEach(el => {
+      const h = alturaDe(el);
+      if (atual.length && altura + h > AP_ALT_SLIDE){ grupos.push(atual); atual = []; altura = 0; }
+      atual.push(el);
+      altura += h;
+    });
+    if (atual.length) grupos.push(atual);
+
+    const pptx = new window.PptxGenJS();
+    pptx.layout = "LAYOUT_16x9";
+    pptx.title = titulo;
+    pptx.author = "ROADMAP · Sinerggia";
+
+    for (let g = 0; g < grupos.length; g++){
+      const caixa = document.createElement("div");
+      caixa.style.width = AP_LARG_CAPTURA + "px";
+      caixa.style.background = fundo;
+      caixa.style.padding = "30px 34px";
+      caixa.style.boxSizing = "border-box";
+      grupos[g].forEach(el => caixa.appendChild(el));
+      palco.appendChild(caixa);
+
+      const canvas = await window.html2canvas(caixa, {
+        backgroundColor: fundo, scale: 2, useCORS: true, logging: false,
+        width: AP_LARG_CAPTURA, windowWidth: AP_LARG_CAPTURA,
+      });
+
+      const sl = pptx.addSlide();
+      sl.background = { color: "151814" };
+      const prop = canvas.height / canvas.width;
+      let w = 10, h = 10 * prop, x = 0, y = 0;
+      if (h > 5.625){                 // mais alto que o slide: encaixa pela altura
+        h = 5.625; w = 5.625 / prop; x = (10 - w) / 2;
+      } else {
+        y = (5.625 - h) / 2;          // sobra: centraliza na vertical
+      }
+      sl.addImage({ data: canvas.toDataURL("image/png"), x: x, y: y, w: w, h: h });
+      caixa.remove();
+    }
+
+    if (filtro && pptx.slides.length){
+      pptx.slides[0].addText("Filtro aplicado: " + filtro,
+        { x: 0.3, y: 5.25, w: 9.4, h: 0.3, fontSize: 10, color: "D8A24A",
+          fontFace: "Segoe UI", italic: true });
+    }
+
+    const nome = (titulo + "-print-" + formatDateISO(new Date())).replace(/[^\w\-]+/g, "-") + ".pptx";
+    return await pptx.writeFile({ fileName: nome });
+  } finally {
+    palco.remove();
+  }
+}
+
+/* ---------- PowerPoint com texto editavel ----------
    Slides com texto editável, nas cores da página. As fontes são as que existem
    no Windows e no Mac (Georgia serif, Segoe UI, Consolas): PowerPoint não tem
    pilha de fallback como o CSS, então nomear "Newsreader" ou "IBM Plex" daria
