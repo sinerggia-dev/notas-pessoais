@@ -747,6 +747,54 @@
   .dash-row-page{color:var(--text-light);font-size:12px;flex-shrink:0;}
   .dash-empty{color:var(--text-light);font-size:13px;padding:10px 6px;}
 
+  /* ---------- Análise por empresa (Dashboard) ---------- */
+  #dashEmpresaBarra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  #dashEmpresaBarra label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light)}
+  #dashEmpresaSel{
+    height:32px;padding:0 10px;font-size:13px;font-family:inherit;color:var(--text);
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:6px;
+  }
+  #dashEmpresaResumo{font-size:12px;color:var(--text-light)}
+  .ae-cartoes{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .ae-cel{
+    flex:1 1 130px;background:var(--surface);border:1px solid var(--sidebar-border);
+    border-radius:8px;padding:12px 14px;
+  }
+  .ae-cel .n{display:block;font-size:24px;font-weight:700;line-height:1.1}
+  .ae-cel .r{display:block;font-size:11px;color:var(--text-light);margin-top:3px;line-height:1.35}
+  .ae-cel.ok .n{color:#7fc39f} .ae-cel.aviso .n{color:#d8a24a}
+  .ae-sub{
+    font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light);
+    font-weight:600;margin:20px 0 8px;
+  }
+  .ae-turma{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:8px;
+    padding:12px 14px;margin-bottom:8px;
+  }
+  .ae-turma-topo{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .ae-turma-topo b{font-size:14px;flex:1 1 auto;min-width:0}
+  .ae-quando{font-size:11px;color:var(--text-light);white-space:nowrap}
+  .ae-quando.sem{color:#d8a24a;font-style:italic}
+  .ae-status{font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap}
+  .ae-tema{font-size:12px;color:var(--text-light);margin-top:5px;line-height:1.45}
+  .ae-gente{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:8px}
+  .ae-chip{
+    font-size:11px;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);
+    border-radius:10px;padding:2px 8px;color:var(--text);
+  }
+  .ae-pessoa{
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+    padding:8px 0;border-bottom:1px solid var(--sidebar-border);
+  }
+  .ae-pessoa b{font-size:13px}
+  .ae-pessoa .em{font-size:11px;color:var(--text-light)}
+  .ae-pessoa .vao{flex:1 1 auto}
+  .ae-pessoa .num{font-size:12px;color:var(--text-light);white-space:nowrap}
+  .ae-pessoa .pc{font-size:14px;font-weight:700;white-space:nowrap}
+  .ae-barra{display:flex;height:7px;width:90px;border-radius:2px;overflow:hidden;
+    background:var(--sidebar-bg);flex:0 0 auto}
+  .ae-vazio{font-size:13px;color:var(--text-light);padding:14px 0}
+
   /* ---------- Painel de administração ---------- */
   #adminOverlay{
     display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;
@@ -1063,6 +1111,13 @@
         <div id="dashboardStats"></div>
         <h3 class="dash-section-title">Tarefas por responsável</h3>
         <div id="dashboardUserStats"></div>
+        <h3 class="dash-section-title">Análise por empresa</h3>
+        <div id="dashEmpresaBarra">
+          <label for="dashEmpresaSel">Empresa</label>
+          <select id="dashEmpresaSel"></select>
+          <span id="dashEmpresaResumo"></span>
+        </div>
+        <div id="dashEmpresa"></div>
         <h3 class="dash-section-title">Tarefas com vencimento próximo</h3>
         <div id="dashboardUpcomingTasks"></div>
         <h3 class="dash-section-title">Próximos eventos</h3>
@@ -4713,10 +4768,194 @@ function formatDateBR(iso){
 /* ==========================================================================
    DASHBOARD
    ========================================================================== */
+/* ---------- Análise por empresa ----------
+   Lê a coluna NOTA das tarefas e extrai tema e participantes. O formato gravado
+   é: "Tema:" seguido das linhas do tema, "Participantes:" e, para cada pessoa,
+   o nome (às vezes quebrado em duas ou três linhas) e depois o e-mail. A regra
+   é acumular linhas até aparecer um e-mail — o acumulado é o nome dele. */
+const RE_EMAIL_NOTA = /[\w.+-]+@[\w-]+\.[\w.-]+/;
+// Em algumas notas o texto seguinte está colado no e-mail, sem espaço:
+// "...@sinerggia.com.brLINK DO VIDEOhttps://...". Isto corta no fim do domínio.
+const RE_FIM_DOMINIO = /^([\w.+-]+@[\w-]+(?:\.[\w-]+)*?\.(?:com\.br|gov\.br|edu\.br|org\.br|com|net|org|br|io|dev))/i;
+
+function parseNotaTreinamento(notaHtml){
+  const tema = [], participantes = [], obs = [];
+  let onde = "inicio", acumulado = [];
+
+  noteHtmlToText(notaHtml).split("\n").map(l => l.trim()).filter(Boolean).forEach(linha => {
+    if (/^temas?\s*:+$/i.test(linha)){ onde = "tema"; return; }
+    if (/^participantes\s*:+$/i.test(linha)){ onde = "participantes"; return; }
+    if (onde === "tema"){ tema.push(linha); return; }
+    if (onde !== "participantes"){ obs.push(linha); return; }
+
+    const achado = linha.match(RE_EMAIL_NOTA);
+    if (!achado){ acumulado.push(linha); return; }
+
+    const bruto = achado[0];
+    const corte = bruto.match(RE_FIM_DOMINIO);
+    const email = corte ? corte[1] : bruto;
+    const sobra = corte ? bruto.slice(email.length) : "";
+    const pos = linha.indexOf(bruto);
+    const antes = linha.slice(0, pos).replace(/[\s\-–—:]+$/, "").trim();
+    const nome = (antes || acumulado.join(" ")).replace(/[\s\-–—:]+$/, "").trim();
+    participantes.push({ nome: nome.replace(/\s+/g, " "), email: email });
+    const depois = (sobra + linha.slice(pos + bruto.length)).trim();
+    if (depois) obs.push(depois);
+    acumulado = [];
+  });
+
+  if (acumulado.length) obs.push(acumulado.join(" "));
+  return { tema, participantes, obs };
+}
+
+function analiseEmpresa(flat, empresa){
+  const chave = companyKey(empresa);
+  const itens = flat
+    .filter(x => companyKey(x.task.company) === chave)
+    .map(x => Object.assign({}, x, { nota: parseNotaTreinamento(x.task.note) }));
+
+  const contagem = { "Pendente": 0, "Iniciado": 0, "Concluído": 0, "Cancelado": 0 };
+  itens.forEach(x => { contagem[x.task.status] = (contagem[x.task.status] || 0) + 1; });
+
+  // Turma = tarefa com tema ou participantes na nota. As outras são tarefa comum
+  // (ex.: "Cronograma de Treinamentos") e não entram na conta de participação.
+  const turmas = itens.filter(x => x.nota.tema.length || x.nota.participantes.length);
+  const feitas = turmas.filter(x => x.task.status === "Concluído");
+  const abertas = turmas.filter(x => x.task.status === "Pendente" || x.task.status === "Iniciado");
+
+  const porData = (a, b) => {
+    const da = a.task.dueDate || "9999", db = b.task.dueDate || "9999";
+    return da.localeCompare(db);
+  };
+  feitas.sort(porData);
+  abertas.sort(porData);
+
+  const pessoas = new Map();
+  turmas.forEach(x => {
+    x.nota.participantes.forEach(p => {
+      const k = p.email.toLowerCase();
+      if (!pessoas.has(k)) pessoas.set(k, { nome: p.nome, email: p.email, feitos: [], faltam: [] });
+      (x.task.status === "Concluído" ? pessoas.get(k).feitos : pessoas.get(k).faltam).push(x);
+    });
+  });
+  const lista = [...pessoas.values()].map(v => {
+    v.tot = v.feitos.length + v.faltam.length;
+    v.pct = v.tot ? Math.round(100 * v.feitos.length / v.tot) : 0;
+    return v;
+  }).sort((a, b) => (b.pct - a.pct) || (b.tot - a.tot) || a.nome.localeCompare(b.nome));
+
+  const vagasFeitas = feitas.reduce((n, x) => n + x.nota.participantes.length, 0);
+  const vagasAbertas = abertas.reduce((n, x) => n + x.nota.participantes.length, 0);
+
+  return {
+    itens, contagem, turmas, feitas, abertas, pessoas: lista,
+    vagasFeitas, vagasAbertas,
+    semData: abertas.filter(x => !x.task.dueDate).length,
+    pctTurmas: turmas.length ? Math.round(100 * feitas.length / turmas.length) : 0,
+    pctVagas: (vagasFeitas + vagasAbertas) ? Math.round(100 * vagasFeitas / (vagasFeitas + vagasAbertas)) : 0,
+  };
+}
+
+function pintaAnaliseEmpresa(empresa){
+  const alvo = document.getElementById("dashEmpresa");
+  const resumo = document.getElementById("dashEmpresaResumo");
+  alvo.innerHTML = "";
+  resumo.textContent = "";
+  if (!empresa){ alvo.innerHTML = '<div class="ae-vazio">Escolha uma empresa.</div>'; return; }
+
+  const a = analiseEmpresa(dashTarefasFlat, empresa);
+  if (!a.itens.length){ alvo.innerHTML = '<div class="ae-vazio">Nenhuma tarefa desta empresa.</div>'; return; }
+
+  resumo.textContent = a.itens.length + " tarefa(s) · " + a.turmas.length +
+    " com tema e participantes na nota";
+
+  const cartoes = [
+    ["ok", a.pctTurmas + "%", "das turmas realizadas<br>" + a.feitas.length + " de " + a.turmas.length],
+    ["aviso", String(a.abertas.length), "turmas a realizar" + (a.semData ? "<br>" + a.semData + " sem data" : "")],
+    ["ok", a.pctVagas + "%", "das participações feitas<br>" + a.vagasFeitas + " de " + (a.vagasFeitas + a.vagasAbertas)],
+    ["", String(a.pessoas.length), "pessoas envolvidas"],
+    ["", String(a.contagem["Concluído"] || 0) + " / " + (a.contagem["Pendente"] || 0),
+     "tarefas concluídas / pendentes<br>inclui as que não são turma"],
+  ];
+  alvo.insertAdjacentHTML("beforeend",
+    '<div class="ae-cartoes">' + cartoes.map(c =>
+      '<div class="ae-cel ' + c[0] + '"><span class="n">' + escapeHtml(c[1]) +
+      '</span><span class="r">' + c[2] + '</span></div>').join("") + '</div>');
+
+  function blocoTurma(x){
+    const t = x.task;
+    const quando = t.dueDate
+      ? '<span class="ae-quando">' + formatDateBR(t.dueDate) + '</span>'
+      : '<span class="ae-quando sem">sem data</span>';
+    const pill = '<span class="ae-status status-pill ' + slugify(t.status || "Pendente") + '">' +
+      escapeHtml(t.status || "") + '</span>';
+    const tema = x.nota.tema.length
+      ? '<div class="ae-tema">' + escapeHtml(x.nota.tema.join(" · ")) + '</div>' : "";
+    const gente = x.nota.participantes.length
+      ? '<div class="ae-gente">' + x.nota.participantes.map(p =>
+          '<span class="ae-chip" title="' + escapeHtml(p.email) + '">' + escapeHtml(p.nome) + '</span>').join("") + '</div>'
+      : "";
+    const div = document.createElement("div");
+    div.className = "ae-turma";
+    div.innerHTML = '<div class="ae-turma-topo"><b>' + escapeHtml(t.title || "Sem título") +
+      '</b>' + quando + pill + '</div>' + tema + gente;
+    div.style.cursor = "pointer";
+    div.onclick = () => openPage(x.pageId);
+    return div;
+  }
+
+  function secao(rotulo, lista){
+    alvo.insertAdjacentHTML("beforeend", '<div class="ae-sub">' + rotulo + " · " + lista.length + '</div>');
+    if (!lista.length){ alvo.insertAdjacentHTML("beforeend", '<div class="ae-vazio">Nenhuma.</div>'); return; }
+    lista.forEach(x => alvo.appendChild(blocoTurma(x)));
+  }
+
+  secao("Realizadas", a.feitas);
+  secao("A realizar", a.abertas);
+
+  if (a.pessoas.length){
+    alvo.insertAdjacentHTML("beforeend", '<div class="ae-sub">Participação por pessoa · ' + a.pessoas.length + '</div>');
+    a.pessoas.forEach(v => {
+      const vazio = Math.max(0, a.turmas.length - v.tot);
+      alvo.insertAdjacentHTML("beforeend",
+        '<div class="ae-pessoa"><b>' + escapeHtml(v.nome) + '</b>' +
+        '<span class="em">' + escapeHtml(v.email) + '</span><span class="vao"></span>' +
+        '<span class="pc">' + v.pct + '%</span>' +
+        '<span class="num">' + v.feitos.length + ' de ' + v.tot + '</span>' +
+        '<span class="ae-barra">' +
+          '<span style="flex:' + v.feitos.length + ';background:#7fc39f"></span>' +
+          '<span style="flex:' + v.faltam.length + ';background:#d8a24a"></span>' +
+          '<span style="flex:' + vazio + '"></span>' +
+        '</span></div>');
+    });
+  }
+}
+
+let dashTarefasFlat = [];
+
+function montaSeletorEmpresas(){
+  const sel = document.getElementById("dashEmpresaSel");
+  const nomes = getCompanyOptions(dashTarefasFlat.map(x => x.task));
+  const lembrada = localStorage.getItem("np_dash_empresa_v1");
+  sel.innerHTML = nomes.map(n =>
+    '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>').join("");
+  if (!nomes.length){ sel.innerHTML = '<option value="">(nenhuma empresa)</option>'; return; }
+  sel.value = nomes.some(n => n === lembrada) ? lembrada : nomes[0];
+}
+
+document.getElementById("dashEmpresaSel").addEventListener("change", (e) => {
+  localStorage.setItem("np_dash_empresa_v1", e.target.value);
+  pintaAnaliseEmpresa(e.target.value);
+});
+
 async function renderDashboard(){
   const tasksFlat = await loadAllTasksFlat();
   const eventsFlat = await loadAllEventsFlat();
   const todayStr = formatDateISO(new Date());
+
+  dashTarefasFlat = tasksFlat;
+  montaSeletorEmpresas();
+  pintaAnaliseEmpresa(document.getElementById("dashEmpresaSel").value);
 
   const counts = { "Pendente": 0, "Iniciado": 0, "Concluído": 0, "Cancelado": 0 };
   tasksFlat.forEach(({ task }) => { counts[task.status] = (counts[task.status] || 0) + 1; });
