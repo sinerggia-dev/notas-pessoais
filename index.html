@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ROADMAP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.18.0/lib/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -747,6 +750,106 @@
   .dash-row-page{color:var(--text-light);font-size:12px;flex-shrink:0;}
   .dash-empty{color:var(--text-light);font-size:13px;padding:10px 6px;}
 
+  /* ---------- Página de apresentação ----------
+     Mesmo visual do relatório publicado. Tudo escopado aqui, com variáveis
+     próprias, para o resto do app seguir com o tema dele. */
+  #apresentacaoView{
+    display:none;
+    --ap-paper:#151814; --ap-surface:#1c201b; --ap-sunk:#232720;
+    --ap-ink:#eceee6; --ap-ink2:#c6cabc; --ap-muted:#8f9486; --ap-rule:#333829;
+    --ap-verde:#7fc39f; --ap-ambar:#d8a24a;
+    background:var(--ap-paper);color:var(--ap-ink);
+    font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:15px;line-height:1.62;
+    border:1px solid var(--ap-rule);border-radius:10px;padding:34px 32px 44px;
+  }
+  #apresentacaoView h1,#apresentacaoView h2,#apresentacaoView h3{
+    font-family:Newsreader,Georgia,serif;font-weight:600;margin:0;text-wrap:balance;
+  }
+  #apresentacaoView h1{font-size:clamp(28px,3.4vw,40px);line-height:1.1;letter-spacing:-.015em}
+  #apresentacaoView h2{font-size:23px}
+  #apresentacaoView h3{font-size:17px}
+  #apresentacaoView p{margin:0}
+  .ap-mono,.ap-mail,.ap-quando,.ap-pc,.ap-frac,.ap-conta{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+  }
+  .ap-capa{border-bottom:2px solid var(--ap-ink);padding-bottom:22px;margin-bottom:0}
+  .ap-eyebrow{
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ap-verde);
+    font-weight:600;margin-bottom:12px;
+  }
+  .ap-sub{margin-top:12px;color:var(--ap-ink2);font-size:16px;max-width:62ch}
+  .ap-fonte{margin-top:16px;font-size:12px;color:var(--ap-muted)}
+  .ap-painel{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:1px;
+    background:var(--ap-rule);border:1px solid var(--ap-rule);margin:28px 0 0;
+  }
+  .ap-cel{background:var(--ap-surface);padding:15px 16px}
+  .ap-cel .v{display:block;font-family:"IBM Plex Mono",monospace;font-size:28px;
+    font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums}
+  .ap-cel .r{display:block;font-size:11.5px;color:var(--ap-muted);margin-top:4px;line-height:1.4}
+  .ap-cel.ok .v{color:var(--ap-verde)} .ap-cel.aviso .v{color:var(--ap-ambar)}
+  .ap-secao{margin-top:44px}
+  .ap-cab{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+    border-bottom:1px solid var(--ap-rule);padding-bottom:9px}
+  .ap-conta{font-size:12px;color:var(--ap-muted)}
+  .ap-nota{color:var(--ap-ink2);font-size:14px;margin:12px 0 22px;max-width:64ch}
+  .ap-reg{display:grid;grid-template-columns:76px 1fr;gap:18px;padding:18px 0;
+    border-bottom:1px solid var(--ap-rule)}
+  .ap-reg-data{text-align:right;font-size:14px;font-weight:500;color:var(--ap-verde);white-space:nowrap}
+  .ap-reg-data small{display:block;font-size:11px;color:var(--ap-muted);font-weight:400}
+  .ap-temas{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+  .ap-temas span{font-size:12px;color:var(--ap-ink2);background:var(--ap-sunk);
+    border-radius:3px;padding:3px 8px}
+  .ap-rot{display:block;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ap-muted);font-weight:600;margin:12px 0 7px}
+  .ap-roster{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px 20px}
+  .ap-roster div{display:flex;flex-direction:column;padding:4px 0;border-top:1px solid var(--ap-rule);min-width:0}
+  .ap-nome{font-size:13.5px;font-weight:500}
+  .ap-mail{font-size:11px;color:var(--ap-muted);overflow-wrap:anywhere}
+  .ap-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .ap-card{background:var(--ap-surface);border:1px solid var(--ap-rule);border-radius:6px;padding:16px 18px}
+  .ap-card-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .ap-chip{font-family:"IBM Plex Mono",monospace;font-size:10.5px;padding:3px 8px;
+    border-radius:3px;white-space:nowrap;flex:0 0 auto}
+  .ap-chip.data{background:#33291a;color:var(--ap-ambar)}
+  .ap-chip.vazio{background:var(--ap-sunk);color:var(--ap-muted)}
+  .ap-pes{padding:16px 0;border-bottom:1px solid var(--ap-rule)}
+  .ap-pes-topo{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:11px}
+  .ap-pes-topo h3{white-space:nowrap}
+  .ap-pes-topo .ap-mail{white-space:nowrap;overflow-wrap:normal}
+  .ap-vao{flex:1 1 auto}
+  .ap-pc{font-size:20px;font-weight:500;white-space:nowrap}
+  .ap-frac{font-size:11px;color:var(--ap-muted);white-space:nowrap}
+  .ap-barra{display:flex;height:8px;width:100px;border-radius:2px;overflow:hidden;
+    background:var(--ap-sunk);flex:0 0 auto;align-self:center}
+  .ap-listas{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px 22px}
+  .ap-lista{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
+  .ap-lista li{font-size:13px;line-height:1.4;padding-left:13px;position:relative;
+    display:flex;justify-content:space-between;gap:9px}
+  .ap-lista li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%}
+  .ap-lista.feito li::before{background:var(--ap-verde)}
+  .ap-lista.falta li::before{background:var(--ap-ambar)}
+  .ap-quando{font-size:10.5px;color:var(--ap-muted);white-space:nowrap;flex:0 0 auto}
+  .ap-quando.sem{font-style:italic;color:var(--ap-ambar)}
+  .ap-config{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;
+    padding:12px 14px;background:var(--sidebar-bg);border:1px solid var(--sidebar-border);
+    border-radius:8px;font-family:inherit;
+  }
+  .ap-config label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light)}
+  .ap-config select{
+    height:32px;padding:0 10px;font-size:13px;font-family:inherit;color:var(--text);
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:6px;
+  }
+  .ap-vazio{color:var(--ap-muted);font-size:14px;padding:20px 0}
+  @media (max-width:640px){
+    #apresentacaoView{padding:22px 18px 32px}
+    .ap-reg{grid-template-columns:1fr;gap:6px}
+    .ap-reg-data{text-align:left}
+    .ap-reg-data small{display:inline;margin-left:6px}
+  }
+
   /* ---------- Análise por empresa (Dashboard) ---------- */
   #dashEmpresaBarra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   #dashEmpresaBarra label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light)}
@@ -1096,6 +1199,7 @@
           </div>
         </div>
       </div>
+      <div id="apresentacaoView"></div>
       <div id="calendarView">
         <div id="calendarHeader">
           <button id="calPrevBtn">‹</button>
@@ -1603,12 +1707,14 @@ function showNoAccess(){
 /* ==========================================================================
    PÁGINAS — CRUD + ÁRVORE
    ========================================================================== */
-const PAGE_KINDS = ["notas", "tarefas", "calendario", "dashboard"];
+const PAGE_KINDS = ["notas", "tarefas", "calendario", "dashboard", "apresentacao"];
 
 function defaultContentForKind(kind){
   if (kind === "tarefas") return { tasks: [] };
   if (kind === "calendario") return { events: [] };
   if (kind === "dashboard") return {};
+  // A apresentação guarda só qual empresa ela mostra; os dados vêm das tarefas.
+  if (kind === "apresentacao") return { empresa: "" };
   return { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
 }
 
@@ -1953,6 +2059,7 @@ function pageIcon(page){
   if (page.kind === "tarefas") return "✅ ";
   if (page.kind === "calendario") return "📅 ";
   if (page.kind === "dashboard") return "📊 ";
+  if (page.kind === "apresentacao") return "📈 ";
   return "📝 ";
 }
 
@@ -2047,7 +2154,8 @@ function showKindMenu(parentId, anchorEl){
     <div class="slash-item" data-kind="notas"><span class="slash-icon">📝</span><span>Página de notas</span></div>
     <div class="slash-item" data-kind="tarefas"><span class="slash-icon">✅</span><span>Banco de tarefas</span></div>
     <div class="slash-item" data-kind="calendario"><span class="slash-icon">📅</span><span>Calendário</span></div>
-    <div class="slash-item" data-kind="dashboard"><span class="slash-icon">📊</span><span>Dashboard</span></div>`;
+    <div class="slash-item" data-kind="dashboard"><span class="slash-icon">📊</span><span>Dashboard</span></div>
+    <div class="slash-item" data-kind="apresentacao"><span class="slash-icon">📈</span><span>Apresentação por empresa</span></div>`;
   menu.querySelectorAll(".slash-item").forEach(el => {
     el.onmousedown = (e) => {
       e.preventDefault();
@@ -2296,6 +2404,7 @@ async function renderEditor(){
   document.getElementById("tasksView").style.display = kind === "tarefas" ? "block" : "none";
   document.getElementById("calendarView").style.display = kind === "calendario" ? "block" : "none";
   document.getElementById("dashboardView").style.display = kind === "dashboard" ? "block" : "none";
+  document.getElementById("apresentacaoView").style.display = kind === "apresentacao" ? "block" : "none";
   document.getElementById("sidebarTaskStats").style.display = kind === "tarefas" ? "block" : "none";
   document.getElementById("pageView").classList.toggle("wide", kind !== "notas");
 
@@ -2328,6 +2437,10 @@ async function renderEditor(){
   } else if (kind === "dashboard"){
     setStatus("Carregando…");
     await renderDashboard();
+    setStatus("");
+  } else if (kind === "apresentacao"){
+    setStatus("Carregando…");
+    await renderApresentacao();
     setStatus("");
   } else {
     document.getElementById("addBlockBtn").hidden = !canEdit;
@@ -4947,6 +5060,184 @@ document.getElementById("dashEmpresaSel").addEventListener("change", (e) => {
   localStorage.setItem("np_dash_empresa_v1", e.target.value);
   pintaAnaliseEmpresa(e.target.value);
 });
+
+/* ==========================================================================
+   APRESENTAÇÃO POR EMPRESA
+   A mesma análise do Dashboard, no visual do relatório: documento em coluna,
+   turmas em ordem cronológica e participação por pessoa. A página guarda só
+   qual empresa mostra; os números saem sempre das tarefas na hora de abrir.
+   ========================================================================== */
+function apMeses(iso){
+  if (!iso) return "";
+  const m = ["", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const p = iso.split("-");
+  return Number(p[2]) + " " + m[Number(p[1])];
+}
+
+function apRoster(parts){
+  if (!parts.length) return "";
+  return '<div class="ap-roster">' + parts.map(p =>
+    '<div><span class="ap-nome">' + escapeHtml(p.nome) + '</span>' +
+    '<span class="ap-mail">' + escapeHtml(p.email) + '</span></div>').join("") + '</div>';
+}
+
+function apTemas(tema){
+  if (!tema.length) return "";
+  return '<div class="ap-temas">' + tema.map(t => '<span>' + escapeHtml(t) + '</span>').join("") + '</div>';
+}
+
+function apLista(itens, classe){
+  if (!itens.length) return '<p class="ap-vazio" style="padding:4px 0">—</p>';
+  return '<ul class="ap-lista ' + classe + '">' + itens.map(x => {
+    const q = x.task.dueDate
+      ? '<span class="ap-quando">' + formatDateBR(x.task.dueDate) + '</span>'
+      : '<span class="ap-quando sem">sem data</span>';
+    return '<li><span>' + escapeHtml(apTituloCurto(x.task.title)) + '</span>' + q + '</li>';
+  }).join("") + '</ul>';
+}
+
+// Titulo enxuto: sai o prefixo "Treinamento", o dia da semana e a faixa de
+// horario — a coluna da data ja diz quando foi.
+function apTituloCurto(t){
+  t = String(t || "");
+  t = t.replace(/^Treinamento(\s+Sankhya)?\s*[-–]?\s*/i, "");
+  t = t.replace(/\s*[-–]\s*(segunda|ter[çc]a|quarta|quinta|sexta)-feira.*$/i, "");
+  t = t.replace(/\s*[-–]\s*(Ter[çc]a|Quinta|Sexta),.*$/i, "");
+  t = t.replace(/^Espec[íi]fico\s*[-–]\s*/i, "");
+  t = t.replace(/\s*\d{1,2}:\d{2}\s*[-–\sa-zé]*\d{1,2}:\d{2}.*$/i, "");
+  return t.replace(/^[\s\-–·:]+|[\s\-–·:]+$/g, "") || String(t || "Sem título");
+}
+
+async function renderApresentacao(){
+  const alvo = document.getElementById("apresentacaoView");
+  const content = pageContentCache[currentPageId] || {};
+  const flat = await loadAllTasksFlat();
+  const empresas = getCompanyOptions(flat.map(x => x.task));
+
+  // Sem empresa escolhida ainda, assume a primeira — a página nasce mostrando algo.
+  let empresa = content.empresa || "";
+  if (!empresa || !empresas.some(n => companyKey(n) === companyKey(empresa))) {
+    empresa = empresas[0] || "";
+  }
+
+  alvo.innerHTML = "";
+
+  if (canEdit){
+    const cfg = document.createElement("div");
+    cfg.className = "ap-config";
+    cfg.innerHTML = '<label for="apEmpresaSel">Empresa desta apresentação</label>' +
+      '<select id="apEmpresaSel">' + empresas.map(n =>
+        '<option value="' + escapeHtml(n) + '"' + (companyKey(n) === companyKey(empresa) ? " selected" : "") +
+        '>' + escapeHtml(n) + '</option>').join("") + '</select>';
+    alvo.appendChild(cfg);
+    cfg.querySelector("select").addEventListener("change", async (e) => {
+      content.empresa = e.target.value;
+      pageContentCache[currentPageId] = content;
+      scheduleSavePage(currentPageId);
+      await renderApresentacao();
+    });
+  }
+
+  if (!empresa){
+    alvo.insertAdjacentHTML("beforeend", '<p class="ap-vazio">Nenhuma empresa com tarefas ainda.</p>');
+    return;
+  }
+
+  const a = analiseEmpresa(flat, empresa);
+  const meta = getPageMeta(currentPageId) || {};
+  const titulo = (meta.title || "").trim() || ("Trilha " + empresa);
+  const hoje = formatDateBR(formatDateISO(new Date()));
+
+  alvo.insertAdjacentHTML("beforeend",
+    '<header class="ap-capa">' +
+      '<div class="ap-eyebrow">' + escapeHtml(empresa) + '</div>' +
+      '<h1>' + escapeHtml(titulo) + '</h1>' +
+      '<p class="ap-sub">Situação de cada turma da trilha, com tema e participantes lidos das ' +
+        'notas das tarefas. ' + a.feitas.length + ' realizada(s) e ' + a.abertas.length +
+        ' a realizar' + (a.semData ? ', ' + a.semData + ' sem data marcada' : '') + '.</p>' +
+      '<p class="ap-fonte ap-mono">' + escapeHtml(empresa) + ' · ' + a.turmas.length +
+        ' turmas · ' + a.pessoas.length + ' pessoas · atualizado em ' + hoje + '</p>' +
+    '</header>');
+
+  const cartoes = [
+    ["ok", a.pctTurmas + "%", "da trilha realizada<br>" + a.feitas.length + " de " + a.turmas.length + " turmas"],
+    ["aviso", String(a.abertas.length), "a realizar" + (a.semData ? "<br>" + a.semData + " sem data" : "")],
+    ["ok", a.pctVagas + "%", "das participações feitas<br>" + a.vagasFeitas + " de " + (a.vagasFeitas + a.vagasAbertas)],
+    ["aviso", String(a.vagasAbertas), "participações a realizar"],
+    ["", String(a.pessoas.length), "pessoas na trilha"],
+  ];
+  alvo.insertAdjacentHTML("beforeend", '<div class="ap-painel">' + cartoes.map(c =>
+    '<div class="ap-cel ' + c[0] + '"><span class="v">' + escapeHtml(c[1]) +
+    '</span><span class="r">' + c[2] + '</span></div>').join("") + '</div>');
+
+  /* ---- realizadas: razão cronológica ---- */
+  alvo.insertAdjacentHTML("beforeend",
+    '<section class="ap-secao"><div class="ap-cab"><h2>Turmas realizadas</h2>' +
+    '<span class="ap-conta">' + a.feitas.length + ' turmas · da mais antiga à mais recente</span></div>' +
+    '<p class="ap-nota">Em ordem de realização, com o tema e quem participou.</p>' +
+    (a.feitas.length ? "" : '<p class="ap-vazio">Nenhuma turma realizada ainda.</p>') +
+    a.feitas.map(x =>
+      '<article class="ap-reg">' +
+        '<div class="ap-reg-data">' + escapeHtml(apMeses(x.task.dueDate) || "—") +
+          '<small>' + (x.task.dueDate ? x.task.dueDate.slice(0, 4) : "") + '</small></div>' +
+        '<div><h3>' + escapeHtml(apTituloCurto(x.task.title)) + '</h3>' +
+          apTemas(x.nota.tema) +
+          '<span class="ap-rot">' + x.nota.participantes.length + ' participantes</span>' +
+          apRoster(x.nota.participantes) +
+        '</div>' +
+      '</article>').join("") +
+    '</section>');
+
+  /* ---- a realizar: cartões ---- */
+  alvo.insertAdjacentHTML("beforeend",
+    '<section class="ap-secao"><div class="ap-cab"><h2>Turmas a realizar</h2>' +
+    '<span class="ap-conta">' + a.abertas.length + ' turmas · ' + a.vagasAbertas + ' participações</span></div>' +
+    '<p class="ap-nota">' + (a.semData
+      ? a.semData + ' de ' + a.abertas.length + ' não têm data marcada, então não entram em nenhum alerta de prazo.'
+      : 'Todas com data marcada.') + '</p>' +
+    (a.abertas.length ? '<div class="ap-grade">' + a.abertas.map(x =>
+      '<article class="ap-card">' +
+        '<div class="ap-card-topo"><h3>' + escapeHtml(apTituloCurto(x.task.title)) + '</h3>' +
+        (x.task.dueDate
+          ? '<span class="ap-chip data">' + formatDateBR(x.task.dueDate) + '</span>'
+          : '<span class="ap-chip vazio">sem data</span>') + '</div>' +
+        apTemas(x.nota.tema) +
+        '<span class="ap-rot">' + x.nota.participantes.length + ' participantes</span>' +
+        apRoster(x.nota.participantes) +
+      '</article>').join("") + '</div>'
+      : '<p class="ap-vazio">Nada pendente.</p>') +
+    '</section>');
+
+  /* ---- participação por pessoa ---- */
+  if (a.pessoas.length){
+    const maior = Math.max.apply(null, a.pessoas.map(v => v.tot));
+    alvo.insertAdjacentHTML("beforeend",
+      '<section class="ap-secao"><div class="ap-cab"><h2>Participação por pessoa</h2>' +
+      '<span class="ap-conta">' + a.pessoas.length + ' pessoas · ' + (a.vagasFeitas + a.vagasAbertas) + ' participações</span></div>' +
+      '<p class="ap-nota">O percentual é sobre a trilha de cada um, não sobre a trilha inteira: ' +
+        'quem foi escalado para duas turmas e fez uma está em 50%.</p>' +
+      a.pessoas.map(v =>
+        '<article class="ap-pes">' +
+          '<header class="ap-pes-topo"><h3>' + escapeHtml(v.nome) + '</h3>' +
+            '<span class="ap-mail">' + escapeHtml(v.email) + '</span>' +
+            '<span class="ap-vao"></span>' +
+            '<span class="ap-pc">' + v.pct + '%</span>' +
+            '<span class="ap-frac">' + v.feitos.length + ' de ' + v.tot + '</span>' +
+            '<span class="ap-barra">' +
+              '<span style="flex:' + v.feitos.length + ';background:var(--ap-verde)"></span>' +
+              '<span style="flex:' + v.faltam.length + ';background:var(--ap-ambar)"></span>' +
+              '<span style="flex:' + Math.max(0, maior - v.tot) + '"></span>' +
+            '</span></header>' +
+          '<div class="ap-listas">' +
+            '<div><span class="ap-rot" style="color:var(--ap-verde)">✓ Realizado · ' + v.feitos.length + '</span>' +
+              apLista(v.feitos, "feito") + '</div>' +
+            '<div><span class="ap-rot" style="color:var(--ap-ambar)">○ A realizar · ' + v.faltam.length + '</span>' +
+              apLista(v.faltam, "falta") + '</div>' +
+          '</div>' +
+        '</article>').join("") +
+      '</section>');
+  }
+}
 
 async function renderDashboard(){
   const tasksFlat = await loadAllTasksFlat();
