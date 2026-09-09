@@ -2378,12 +2378,14 @@ async function scheduleTaskFromCalendar(dateStr){
   const content = pageContentCache[roadmap.id];
   if (!content.tasks) content.tasks = [];
   const now = new Date().toISOString();
+  const novaId = genId("t");
   content.tasks.unshift({
-    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
+    id: novaId, title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
     dueDate: dateStr, createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
   taskSortKey = null;
   taskFilter = "Todas";
+  tarefaNovaId = novaId;
   if (taskViewMode !== "table"){ taskViewMode = "table"; updateTaskViewToggle(); }
   renderTaskFilterTabs();
   renderTasks();
@@ -2451,6 +2453,10 @@ let taskGroupSort = localStorage.getItem("np_task_group_sort_v1") || "nome";
 // Chaves das empresas do ultimo desenho — e o que "Recolher tudo" precisa fechar.
 let ultimasChavesDeGrupo = [];
 let taskSortKey = null;
+/* Id da tarefa recem-criada. Enquanto isto aponta para alguma, o grupo dela
+   vem primeiro e aberto na tabela agrupada — senao a tarefa nasceria no fim,
+   dentro de "Sem empresa", possivelmente recolhida. */
+let tarefaNovaId = null;
 let taskSortDir = "asc";
 let selectedTaskIds = new Set();
 
@@ -2578,6 +2584,8 @@ async function renderEditor(){
   document.getElementById("pageView").classList.toggle("wide", kind !== "notas");
 
   if (kind === "tarefas"){
+    // Pagina nova, fixacao velha nao vale mais.
+    tarefaNovaId = null;
     taskFilter = "Todas";
     taskViewMode = "table";
     taskCompanyFilter = "Todas";
@@ -3104,6 +3112,25 @@ function getCompanyOptions(tasks){
     nomes.push(melhor);
   });
   return nomes.sort((a, b) => a.localeCompare(b));
+}
+
+/* Leva a tarefa recem-criada para a vista e poe o cursor no titulo. Se nenhum
+   filtro a deixa passar ela nao existe na tabela: nesse caso limpa os filtros,
+   que e a unica forma de honrar o clique em "+ Nova tarefa" — o botao "Limpar
+   filtros" mostra o estado, e refazer o filtro custa um clique. */
+function focaTarefaNova(id){
+  const acha = () => document.querySelector('#taskTableBody tr[data-id="' + id + '"]');
+  let tr = acha();
+  if (!tr && anyTaskFilterActive()){
+    document.getElementById("clearFiltersBtn").click();
+    tr = acha();
+  }
+  if (!tr) return;
+  const campo = tr.querySelector(".task-title");
+  if (campo) campo.focus();
+  // block:center porque o cabecalho da tabela e fixo e cobriria a linha se ela
+  // parasse no topo exato da area de rolagem.
+  if (tr.scrollIntoView) tr.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 function anyTaskFilterActive(){
@@ -3800,8 +3827,20 @@ function renderTableGrouped(tbody, tarefas, assigneeOptions){
     grupos.get(chave).itens.push(t);
   });
 
+  /* O grupo da tarefa recem-criada vem primeiro, por cima de qualquer
+     ordenacao: ela nasce sem empresa, e "Sem empresa" fica por ultimo — sem
+     isto a tarefa nova aparecia no rodape da lista. */
+  const grupoNovo = tarefaNovaId
+    ? [...grupos.values()].find(g => g.itens.some(t => t.id === tarefaNovaId))
+    : null;
+  const chaveFixa = grupoNovo ? grupoNovo.chave : null;
+
   // "Sem empresa" fica sempre por ultimo, qualquer que seja a ordenacao.
   const ordenados = [...grupos.values()].sort((a, b) => {
+    if (chaveFixa){
+      if (a.chave === chaveFixa) return -1;
+      if (b.chave === chaveFixa) return 1;
+    }
     if (a.nome === SEM) return 1;
     if (b.nome === SEM) return -1;
     switch (taskGroupSort){
@@ -3832,7 +3871,9 @@ function renderTableGrouped(tbody, tarefas, assigneeOptions){
   });
 
   ordenados.forEach(grupo => {
-    const fechado = !comFiltro && gruposFechados.has(grupo.chave);
+    /* O grupo da tarefa nova abre a forca, sem mexer em gruposFechados: o que
+       o usuario recolheu continua recolhido depois. */
+    const fechado = !comFiltro && grupo.chave !== chaveFixa && gruposFechados.has(grupo.chave);
 
     const trGrupo = document.createElement("tr");
     trGrupo.className = "task-group-row";
@@ -3875,6 +3916,8 @@ function renderTableGrouped(tbody, tarefas, assigneeOptions){
     btn.appendChild(nome);
     btn.appendChild(contagem);
     btn.addEventListener("click", () => {
+      // Fechar o grupo fixado solta a fixacao, senao ele ignoraria o clique.
+      if (grupo.chave === chaveFixa) tarefaNovaId = null;
       if (gruposFechados.has(grupo.chave)) gruposFechados.delete(grupo.chave);
       else gruposFechados.add(grupo.chave);
       salvarGruposFechados();
@@ -4974,19 +5017,22 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
   if (!content) return;
   if (!content.tasks) content.tasks = [];
   const now = new Date().toISOString();
+  const novaId = genId("t");
   content.tasks.unshift({
-    id: genId("t"), title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
+    id: novaId, title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
     createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
   // Sem ordenação de coluna ativa, pra garantir que a tarefa recém-criada apareça no topo.
   taskSortKey = null;
+  // A tarefa nasce "Pendente": com a aba de outro status escolhida ela nao
+  // apareceria. A criacao pelo calendario ja fazia isto.
+  taskFilter = "Todas";
+  tarefaNovaId = novaId;
+  renderTaskFilterTabs();
   renderTasks();
   scheduleSavePage(currentPageId);
-  setTimeout(() => {
-    const rows = document.querySelectorAll("#taskTableBody tr");
-    const first = rows[0];
-    if (first) first.querySelector(".task-title").focus();
-  }, 30);
+  // Espera o render pintar a linha antes de procura-la.
+  setTimeout(() => focaTarefaNova(novaId), 30);
 });
 
 /* ==========================================================================
