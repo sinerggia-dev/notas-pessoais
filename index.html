@@ -35,6 +35,49 @@
     --shadow-sm:0 1px 2px rgba(0,0,0,.30);
     --shadow-md:0 8px 24px rgba(0,0,0,.45);
   }
+
+  /* ---------- Outros fundos ----------
+     Cada fundo e so outro conjunto dos mesmos tokens. O padrao (cinza escuro)
+     fica no :root sem atributo, para quem nunca escolheu nada continuar vendo
+     exatamente o que via. As pilulas de status nao mudam: sao claras com texto
+     escuro e funcionam sobre qualquer fundo. */
+  :root[data-tema="azul"]{
+    --bg:#0e1524;
+    --surface:#182137;
+    --surface-2:#222d47;
+    --sidebar-bg:#111a2b;
+    --sidebar-border:#334463;
+    --text:#e9edf6;
+    --text-light:#a6b0c6;
+    --text-dim:#8b96ad;
+    --accent:#8fa0f5;
+    --accent-hover:#a8b6f9;
+    --accent-btn:#4954cf;
+    --accent-light:#28324f;
+    --danger:#ff7176;
+    --divider:#2a3550;
+    --hover:#202b42;
+  }
+  :root[data-tema="claro"]{
+    color-scheme:light;
+    --bg:#f7f7f6;
+    --surface:#ffffff;
+    --surface-2:#f0f0ef;
+    --sidebar-bg:#fbfbfa;
+    --sidebar-border:#e2e1de;
+    --text:#37352f;
+    --text-light:#6b6a66;
+    --text-dim:#767570;        /* 4,6:1 no branco */
+    --accent:#4b4ad4;          /* 6,5:1 no branco */
+    --accent-hover:#3a39c0;
+    --accent-btn:#4b4ad4;
+    --accent-light:#e8e8fb;
+    --danger:#c0392b;
+    --divider:#e9e8e6;
+    --hover:#f1f1f0;
+    --shadow-sm:0 1px 2px rgba(15,15,15,.09);
+    --shadow-md:0 8px 24px rgba(15,15,15,.14);
+  }
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;}
   /* Sem isto, campo com fundo escuro fica com o texto preto padrao do navegador. */
@@ -87,6 +130,18 @@
   }
   #sidebarHeader{padding:16px 14px 4px;}
   #sidebarHeader h2{font-size:20px;margin:0 0 12px;font-weight:700;display:flex;align-items:center;gap:6px;letter-spacing:-.01em;}
+  /* Botao de fundo: no titulo da barra lateral, empurrado para a direita. Fica
+     visivel em qualquer tipo de pagina, e nao briga com a barra de filtros. */
+  #temaBtn{
+    margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;
+    height:25px;padding:0 9px;border-radius:13px;cursor:pointer;
+    font-size:11px;font-family:inherit;font-weight:500;letter-spacing:.01em;white-space:nowrap;
+    background:var(--surface);color:var(--text-light);border:1px solid var(--sidebar-border);
+    transition:background .12s ease, color .12s ease, border-color .12s ease;
+  }
+  #temaBtn:hover{background:var(--hover);color:var(--text);border-color:var(--text-dim);}
+  #temaBtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  #temaBtn .tema-icone{font-size:12px;line-height:1;}
   #searchInput{
     width:100%;padding:8px 11px;border:1px solid var(--sidebar-border);border-radius:8px;font-size:13px;
     background:var(--surface);transition:border-color .15s ease, box-shadow .15s ease;
@@ -1102,8 +1157,30 @@
     #taskTableWrap{max-height:none !important;overflow:visible !important;}
     #taskTable th{position:static !important;}
     #printFiltersSummary{display:block !important;font-size:12px;color:#000;margin-bottom:12px;}
+    /* No papel o fundo escuro nao sai, so o texto claro — que fica invisivel.
+       A impressao usa o conjunto claro, qualquer que seja o fundo da tela. */
+    :root{
+      color-scheme:light;
+      --bg:#ffffff; --surface:#ffffff; --surface-2:#f4f4f3;
+      --sidebar-bg:#ffffff; --sidebar-border:#c9c8c5;
+      --text:#1a1a18; --text-light:#4a4a46; --text-dim:#6e6d69;
+      --accent:#2b2ab0; --accent-hover:#2b2ab0; --accent-btn:#2b2ab0; --accent-light:#e8e8fb;
+      --danger:#a02617; --divider:#d9d8d5; --hover:#f4f4f3;
+      --shadow-sm:none; --shadow-md:none;
+    }
   }
 </style>
+<script>
+  /* Aplica o fundo escolhido antes da primeira pintura. Se esperasse o script
+     principal, no fim do arquivo, a tela piscaria no fundo padrao a cada
+     carregamento. */
+  (function(){
+    try{
+      var t = localStorage.getItem("roadmapTema");
+      if (t && t !== "grafite") document.documentElement.setAttribute("data-tema", t);
+    }catch(e){}
+  })();
+</script>
 </head>
 <body>
 
@@ -1127,7 +1204,7 @@
 <div id="app">
   <aside id="sidebar">
     <div id="sidebarHeader">
-      <h2>📝 ROADMAP</h2>
+      <h2>📝 ROADMAP<button type="button" id="temaBtn" title="Mudar o fundo"></button></h2>
       <div id="userBlock">
         <button id="userAvatarBtn" class="user-avatar-btn">
           <span id="userAvatarInitial" class="user-avatar"></span>
@@ -2163,6 +2240,47 @@ document.getElementById("mobileMenuBtn").addEventListener("click", () => {
   else openMobileSidebar();
 });
 document.getElementById("sidebarOverlay").addEventListener("click", closeMobileSidebar);
+
+/* ---------- Fundo da tela ----------
+   Tres fundos, um botao que gira entre eles. A escolha e do aparelho e nao da
+   conta: fica em localStorage, como o estado da barra lateral, e nao vai para o
+   OneDrive — a mesma pessoa pode querer claro no notebook de dia e escuro no
+   monitor de noite.
+
+   A pagina de Apresentacao nao segue isto: tem tokens --ap-* proprios e e uma
+   peca escura de proposito, com o PPTX e o PDF capturando o fundo dela. */
+const TEMAS = [
+  { id: "grafite", nome: "Cinza", icone: "\u25d0" },
+  { id: "azul",    nome: "Azul",  icone: "\u25d1" },
+  { id: "claro",   nome: "Claro", icone: "\u25cb" },
+];
+
+function temaAtual(){
+  const id = document.documentElement.getAttribute("data-tema") || "grafite";
+  return TEMAS.find(t => t.id === id) || TEMAS[0];
+}
+
+function aplicaTema(id){
+  const t = TEMAS.find(x => x.id === id) || TEMAS[0];
+  // O padrao nao leva atributo: o :root limpo ja e o cinza escuro.
+  if (t.id === "grafite") document.documentElement.removeAttribute("data-tema");
+  else document.documentElement.setAttribute("data-tema", t.id);
+  try{ localStorage.setItem("roadmapTema", t.id); }catch(e){}
+  const btn = document.getElementById("temaBtn");
+  if (btn){
+    btn.innerHTML = '<span class="tema-icone" aria-hidden="true">' + t.icone + '</span>' +
+      escapeHtml(t.nome);
+    btn.title = "Fundo: " + t.nome + " \u2014 clique para mudar";
+  }
+}
+
+const btnTema = document.getElementById("temaBtn");
+if (btnTema) btnTema.addEventListener("click", () => {
+  const i = TEMAS.indexOf(temaAtual());
+  aplicaTema(TEMAS[(i + 1) % TEMAS.length].id);
+});
+// Na carga o fundo ja foi aplicado no <head>; aqui so acerta o rotulo do botao.
+aplicaTema(temaAtual().id);
 
 /* ---------- Recolher/expandir barra lateral (desktop, dá mais espaço pro conteúdo) ---------- */
 function applySidebarCollapsed(collapsed){
