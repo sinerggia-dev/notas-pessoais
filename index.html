@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.18.0/lib/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <style>
   :root{
     /* color-scheme:dark faz o navegador desenhar em modo escuro o que e dele:
@@ -868,6 +869,11 @@
     border-radius:5px;font-weight:600;white-space:nowrap}
   .ap-pdf:hover{opacity:.9}
   .ap-pdf:disabled{opacity:.55;cursor:default}
+  .ap-pptx{height:34px;padding:0 14px;font-size:13px;font-family:inherit;cursor:pointer;
+    color:var(--ap-ink);background:var(--ap-sunk);border:1px solid var(--ap-verde);
+    border-radius:5px;font-weight:600;white-space:nowrap}
+  .ap-pptx:hover{background:var(--ap-rule)}
+  .ap-pptx:disabled{opacity:.55;cursor:default}
   .ap-status{flex:1 1 100%;font-size:12px;color:var(--ap-muted);
     font-family:"IBM Plex Mono",monospace}
   .ap-status:empty{display:none}
@@ -5260,6 +5266,7 @@ async function renderApresentacao(){
       '<span class="ap-busca-rot">Buscar funcionário</span>' +
       '<input id="apBusca" type="search" autocomplete="off" placeholder="Digite um nome, ex.: Ronaldo">' +
       '<button type="button" class="ap-pdf" id="apPdf">⬇ Baixar PDF</button>' +
+      '<button type="button" class="ap-pptx" id="apPptx">⬇ Baixar PPTX</button>' +
       '<button type="button" class="ap-fp ativo" data-part="todos">Todos <b>' + a.pessoas.length + '</b></button>' +
       '<button type="button" class="ap-fp" data-part="com">Com módulo <b>' + comModulo + '</b></button>' +
       '<button type="button" class="ap-fp" data-part="sem">Sem módulo <b>' + semModulo + '</b></button>' +
@@ -5376,6 +5383,28 @@ function ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semMo
     visiveis();
   }));
 
+  const btnPptx = document.getElementById("apPptx");
+  if (btnPptx) btnPptx.addEventListener("click", () => {
+    if (!window.PptxGenJS){ status.textContent = "O gerador de PowerPoint não carregou. Recarregue a página."; return; }
+    btnPptx.disabled = true;
+    const rotulo = btnPptx.textContent;
+    btnPptx.textContent = "Montando…";
+    setTimeout(() => {
+      try{
+        const pessoas = visiveis();
+        const desc = [];
+        if (campo.value.trim()) desc.push('busca "' + campo.value.trim() + '"');
+        if (parte !== "todos") desc.push(parte === "com" ? "só com módulo" : "só sem módulo");
+        montaPptxApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, desc.join(" · "));
+        status.textContent = "PPTX gerado.";
+      }catch(e){
+        status.textContent = "Erro ao montar o PPTX: " + (e && e.message ? e.message : e);
+      }
+      btnPptx.disabled = false;
+      btnPptx.textContent = rotulo;
+    }, 30);
+  });
+
   btnPdf.addEventListener("click", () => {
     if (!window.jspdf){ status.textContent = "O gerador de PDF não carregou. Recarregue a página."; return; }
     btnPdf.disabled = true;
@@ -5398,6 +5427,145 @@ function ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semMo
   });
 
   marca();
+}
+
+/* ---------- PowerPoint ----------
+   Slides com texto editável, nas cores da página. As fontes são as que existem
+   no Windows e no Mac (Georgia serif, Segoe UI, Consolas): PowerPoint não tem
+   pilha de fallback como o CSS, então nomear "Newsreader" ou "IBM Plex" daria
+   substituição imprevisível na máquina de quem abre. */
+function montaPptxApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, filtro){
+  const FUNDO = "151814", SUP = "1C201B", TINTA = "ECEEE6", TINTA2 = "C6CABC",
+        FRACO = "8F9486", VERDE = "7FC39F", AMBAR = "D8A24A", LINHA = "333829";
+  const SERIF = "Georgia", CORPO = "Segoe UI", MONO = "Consolas";
+
+  const pptx = new window.PptxGenJS();
+  pptx.layout = "LAYOUT_16x9";          // 10 x 5.63 pol
+  pptx.author = "ROADMAP · Sinerggia";
+  pptx.title = titulo;
+
+  function nova(){
+    const sl = pptx.addSlide();
+    sl.background = { color: FUNDO };
+    return sl;
+  }
+  function tituloSlide(sl, texto, conta){
+    sl.addText(texto, { x: 0.5, y: 0.3, w: 6.6, h: 0.55, fontSize: 26, bold: true,
+      color: TINTA, fontFace: SERIF, valign: "middle" });
+    if (conta) sl.addText(conta, { x: 7.1, y: 0.3, w: 2.4, h: 0.55, fontSize: 11,
+      color: FRACO, fontFace: MONO, align: "right", valign: "middle" });
+    sl.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.92, w: 9, h: 0.012, fill: { color: LINHA } });
+  }
+
+  /* ---- capa ---- */
+  const capa = nova();
+  capa.addText(empresa.toUpperCase(), { x: 0.6, y: 1.05, w: 8.8, h: 0.3, fontSize: 12,
+    bold: true, color: VERDE, fontFace: CORPO, charSpacing: 2 });
+  capa.addText(titulo, { x: 0.6, y: 1.4, w: 8.8, h: 1.1, fontSize: 40, bold: true,
+    color: TINTA, fontFace: SERIF });
+  capa.addText("Situação de cada turma da trilha, com tema e participantes lidos das notas das tarefas.",
+    { x: 0.6, y: 2.55, w: 8.2, h: 0.5, fontSize: 14, color: TINTA2, fontFace: CORPO });
+  capa.addText(apPeriodo(a), { x: 0.6, y: 3.0, w: 8.2, h: 0.5, fontSize: 13, color: TINTA2, fontFace: CORPO });
+  capa.addText(empresa + "  ·  " + a.turmas.length + " turmas  ·  " + a.pessoas.length +
+      " pessoas  ·  atualizado em " + formatDateBR(formatDateISO(new Date())),
+    { x: 0.6, y: 3.62, w: 8.8, h: 0.3, fontSize: 10, color: FRACO, fontFace: MONO });
+  if (filtro) capa.addText("Filtro aplicado: " + filtro,
+    { x: 0.6, y: 3.95, w: 8.8, h: 0.3, fontSize: 11, color: AMBAR, fontFace: CORPO, italic: true });
+
+  /* ---- resumo: os seis cartões ---- */
+  const res = nova();
+  tituloSlide(res, "Resumo");
+  const cartoes = [
+    [a.pctTurmas + "%", "da trilha realizada", a.feitas.length + " de " + a.turmas.length + " treinamentos", VERDE],
+    [(100 - a.pctTurmas) + "%", "a realizar", a.abertas.length + " pendentes", AMBAR],
+    [a.pctVagas + "%", "das participações realizadas", a.vagasFeitas + " de " + (a.vagasFeitas + a.vagasAbertas) + " lugares", VERDE],
+    [(100 - a.pctVagas) + "%", "das participações a realizar", a.vagasAbertas + " lugares", AMBAR],
+    [String(comModulo), "treinados em algum módulo", "de " + a.pessoas.length + (excluir ? " · fora " + excluir : ""), VERDE],
+    [String(semModulo), "ainda sem nenhum módulo", excluir ? "só passaram por " + excluir : "", semModulo ? AMBAR : VERDE],
+  ];
+  cartoes.forEach((c, i) => {
+    const col = i % 3, lin = Math.floor(i / 3);
+    const x = 0.5 + col * 3.07, y = 1.2 + lin * 1.85;
+    res.addShape(pptx.ShapeType.rect, { x: x, y: y, w: 2.9, h: 1.65,
+      fill: { color: SUP }, line: { color: LINHA, width: 0.75 } });
+    res.addText(c[0], { x: x + 0.18, y: y + 0.12, w: 2.5, h: 0.55, fontSize: 30, bold: true,
+      color: c[3], fontFace: MONO });
+    res.addText(c[1], { x: x + 0.18, y: y + 0.7, w: 2.5, h: 0.35, fontSize: 11, color: TINTA2, fontFace: CORPO });
+    if (c[2]) res.addText(c[2], { x: x + 0.18, y: y + 1.02, w: 2.5, h: 0.5, fontSize: 9.5,
+      color: FRACO, fontFace: CORPO });
+  });
+
+  /* ---- estilo comum das tabelas ---- */
+  const tabOpts = {
+    x: 0.5, y: 1.15, w: 9, autoPage: true, autoPageRepeatHeader: true,
+    autoPageSlideStartY: 1.15, newSlideStartY: 1.15,
+    fontFace: CORPO, fontSize: 10.5, color: TINTA, valign: "top",
+    border: { type: "solid", color: LINHA, pt: 0.75 },
+    fill: { color: FUNDO },
+    margin: 0.06,
+  };
+  const cabTab = (textos) => textos.map(t => ({
+    text: t, options: { bold: true, fontSize: 9, color: FRACO, fill: { color: SUP } } }));
+
+  /* ---- turmas realizadas ---- */
+  const rea = nova();
+  tituloSlide(rea, "Turmas realizadas", a.feitas.length + " turmas");
+  if (a.feitas.length){
+    const linhas = [cabTab(["DATA", "TURMA", "TEMA", "PARTICIPANTES"])];
+    a.feitas.forEach(x => linhas.push([
+      { text: x.task.dueDate ? formatDateBR(x.task.dueDate) : "—",
+        options: { fontFace: MONO, fontSize: 9.5, color: VERDE } },
+      { text: apTituloCurto(x.task.title), options: { bold: true } },
+      { text: x.nota.tema.join(" · ") || "—", options: { fontSize: 9, color: TINTA2 } },
+      { text: x.nota.participantes.map(p => p.nome).join(", ") || "—", options: { fontSize: 9, color: TINTA2 } },
+    ]));
+    rea.addTable(linhas, Object.assign({}, tabOpts, { colW: [1.0, 2.2, 2.6, 3.2] }));
+  } else {
+    rea.addText("Nenhuma turma realizada ainda.", { x: 0.5, y: 1.3, w: 9, h: 0.4,
+      fontSize: 13, color: FRACO, fontFace: CORPO, italic: true });
+  }
+
+  /* ---- turmas a realizar ---- */
+  const pen = nova();
+  tituloSlide(pen, "Turmas a realizar", a.abertas.length + " turmas · " + a.vagasAbertas + " participações");
+  if (a.abertas.length){
+    const linhas = [cabTab(["TURMA", "DATA", "TEMA", "PARTICIPANTES"])];
+    a.abertas.forEach(x => linhas.push([
+      { text: apTituloCurto(x.task.title), options: { bold: true } },
+      { text: x.task.dueDate ? formatDateBR(x.task.dueDate) : "sem data",
+        options: { fontFace: MONO, fontSize: 9.5, color: x.task.dueDate ? TINTA2 : AMBAR,
+          italic: !x.task.dueDate } },
+      { text: x.nota.tema.join(" · ") || "—", options: { fontSize: 9, color: TINTA2 } },
+      { text: x.nota.participantes.map(p => p.nome).join(", ") || "—", options: { fontSize: 9, color: TINTA2 } },
+    ]));
+    pen.addTable(linhas, Object.assign({}, tabOpts, { colW: [2.2, 1.0, 2.6, 3.2] }));
+  } else {
+    pen.addText("Nada pendente.", { x: 0.5, y: 1.3, w: 9, h: 0.4,
+      fontSize: 13, color: FRACO, fontFace: CORPO, italic: true });
+  }
+
+  /* ---- participação por pessoa ---- */
+  const pes = nova();
+  tituloSlide(pes, "Participação por pessoa", pessoas.length + " de " + a.pessoas.length + " pessoas");
+  if (pessoas.length){
+    const linhas = [cabTab(["PESSOA", "%", "REALIZADO", "A REALIZAR"])];
+    pessoas.forEach(v => linhas.push([
+      { text: v.nome + "\n" + v.email, options: { fontSize: 9.5 } },
+      { text: v.pct + "%\n" + v.feitos.length + "/" + v.tot,
+        options: { fontFace: MONO, fontSize: 9.5, color: TINTA, align: "center" } },
+      { text: v.feitos.map(x => apTituloCurto(x.task.title)).join(", ") || "—",
+        options: { fontSize: 9, color: VERDE } },
+      { text: v.faltam.map(x => apTituloCurto(x.task.title)).join(", ") || "—",
+        options: { fontSize: 9, color: AMBAR } },
+    ]));
+    pes.addTable(linhas, Object.assign({}, tabOpts, { colW: [2.4, 0.8, 2.9, 2.9] }));
+  } else {
+    pes.addText("Nenhum funcionário no filtro atual.", { x: 0.5, y: 1.3, w: 9, h: 0.4,
+      fontSize: 13, color: FRACO, fontFace: CORPO, italic: true });
+  }
+
+  const nome = (titulo + "-" + formatDateISO(new Date())).replace(/[^\w\-]+/g, "-") + ".pptx";
+  return pptx.writeFile({ fileName: nome });
 }
 
 function montaPdfApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, filtro){
