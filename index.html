@@ -1743,7 +1743,7 @@ function defaultContentForKind(kind){
   if (kind === "calendario") return { events: [] };
   if (kind === "dashboard") return {};
   // A apresentação guarda só qual empresa ela mostra; os dados vêm das tarefas.
-  if (kind === "apresentacao") return { empresa: "", naoConta: "" };
+  if (kind === "apresentacao") return { empresa: "", naoConta: AP_NAO_CONTA_PADRAO };
   return { blocks: [{ id: genId("b"), type: "paragraph", content: "" }] };
 }
 
@@ -5096,11 +5096,31 @@ document.getElementById("dashEmpresaSel").addEventListener("change", (e) => {
    turmas em ordem cronológica e participação por pessoa. A página guarda só
    qual empresa mostra; os números saem sempre das tarefas na hora de abrir.
    ========================================================================== */
+/* Curso de navegação na ferramenta, não módulo do ERP: quem só passou por ele
+   não foi treinado em nada de negócio. É substring do título, então em empresa
+   que não tem esse curso a exclusão simplesmente não encontra nada. */
+const AP_NAO_CONTA_PADRAO = "Navegando com Maestria";
+
 function apMeses(iso){
   if (!iso) return "";
   const m = ["", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const p = iso.split("-");
   return Number(p[2]) + " " + m[Number(p[1])];
+}
+
+/* Frase do subtítulo: quantas turmas, em que período, e quantas sem data —
+   o mesmo resumo em prosa do relatório. */
+function apPeriodo(a){
+  const comData = a.feitas.filter(x => x.task.dueDate);
+  let frase = a.feitas.length + " turma(s) realizada(s)";
+  if (comData.length){
+    const ini = apMeses(comData[0].task.dueDate);
+    const fim = apMeses(comData[comData.length - 1].task.dueDate);
+    frase += ini === fim ? " em " + ini : " entre " + ini + " e " + fim;
+  }
+  frase += "; " + a.abertas.length + " a realizar";
+  if (a.semData) frase += ", e " + a.semData + " delas ainda não têm data";
+  return frase + ".";
 }
 
 function apRoster(parts){
@@ -5159,7 +5179,8 @@ async function renderApresentacao(){
       '<label for="apNaoConta" title="Turmas cujo título contém este texto não contam como módulo">' +
         'Não contar como módulo</label>' +
       '<input id="apNaoConta" type="text" placeholder="ex.: Navegando com Maestria" ' +
-        'value="' + escapeHtml(content.naoConta || "") + '" style="height:32px;padding:0 10px;' +
+        'value="' + escapeHtml(content.naoConta === undefined ? AP_NAO_CONTA_PADRAO : content.naoConta) +
+        '" style="height:32px;padding:0 10px;' +
         'font-size:13px;font-family:inherit;color:var(--text);background:var(--surface);' +
         'border:1px solid var(--sidebar-border);border-radius:6px;min-width:210px">';
     alvo.appendChild(cfg);
@@ -5186,7 +5207,9 @@ async function renderApresentacao(){
 
   // "Módulo" = turma realizada que não é a excluída nesta página. Sem o campo
   // preenchido, toda turma conta — a exclusão é escolha de quem monta a página.
-  const excluir = (content.naoConta || "").trim();
+  // undefined = página criada antes deste campo existir: recebe o padrão.
+  // "" = o usuário limpou de propósito: fica sem exclusão.
+  const excluir = (content.naoConta === undefined ? AP_NAO_CONTA_PADRAO : content.naoConta).trim();
   const chaveEx = excluir ? companyKey(excluir) : "";
   const contaModulo = (x) => !chaveEx || companyKey(x.task.title).indexOf(chaveEx) === -1;
   a.pessoas.forEach(v => { v.mods = v.feitos.filter(contaModulo).length; });
@@ -5203,8 +5226,7 @@ async function renderApresentacao(){
       '<div class="ap-eyebrow">' + escapeHtml(empresa) + '</div>' +
       '<h1>' + escapeHtml(titulo) + '</h1>' +
       '<p class="ap-sub">Situação de cada turma da trilha, com tema e participantes lidos das ' +
-        'notas das tarefas. ' + a.feitas.length + ' realizada(s) e ' + a.abertas.length +
-        ' a realizar' + (a.semData ? ', ' + a.semData + ' sem data marcada' : '') + '.</p>' +
+        'notas das tarefas. ' + apPeriodo(a) + '</p>' +
       '<p class="ap-fonte ap-mono">' + escapeHtml(empresa) + ' · ' + a.turmas.length +
         ' turmas · ' + a.pessoas.length + ' pessoas · atualizado em ' + hoje + '</p>' +
     '</header>');
