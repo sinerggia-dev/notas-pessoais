@@ -191,6 +191,15 @@ O que o parser resolve, e por isso não pode ser simplificado:
 - **Texto colado no e-mail.** Existe `natanael.silva@sinerggia.com.brLINK DO VIDEOhttps://...`
   sem separador. A regex de e-mail engole o rabo e cria uma pessoa fantasma — `limpar_email`
   corta no fim plausível do domínio e joga a sobra em observação.
+- **Presença não é escalação.** Quem estava escalado e não compareceu leva um marcador
+  solto na própria nota, ao lado do nome: `Maria Cristina Gomes De Melo (Não participou)`.
+  `RE_AUSENTE` aceita *não participou / não compareceu / não veio / não assistiu / faltou /
+  ausente*, em qualquer linha do bloco da pessoa — o nome vem picado, então não existe
+  posição única esperada. Uma seção `Não compareceram:` também funciona.
+  Consequência: **"Realizado" significa compareceu**, e o percentual da pessoa é
+  presença ÷ escalação. `feitos` / `ausentes` / `faltam` são três estados, não dois.
+  Não inclua *não foi* nem *não estava* no marcador: casam com observação comum
+  ("não foi enviado o link") e marcariam falta que ninguém escreveu.
 - **`Cronograma de Treinamentos` não é turma** — é tarefa de controle, sem tema nem
   participantes. Fica fora da contagem.
 - **Recorte é `Empresa = Sankhya`**, não "Sankhya no título". Existem os dois casos:

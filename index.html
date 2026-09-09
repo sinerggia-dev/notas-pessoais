@@ -760,7 +760,7 @@
     display:none;
     --ap-paper:#151814; --ap-surface:#1c201b; --ap-sunk:#232720;
     --ap-ink:#eceee6; --ap-ink2:#c6cabc; --ap-muted:#8f9486; --ap-rule:#333829;
-    --ap-verde:#7fc39f; --ap-ambar:#d8a24a;
+    --ap-verde:#7fc39f; --ap-ambar:#d8a24a; --ap-verm:#e08b7c;
     background:var(--ap-paper);color:var(--ap-ink);
     font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     font-size:15px;line-height:1.62;
@@ -792,6 +792,7 @@
     font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums}
   .ap-cel .r{display:block;font-size:11.5px;color:var(--ap-muted);margin-top:4px;line-height:1.4}
   .ap-cel.ok .v{color:var(--ap-verde)} .ap-cel.aviso .v{color:var(--ap-ambar)}
+  .ap-cel.falta .v{color:var(--ap-verm)}
   .ap-secao{margin-top:44px}
   .ap-cab{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
     border-bottom:1px solid var(--ap-rule);padding-bottom:9px}
@@ -833,6 +834,13 @@
   .ap-lista li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%}
   .ap-lista.feito li::before{background:var(--ap-verde)}
   .ap-lista.falta li::before{background:var(--ap-ambar)}
+  .ap-lista.ausente li::before{background:var(--ap-verm)}
+  .ap-lista.ausente li span:first-child{text-decoration:line-through;text-decoration-color:var(--ap-verm)}
+  /* Marca de ausencia ao lado do nome, na lista de participantes da turma. */
+  .ap-faltou{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ap-verm);
+    border:1px solid var(--ap-verm);border-radius:3px;padding:0 4px;margin-left:6px;
+    display:inline-block;vertical-align:1px;white-space:nowrap}
+  .ap-roster div.faltou .ap-nome{color:var(--ap-verm)}
   .ap-quando{font-size:10.5px;color:var(--ap-muted);white-space:nowrap;flex:0 0 auto}
   .ap-quando.sem{font-style:italic;color:var(--ap-ambar)}
   .ap-config{
@@ -4933,6 +4941,11 @@ const RE_EMAIL_NOTA = /[\w.+-]+@[\w-]+\.[\w.-]+/;
 // Em algumas notas o texto seguinte está colado no e-mail, sem espaço:
 // "...@sinerggia.com.brLINK DO VIDEOhttps://...". Isto corta no fim do domínio.
 const RE_FIM_DOMINIO = /^([\w.+-]+@[\w-]+(?:\.[\w-]+)*?\.(?:com\.br|gov\.br|edu\.br|org\.br|com|net|org|br|io|dev))/i;
+/* Marcador de quem estava escalado e nao compareceu. Vai solto ao lado do nome
+   ("Maria Cristina Gomes De Melo (Não participou)"), porque a ausencia aqui e
+   pontual — nao vale uma secao propria na nota. Aceito as formas que a pessoa
+   escreveria naturalmente, com ou sem parenteses, com ou sem acento. */
+const RE_AUSENTE = /[\(\[]?\s*n[ãa]o\s+(?:participou|compareceu|veio|assistiu)\b\s*[\)\]]?|[\(\[]?\s*\b(?:faltou|ausente|aus[êe]ncia)\b\s*[\)\]]?/i;
 
 function parseNotaTreinamento(notaHtml){
   const tema = [], participantes = [], obs = [];
@@ -4941,8 +4954,10 @@ function parseNotaTreinamento(notaHtml){
   noteHtmlToText(notaHtml).split("\n").map(l => l.trim()).filter(Boolean).forEach(linha => {
     if (/^temas?\s*:+$/i.test(linha)){ onde = "tema"; return; }
     if (/^participantes\s*:+$/i.test(linha)){ onde = "participantes"; return; }
+    // Alternativa para quem preferir agrupar em vez de marcar linha por linha.
+    if (/^(?:n[ãa]o\s+(?:compareceram|participaram)|ausentes|faltas?)\s*:+$/i.test(linha)){ onde = "ausentes"; return; }
     if (onde === "tema"){ tema.push(linha); return; }
-    if (onde !== "participantes"){ obs.push(linha); return; }
+    if (onde !== "participantes" && onde !== "ausentes"){ obs.push(linha); return; }
 
     const achado = linha.match(RE_EMAIL_NOTA);
     if (!achado){ acumulado.push(linha); return; }
@@ -4953,9 +4968,24 @@ function parseNotaTreinamento(notaHtml){
     const sobra = corte ? bruto.slice(email.length) : "";
     const pos = linha.indexOf(bruto);
     const antes = linha.slice(0, pos).replace(/[\s\-–—:]+$/, "").trim();
-    const nome = (antes || acumulado.join(" ")).replace(/[\s\-–—:]+$/, "").trim();
-    participantes.push({ nome: nome.replace(/\s+/g, " "), email: email });
-    const depois = (sobra + linha.slice(pos + bruto.length)).trim();
+
+    /* O marcador pode estar em qualquer linha do bloco desta pessoa: junto do
+       nome, antes do e-mail ou depois dele. Nessas notas o nome vem quebrado em
+       duas ou tres linhas, entao nao existe uma posicao unica esperada. Tiro do
+       texto para o nome sair limpo, e guardo o fato. */
+    let ausente = (onde === "ausentes");
+    function semMarcador(t){
+      if (!t || !RE_AUSENTE.test(t)) return t;
+      ausente = true;
+      return t.replace(RE_AUSENTE, " ")
+        .replace(/\s{2,}/g, " ")
+        .replace(/^[\s\-–—:,;]+|[\s\-–—:,;]+$/g, "")
+        .trim();
+    }
+
+    const nome = semMarcador((antes || acumulado.join(" ")).replace(/[\s\-–—:]+$/, "").trim());
+    const depois = semMarcador((sobra + linha.slice(pos + bruto.length)).trim());
+    participantes.push({ nome: nome.replace(/\s+/g, " "), email: email, ausente: ausente });
     if (depois) obs.push(depois);
     acumulado = [];
   });
@@ -4990,25 +5020,36 @@ function analiseEmpresa(flat, empresa){
   turmas.forEach(x => {
     x.nota.participantes.forEach(p => {
       const k = p.email.toLowerCase();
-      if (!pessoas.has(k)) pessoas.set(k, { nome: p.nome, email: p.email, feitos: [], faltam: [] });
-      (x.task.status === "Concluído" ? pessoas.get(k).feitos : pessoas.get(k).faltam).push(x);
+      if (!pessoas.has(k)) pessoas.set(k, { nome: p.nome, email: p.email, feitos: [], ausentes: [], faltam: [] });
+      const v = pessoas.get(k);
+      /* Tres estados, nao dois: a turma ainda vai acontecer, ou aconteceu e a
+         pessoa compareceu, ou aconteceu e ela nao compareceu. Antes de existir
+         presenca, toda turma concluida contava como realizada para todos os que
+         estavam na nota — o que era escalacao, e nao presenca. */
+      if (x.task.status !== "Concluído") v.faltam.push(x);
+      else if (p.ausente) v.ausentes.push(x);
+      else v.feitos.push(x);
     });
   });
   const lista = [...pessoas.values()].map(v => {
-    v.tot = v.feitos.length + v.faltam.length;
+    v.tot = v.feitos.length + v.ausentes.length + v.faltam.length;
     v.pct = v.tot ? Math.round(100 * v.feitos.length / v.tot) : 0;
     return v;
   }).sort((a, b) => (b.pct - a.pct) || (b.tot - a.tot) || a.nome.localeCompare(b.nome));
 
-  const vagasFeitas = feitas.reduce((n, x) => n + x.nota.participantes.length, 0);
+  // Lugar em turma realizada so conta como participacao se a pessoa apareceu.
+  const vagasFeitas = feitas.reduce((n, x) => n + x.nota.participantes.filter(p => !p.ausente).length, 0);
+  const vagasAusentes = feitas.reduce((n, x) => n + x.nota.participantes.filter(p => p.ausente).length, 0);
   const vagasAbertas = abertas.reduce((n, x) => n + x.nota.participantes.length, 0);
+  const comAusencia = lista.filter(v => v.ausentes.length);
 
   return {
     itens, contagem, turmas, feitas, abertas, pessoas: lista,
-    vagasFeitas, vagasAbertas,
+    vagasFeitas, vagasAusentes, vagasAbertas, comAusencia,
     semData: abertas.filter(x => !x.task.dueDate).length,
     pctTurmas: turmas.length ? Math.round(100 * feitas.length / turmas.length) : 0,
-    pctVagas: (vagasFeitas + vagasAbertas) ? Math.round(100 * vagasFeitas / (vagasFeitas + vagasAbertas)) : 0,
+    pctVagas: (vagasFeitas + vagasAusentes + vagasAbertas)
+      ? Math.round(100 * vagasFeitas / (vagasFeitas + vagasAusentes + vagasAbertas)) : 0,
   };
 }
 
@@ -5080,6 +5121,7 @@ function pintaAnaliseEmpresa(empresa){
         '<span class="num">' + v.feitos.length + ' de ' + v.tot + '</span>' +
         '<span class="ae-barra">' +
           '<span style="flex:' + v.feitos.length + ';background:#7fc39f"></span>' +
+          '<span style="flex:' + v.ausentes.length + ';background:#e08b7c"></span>' +
           '<span style="flex:' + v.faltam.length + ';background:#d8a24a"></span>' +
           '<span style="flex:' + vazio + '"></span>' +
         '</span></div>');
@@ -5140,8 +5182,17 @@ function apPeriodo(a){
 function apRoster(parts){
   if (!parts.length) return "";
   return '<div class="ap-roster">' + parts.map(p =>
-    '<div><span class="ap-nome">' + escapeHtml(p.nome) + '</span>' +
+    '<div' + (p.ausente ? ' class="faltou"' : '') + '><span class="ap-nome">' + escapeHtml(p.nome) +
+    (p.ausente ? '<span class="ap-faltou">n\u00e3o compareceu</span>' : '') + '</span>' +
     '<span class="ap-mail">' + escapeHtml(p.email) + '</span></div>').join("") + '</div>';
+}
+
+// "8 participantes \u00b7 2 n\u00e3o compareceram" - so diz da ausencia quando houve.
+function apContaPart(x){
+  const n = x.nota.participantes.length;
+  const f = x.nota.participantes.filter(p => p.ausente).length;
+  return n + ' participantes' + (f ? ' \u00b7 <span style="color:var(--ap-verm)">' + f +
+    (f === 1 ? ' n\u00e3o compareceu' : ' n\u00e3o compareceram') + '</span>' : '');
 }
 
 function apTemas(tema){
@@ -5256,6 +5307,12 @@ async function renderApresentacao(){
     [semModulo ? "aviso" : "ok", String(semModulo), "ainda sem nenhum módulo" +
       (excluir ? "<br>só passaram por " + escapeHtml(excluir) : "")],
   ];
+  /* Ausencia e pontual: o cartao aparece so quando existe alguma, porque um
+     cartao fixo em zero seria peso morto. E lista de providencia - essa gente
+     precisa ser reencaixada numa proxima turma. */
+  if (a.vagasAusentes) cartoes.push(["falta", String(a.vagasAusentes),
+    "faltas em turma realizada<br><b>" + a.comAusencia.length +
+    (a.comAusencia.length === 1 ? "</b> pessoa a reencaixar" : "</b> pessoas a reencaixar")]);
   alvo.insertAdjacentHTML("beforeend", '<div class="ap-painel">' + cartoes.map(c =>
     '<div class="ap-cel ' + c[0] + '"><span class="v">' + escapeHtml(c[1]) +
     '</span><span class="r">' + c[2] + '</span></div>').join("") + '</div>');
@@ -5268,8 +5325,10 @@ async function renderApresentacao(){
       ' participações · ' + a.pctVagas + '% realizadas</span></div>' +
     '<p class="ap-nota">Cada pessoa com o que já realizou e o que ainda tem a realizar, em ordem ' +
       'cronológica: da turma mais antiga para a mais recente, e por último as que ainda não têm ' +
-      'data. O percentual é sobre a trilha dela, não sobre a trilha inteira — quem foi escalado ' +
-      'para duas turmas e fez uma está em 50%. Da mais adiantada para a menos adiantada.</p>' +
+      'data. O percentual é presença sobre escalação: conta quem apareceu, não quem estava na ' +
+      'lista — quem foi escalado para duas turmas e fez uma está em 50%. Quem foi escalado e ' +
+      'não compareceu aparece em ✕, e continua precisando do treinamento. ' +
+      'Da mais adiantada para a menos adiantada.</p>' +
     '<div class="ap-busca">' +
       '<span class="ap-busca-rot">Buscar funcionário</span>' +
       '<input id="apBusca" type="search" autocomplete="off" placeholder="Digite um nome, ex.: Ronaldo">' +
@@ -5293,12 +5352,18 @@ async function renderApresentacao(){
             '<span class="ap-frac">' + v.feitos.length + ' de ' + v.tot + '</span>' +
             '<span class="ap-barra">' +
               '<span style="flex:' + v.feitos.length + ';background:var(--ap-verde)"></span>' +
+              '<span style="flex:' + v.ausentes.length + ';background:var(--ap-verm)"></span>' +
               '<span style="flex:' + v.faltam.length + ';background:var(--ap-ambar)"></span>' +
               '<span style="flex:' + Math.max(0, maior - v.tot) + '"></span>' +
             '</span></header>' +
           '<div class="ap-listas">' +
             '<div><span class="ap-rot" style="color:var(--ap-verde)">✓ Realizado · ' + v.feitos.length + '</span>' +
               apLista(v.feitos, "feito") + '</div>' +
+            // Coluna so para quem tem falta: vazia em todo mundo seria peso morto.
+            (v.ausentes.length
+              ? '<div><span class="ap-rot" style="color:var(--ap-verm)">✕ Não compareceu · ' + v.ausentes.length + '</span>' +
+                apLista(v.ausentes, "ausente") + '</div>'
+              : '') +
             '<div><span class="ap-rot" style="color:var(--ap-ambar)">○ A realizar · ' + v.faltam.length + '</span>' +
               apLista(v.faltam, "falta") + '</div>' +
           '</div>' +
@@ -5318,7 +5383,7 @@ async function renderApresentacao(){
           '<small>' + (x.task.dueDate ? x.task.dueDate.slice(0, 4) : "") + '</small></div>' +
         '<div><h3>' + escapeHtml(apTituloCurto(x.task.title)) + '</h3>' +
           apTemas(x.nota.tema) +
-          '<span class="ap-rot">' + x.nota.participantes.length + ' participantes</span>' +
+          '<span class="ap-rot">' + apContaPart(x) + '</span>' +
           apRoster(x.nota.participantes) +
         '</div>' +
       '</article>').join("") +
@@ -5581,7 +5646,7 @@ async function montaPptxPrint(titulo, filtro){
    substituição imprevisível na máquina de quem abre. */
 function montaPptxApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, filtro){
   const FUNDO = "151814", SUP = "1C201B", TINTA = "ECEEE6", TINTA2 = "C6CABC",
-        FRACO = "8F9486", VERDE = "7FC39F", AMBAR = "D8A24A", LINHA = "333829";
+        FRACO = "8F9486", VERDE = "7FC39F", AMBAR = "D8A24A", VERM = "E08B7C", LINHA = "333829";
   const SERIF = "Georgia", CORPO = "Segoe UI", MONO = "Consolas";
 
   const pptx = new window.PptxGenJS();
@@ -5693,17 +5758,27 @@ function montaPptxApresentacao(a, empresa, titulo, excluir, comModulo, semModulo
   const pes = nova();
   tituloSlide(pes, "Participação por pessoa", pessoas.length + " de " + a.pessoas.length + " pessoas");
   if (pessoas.length){
-    const linhas = [cabTab(["PESSOA", "%", "REALIZADO", "A REALIZAR"])];
-    pessoas.forEach(v => linhas.push([
-      { text: v.nome + "\n" + v.email, options: { fontSize: 9.5 } },
-      { text: v.pct + "%\n" + v.feitos.length + "/" + v.tot,
-        options: { fontFace: MONO, fontSize: 9.5, color: TINTA, align: "center" } },
-      { text: v.feitos.map(x => apTituloCurto(x.task.title)).join(", ") || "—",
-        options: { fontSize: 9, color: VERDE } },
-      { text: v.faltam.map(x => apTituloCurto(x.task.title)).join(", ") || "—",
-        options: { fontSize: 9, color: AMBAR } },
-    ]));
-    pes.addTable(linhas, Object.assign({}, tabOpts, { colW: [2.4, 0.8, 2.9, 2.9] }));
+    // A coluna de falta entra so se alguem faltou: senao e largura desperdicada.
+    const temFalta = pessoas.some(v => v.ausentes.length);
+    const linhas = [cabTab(temFalta
+      ? ["PESSOA", "%", "REALIZADO", "NÃO COMPARECEU", "A REALIZAR"]
+      : ["PESSOA", "%", "REALIZADO", "A REALIZAR"])];
+    pessoas.forEach(v => {
+      const cels = [
+        { text: v.nome + "\n" + v.email, options: { fontSize: 9.5 } },
+        { text: v.pct + "%\n" + v.feitos.length + "/" + v.tot,
+          options: { fontFace: MONO, fontSize: 9.5, color: TINTA, align: "center" } },
+        { text: v.feitos.map(x => apTituloCurto(x.task.title)).join(", ") || "—",
+          options: { fontSize: 9, color: VERDE } },
+      ];
+      if (temFalta) cels.push({ text: v.ausentes.map(x => apTituloCurto(x.task.title)).join(", ") || "—",
+        options: { fontSize: 9, color: v.ausentes.length ? VERM : FRACO } });
+      cels.push({ text: v.faltam.map(x => apTituloCurto(x.task.title)).join(", ") || "—",
+        options: { fontSize: 9, color: AMBAR } });
+      linhas.push(cels);
+    });
+    pes.addTable(linhas, Object.assign({}, tabOpts, {
+      colW: temFalta ? [2.2, 0.7, 2.4, 2.3, 2.4] : [2.4, 0.8, 2.9, 2.9] }));
   } else {
     pes.addText("Nenhum funcionário no filtro atual.", { x: 0.5, y: 1.3, w: 9, h: 0.4,
       fontSize: 13, color: FRACO, fontFace: CORPO, italic: true });
@@ -5715,7 +5790,8 @@ function montaPptxApresentacao(a, empresa, titulo, excluir, comModulo, semModulo
 
 function montaPdfApresentacao(a, empresa, titulo, excluir, comModulo, semModulo, pessoas, filtro){
   const MARG = 18, LARG = 210, ALT = 297, UTIL = LARG - MARG * 2;
-  const TINTA = [28, 33, 28], FRACO = [110, 114, 98], VERDE = [30, 84, 62], AMBAR = [138, 92, 12];
+  const TINTA = [28, 33, 28], FRACO = [110, 114, 98], VERDE = [30, 84, 62], AMBAR = [138, 92, 12],
+        VERM = [150, 42, 30];
   const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
   let y = MARG;
 
@@ -5785,6 +5861,7 @@ function montaPdfApresentacao(a, empresa, titulo, excluir, comModulo, semModulo,
       { tam: 11, estilo: "bold", depois: 0.8, corDir: TINTA });
     txt(v.email, { tam: 8, cor: FRACO, depois: 1.5 });
     lista(v.feitos, "Realizado (" + v.feitos.length + ")", VERDE);
+    if (v.ausentes.length) lista(v.ausentes, "Não compareceu (" + v.ausentes.length + ")", VERM);
     lista(v.faltam, "A realizar (" + v.faltam.length + ")", AMBAR);
     y += 2;
   });
