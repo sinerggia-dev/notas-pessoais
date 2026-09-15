@@ -5169,6 +5169,27 @@ async function ensurePagesOfKindLoaded(kind){
   return pages;
 }
 
+/* Joga fora o que foi lido e obriga a proxima leitura a ir ao OneDrive.
+
+   O cache so busca quando esta vazio, entao sem isto a tela mostra o que foi lido no
+   comeco da sessao: o que a Ivanilda mudou no computador dela, ou o que voce mudou no
+   celular, nao aparece.
+
+   Grava o pendente antes de descartar. O salvamento e adiado em 1,2s e `doSavePage`
+   desiste em silencio quando nao acha o cache — atualizar logo depois de digitar
+   perderia a edicao sem nenhum aviso. */
+async function recarregarTarefas(){
+  const pages = indexData.pages.filter(p => p.kind === "tarefas");
+  for (const p of pages){
+    if (saveTimers[p.id]){
+      clearTimeout(saveTimers[p.id]);
+      delete saveTimers[p.id];
+      await doSavePage(p.id);
+    }
+  }
+  pages.forEach(p => { delete pageContentCache[p.id]; });
+}
+
 async function loadAllTasksFlat(){
   const pages = await ensurePagesOfKindLoaded("tarefas");
   const flat = [];
@@ -5612,6 +5633,8 @@ async function renderApresentacao(){
     '<div class="ap-busca">' +
       '<span class="ap-busca-rot">Buscar funcionário</span>' +
       '<input id="apBusca" type="search" autocomplete="off" placeholder="Digite um nome, ex.: Ronaldo">' +
+      '<button type="button" class="ap-pdf ap-sec" id="apAtualizar" ' +
+        'title="Relê as tarefas do OneDrive: traz o que foi mudado em outro aparelho ou por outra pessoa">↻ Atualizar</button>' +
       '<button type="button" class="ap-pdf" id="apPdf">⬇ Baixar PDF</button>' +
       '<button type="button" class="ap-pptx" id="apPptx">⬇ Baixar PPTX</button>' +
       '<button type="button" class="ap-pptx ap-sec" id="apPptxTab" ' +
@@ -5701,6 +5724,28 @@ function ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semMo
   const botoes = document.querySelectorAll("#apresentacaoView .ap-fp");
   const btnPdf = document.getElementById("apPdf");
   if (!campo) return;
+
+  /* Relê do OneDrive e redesenha. Uma turma só sai de "A realizar" quando o STATUS da
+     tarefa vira "Concluído" no ROADMAP — atualizar traz o que mudou lá, não decide
+     sozinho o que foi feito. */
+  const btnAtualizar = document.getElementById("apAtualizar");
+  if (btnAtualizar) btnAtualizar.addEventListener("click", async () => {
+    btnAtualizar.disabled = true;
+    const rotulo = btnAtualizar.textContent;
+    btnAtualizar.textContent = "Atualizando…";
+    status.textContent = "Relendo as tarefas…";
+    try{
+      await recarregarTarefas();
+      await renderApresentacao();   // redesenha inteiro: os números todos mudam junto
+      const agora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const novoStatus = document.getElementById("apStatus");
+      if (novoStatus) novoStatus.textContent = "Atualizado às " + agora + ".";
+    }catch(e){
+      btnAtualizar.disabled = false;
+      btnAtualizar.textContent = rotulo;
+      status.textContent = "Não consegui atualizar: " + (e && e.message ? e.message : e);
+    }
+  });
   let parte = "todos";
 
   function visiveis(){
