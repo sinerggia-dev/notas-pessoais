@@ -1882,6 +1882,33 @@ function numeraRegistrosPendentes(tasks){
   return true;
 }
 
+/* Ordem de leitura da lista: pelo vencimento e, no empate, pela hora do
+   cadastro. Sem vencimento vai para o fim — ainda nao tem lugar na linha do
+   tempo, mas continua na ordem de cadastro entre os seus. */
+function ordemRegistro(a, b){
+  const va = a.dueDate || "", vb = b.dueDate || "";
+  if (va !== vb){
+    if (!va) return 1;
+    if (!vb) return -1;
+    return va < vb ? -1 : 1;
+  }
+  return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+}
+
+/* Passada unica por pagina: numera 1..N na ordem acima. Depois a pagina fica
+   marcada e nunca mais e renumerada. Renumerar a cada carregamento faria um
+   vencimento editado mudar o numero de meia lista, e numero de registro que
+   muda sozinho nao serve para se referir a nada. */
+const REG_VERSAO = 1;
+
+function renumeraRegistros(content){
+  if (!content || !Array.isArray(content.tasks) || !content.tasks.length) return false;
+  if (content.regVersao >= REG_VERSAO) return false;
+  content.tasks.slice().sort(ordemRegistro).forEach((t, i) => { t.items = i + 1; });
+  content.regVersao = REG_VERSAO;
+  return true;
+}
+
 /* ---------- Caixa alta vira "Primeira Maiuscula" ----------
    Vale para EMPRESA e TAREFA. So age quando o texto esta INTEIRO em maiusculo
    (ou inteiro em minusculo): texto que ja mistura as duas caixas passa intacto,
@@ -2663,6 +2690,10 @@ async function renderEditor(){
   document.getElementById("pageView").classList.toggle("wide", kind !== "notas");
 
   if (kind === "tarefas"){
+    // Aqui e onde da para gravar: a renumeracao precisa persistir, senao rodaria
+    // de novo a cada carregamento e mudaria de resultado quando um vencimento
+    // mudasse.
+    if (canEdit && renumeraRegistros(pageContentCache[currentPageId])) scheduleSavePage(currentPageId);
     // Pagina nova, fixacao velha nao vale mais.
     tarefaNovaId = null;
     taskFilter = "Todas";
