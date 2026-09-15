@@ -1718,7 +1718,11 @@ async function resolveWorkspace(){
 }
 
 async function getJsonByPath(filename){
-  const res = await graphFetch(`${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(filename)}:/content`);
+  /* `cache:"no-store"` porque o botao Atualizar depende disto: sem ele o navegador pode
+     devolver a copia que ja tinha para a mesma URL, e a releitura traria de volta
+     exatamente o que se queria trocar. */
+  const res = await graphFetch(`${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(filename)}:/content`,
+    { cache: "no-store" });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("status " + res.status);
   const text = await res.text();
@@ -5523,6 +5527,8 @@ function apTituloCurto(t){
   return t.replace(/^[\s\-–·:]+|[\s\-–·:]+$/g, "") || String(t || "Sem título");
 }
 
+let apUltimaAnalise = null;
+
 async function renderApresentacao(){
   const alvo = document.getElementById("apresentacaoView");
   const content = pageContentCache[currentPageId] || {};
@@ -5570,6 +5576,9 @@ async function renderApresentacao(){
   }
 
   const a = analiseEmpresa(flat, empresa);
+  // Guardado para o aviso do botao Atualizar poder dizer o que leu: sem numero, um
+  // "Atualizado as 14:32" nao distingue "nao mudou nada" de "nao leu nada".
+  apUltimaAnalise = a;
 
   // "Módulo" = turma realizada que não é a excluída nesta página. Sem o campo
   // preenchido, toda turma conta — a exclusão é escolha de quem monta a página.
@@ -5739,7 +5748,10 @@ function ligaControlesApresentacao(a, empresa, titulo, excluir, comModulo, semMo
       await renderApresentacao();   // redesenha inteiro: os números todos mudam junto
       const agora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       const novoStatus = document.getElementById("apStatus");
-      if (novoStatus) novoStatus.textContent = "Atualizado às " + agora + ".";
+      const an = apUltimaAnalise;
+      if (novoStatus) novoStatus.textContent = "Atualizado às " + agora +
+        (an ? " · " + an.turmas.length + " turmas, " + an.feitas.length + " realizadas" : "") +
+        ". Uma turma só entra em Realizado quando o status da tarefa vira Concluído no ROADMAP.";
     }catch(e){
       btnAtualizar.disabled = false;
       btnAtualizar.textContent = rotulo;
