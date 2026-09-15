@@ -1882,24 +1882,24 @@ function numeraRegistrosPendentes(tasks){
   return true;
 }
 
-/* Ordem de leitura da lista: pelo vencimento e, no empate, pela hora do
-   cadastro. Sem vencimento vai para o fim — ainda nao tem lugar na linha do
-   tempo, mas continua na ordem de cadastro entre os seus. */
+/* Ordem dos numeros: data e hora em que a atividade foi criada, da primeira
+   para a ultima. createdAt e gravado uma vez e nunca muda, entao o numero de
+   uma atividade nao depende de nenhum campo que possa ser editado depois — e
+   toda atividade nova entra no fim da numeracao, sem excecao.
+
+   createdAt e ISO (2026-09-14T19:41:00.000Z), que ordena certo como texto.
+   Atividade sem createdAt (dado antigo) vai para o fim. */
 function ordemRegistro(a, b){
-  const va = a.dueDate || "", vb = b.dueDate || "";
-  if (va !== vb){
-    if (!va) return 1;
-    if (!vb) return -1;
-    return va < vb ? -1 : 1;
-  }
-  return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+  const ca = String(a.createdAt || ""), cb = String(b.createdAt || "");
+  if (!ca !== !cb) return ca ? -1 : 1;
+  return ca.localeCompare(cb);
 }
 
 /* Passada unica por pagina: numera 1..N na ordem acima. Depois a pagina fica
-   marcada e nunca mais e renumerada. Renumerar a cada carregamento faria um
-   vencimento editado mudar o numero de meia lista, e numero de registro que
-   muda sozinho nao serve para se referir a nada. */
-const REG_VERSAO = 1;
+   marcada e nunca mais e renumerada — atividade nova pega o proximo numero
+   livre. Subir esta versao renumera tudo de novo na proxima abertura: foi o
+   que aconteceu ao trocar vencimento por data de criacao. */
+const REG_VERSAO = 2;
 
 function renumeraRegistros(content){
   if (!content || !Array.isArray(content.tasks) || !content.tasks.length) return false;
