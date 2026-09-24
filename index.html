@@ -34,6 +34,11 @@
     --hover:#2a2c31;
     --shadow-sm:0 1px 2px rgba(0,0,0,.30);
     --shadow-md:0 8px 24px rgba(0,0,0,.45);
+    /* Cor por responsavel. Eram hex fixos no JS, pensados para fundo escuro: no
+       branco davam 1,8:1 e 2,2:1. Aqui viram token, e cada fundo escolhe o tom.
+       A distincao continua a mesma — Natanael cinza, Ivanilda azul. */
+    --pessoa-natanael:#b6bfd8;
+    --pessoa-ivanilda:#79b0ff;
   }
 
   /* ---------- Outros fundos ----------
@@ -57,6 +62,8 @@
     --danger:#ff7176;
     --divider:#2a3550;
     --hover:#202b42;
+    --pessoa-natanael:#b6c2de;
+    --pessoa-ivanilda:#8fb8ff;
   }
   :root[data-tema="claro"]{
     color-scheme:light;
@@ -79,6 +86,8 @@
     --hover:#f1f1f0;
     --shadow-sm:0 1px 2px rgba(15,15,15,.09);
     --shadow-md:0 8px 24px rgba(15,15,15,.14);
+    --pessoa-natanael:#5b6472;   /* 6,0:1 no branco */
+    --pessoa-ivanilda:#1c5fbf;   /* 6,1:1 no branco */
   }
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;}
@@ -611,7 +620,13 @@
   #addTaskBtn:hover{background:var(--accent-hover);}
   .del-task{background:none;border:none;color:var(--text-light);cursor:pointer;font-size:14px;}
   .del-task:hover{color:var(--danger);}
-  .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+  /* `color-scheme:light` porque este campo tem fundo claro SEMPRE — as cores da
+     situacao (vencido, hoje, concluido) sao pilulas claras nos tres temas. Sem isto
+     ele herda o `color-scheme:dark` do tema e o navegador desenha o quadradinho do
+     calendario em branco: icone branco sobre fundo amarelo, que some. Tambem faz a
+     janelinha do calendario abrir clara, combinando com o campo. */
+  .task-due{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;
+    font-family:inherit;color-scheme:light;}
   /* Vencimento pintado pela situacao da tarefa. A classe fica na linha da tabela
      (ou no card do kanban): .due-vencido / .due-hoje / .due-concluido / .due-andamento. */
   .task-due-wrap{display:flex;align-items:center;gap:5px;}
@@ -4723,9 +4738,11 @@ function buildTimerCell(task){
 }
 /* Cor da fonte por responsavel: quem nao esta no mapa fica com a cor padrao do texto.
    A chave e o primeiro nome (o mesmo que aparece no select), em minusculas. */
+/* Token, nao hex: a cor entra por `style.color` e o hex nao teria como mudar com o
+   fundo da tela. O valor de cada token esta no CSS, um por tema. */
 const ASSIGNEE_TEXT_COLORS = {
-  natanael: "#b6bfd8",
-  ivanilda: "#79b0ff",
+  natanael: "var(--pessoa-natanael)",
+  ivanilda: "var(--pessoa-ivanilda)",
 };
 function assigneeTextColor(email){
   if (!email) return "";
