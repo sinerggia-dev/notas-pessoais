@@ -644,6 +644,11 @@
   .kanban-card-dates{font-size:10px;color:var(--text-light);margin-bottom:6px;}
 
   #taskToolbarRow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:14px;}
+  /* O atributo `hidden` sozinho nao esconde nada aqui: `.view-toggle-btn` declara
+     `display:inline-flex` e os botoes tem regra por id, e regra de autor vence o
+     `[hidden]{display:none}` que vem do navegador — o mesmo empate que ja tinha
+     quebrado o menu no celular. Esta regra desempata pelo lado certo. */
+  #taskToolbarRow > [hidden]{display:none !important;}
   .toolbar-dragging{opacity:.4;}
   .view-toggle-btn{
     display:inline-flex;align-items:center;height:28px;box-sizing:border-box;
@@ -3678,6 +3683,34 @@ function listaVisibilidade(box, itens, estaVisivel, aoMudar){
   });
 }
 
+/* Zera o filtro ligado a este botao da barra. Devolve true quando mexeu em algo, para
+   quem chamou saber se precisa redesenhar. Botao que nao e filtro (Tabela, Exportar...)
+   nao tem o que limpar. */
+function limparFiltroDaBarra(k){
+  if (k === "status"){ taskFilter = "Todas"; renderTaskFilterTabs(); return true; }
+  if (k === "dueState"){
+    taskDueStateFilter = "Todos";
+    const el = document.getElementById("dueStateFilterSelect");
+    if (el) el.value = "Todos";
+    return true;
+  }
+  if (k === "company"){ taskCompanyFilter = "Todas"; return true; }
+  if (k === "assignee"){ taskAssigneeFilter = "Todos"; return true; }
+  if (k === "due"){
+    taskDueFromFilter = ""; taskDueToFilter = "";
+    const de = document.getElementById("dueFromFilter"), ate = document.getElementById("dueToFilter");
+    if (de) de.value = ""; if (ate) ate.value = "";
+    return true;
+  }
+  if (k === "search"){
+    taskSearchText = "";
+    const el = document.getElementById("taskSearchInput");
+    if (el) el.value = "";
+    return true;
+  }
+  return false;
+}
+
 function renderTaskViewMenu(){
   const barra = document.getElementById("tvmBarra");
   const colunas = document.getElementById("tvmColunas");
@@ -3699,6 +3732,9 @@ function renderTaskViewMenu(){
       toolbarVisibility[k] = visivel;
       saveToolbarVisibility();
       applyToolbarVisibility();
+      // Filtro escondido continuaria filtrando, e a pessoa procuraria a tarefa sumida
+      // sem ver o motivo. Esconder um filtro zera o filtro dele.
+      if (!visivel && limparFiltroDaBarra(k)) renderTasks();
     });
 
   listaVisibilidade(colunas, TASK_COLUMNS_DEF, (k) => taskColVisibility[k] !== false,
