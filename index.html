@@ -430,6 +430,24 @@
   .col-resizer:hover::after{background:var(--accent);}
   .col-menu-wrap{position:relative;display:inline-block;}
   .col-menu-item{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;}
+  /* Engrenagem da barra: o menu abre ancorado nela, e por cima da tabela. */
+  #taskViewMenuWrap{position:relative;flex:none;}
+  #taskViewMenuBtn{
+    height:28px;box-sizing:border-box;padding:0 9px;background:var(--surface);
+    border:1px solid var(--sidebar-border);border-radius:6px;cursor:pointer;
+    font-size:13px;color:var(--text-light);
+  }
+  #taskViewMenuBtn:hover{background:var(--hover);color:var(--text);}
+  #taskViewMenu{
+    position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:230px;max-height:70vh;overflow:auto;
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:10px;
+    box-shadow:var(--shadow-md);padding:6px;
+  }
+  #taskViewMenu .tvm-secao{
+    font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);
+    padding:8px 8px 4px;
+  }
+  #taskViewMenu .col-menu-item:hover{background:var(--hover);}
   .col-menu-item:hover{background:var(--hover);}
   .col-menu-reset{
     display:block;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--sidebar-border);
@@ -459,6 +477,8 @@
   .task-title:empty::before{content:"Sem título";color:var(--text-dim);}
   .task-company{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;}
   .task-items{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;width:100%;text-align:right;}
+  .task-horario{border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;font-size:12px;
+    font-family:inherit;width:100%;background:var(--surface);color:var(--text);}
   .task-assignee{
     border:1px solid var(--sidebar-border);border-radius:6px;padding:4px 6px;
     font-size:12px;font-family:inherit;width:100%;background:var(--surface);color:var(--text);
@@ -1283,6 +1303,18 @@
           <button type="button" id="clearFiltersBtn" data-tkey="clear">✕ Limpar filtros</button>
           <button type="button" id="exportTasksBtn" data-tkey="export">⬇️ Exportar</button>
           <button type="button" id="printTasksBtn" data-tkey="print">🖨️ Imprimir</button>
+          <!-- Sem data-tkey de proposito: fica fora da ordem arrastavel e da lista de
+               esconder, porque e por aqui que se traz de volta o que foi escondido. -->
+          <div id="taskViewMenuWrap">
+            <button type="button" id="taskViewMenuBtn" title="Escolher o que aparece na barra e na tabela">⚙</button>
+            <div id="taskViewMenu" hidden>
+              <div class="tvm-secao">Botões e filtros</div>
+              <div id="tvmBarra"></div>
+              <div class="tvm-secao">Colunas da tabela</div>
+              <div id="tvmColunas"></div>
+              <button type="button" id="tvmRestaurar" class="col-menu-reset">↺ Restaurar tudo</button>
+            </div>
+          </div>
         </div>
         <div id="taskStatusRow">
           <button id="addTaskBtn">+ Nova tarefa</button>
@@ -2632,6 +2664,34 @@ let toolbarOrder = DEFAULT_TOOLBAR_ORDER.slice();
 })();
 function saveToolbarOrder(){ localStorage.setItem("np_task_toolbar_order_v1", JSON.stringify(toolbarOrder)); }
 
+/* Visibilidade da barra. A ordem ja era arrastavel e guardada; faltava poder tirar um
+   botao da tela e traze-lo de volta depois. Ausente do objeto = visivel, entao quem
+   nunca escondeu nada continua vendo tudo. */
+const TOOLBAR_LABELS = {
+  tableView: "Tabela", kanbanView: "Kanban", group: "Agrupar",
+  status: "Status", dueState: "Vencimento", company: "Empresa",
+  assignee: "Responsável", due: "Período", search: "Buscar",
+  clear: "Limpar filtros", export: "Exportar", print: "Imprimir",
+};
+let toolbarVisibility = {};
+try{
+  const vis = JSON.parse(localStorage.getItem("np_task_toolbar_visibility_v1") || "null");
+  if (vis) toolbarVisibility = vis;
+}catch(e){}
+function saveToolbarVisibility(){
+  localStorage.setItem("np_task_toolbar_visibility_v1", JSON.stringify(toolbarVisibility));
+}
+function toolbarVisivel(k){ return toolbarVisibility[k] !== false; }
+
+function applyToolbarVisibility(){
+  const row = document.getElementById("taskToolbarRow");
+  if (!row) return;
+  DEFAULT_TOOLBAR_ORDER.forEach(k => {
+    const el = row.querySelector(`[data-tkey="${k}"]`);
+    if (el) el.hidden = !toolbarVisivel(k);
+  });
+}
+
 function applyToolbarOrder(){
   const row = document.getElementById("taskToolbarRow");
   if (!row) return;
@@ -2639,12 +2699,20 @@ function applyToolbarOrder(){
     const el = row.querySelector(`[data-tkey="${key}"]`);
     if (el) row.appendChild(el);
   });
+  // A engrenagem fica sempre por último, e fora da ordem arrastável: é por ela que se
+  // traz de volta o que foi escondido, então ela própria não pode sumir.
+  const eng = document.getElementById("taskViewMenuWrap");
+  if (eng) row.appendChild(eng);
+  applyToolbarVisibility();
 }
 
 function initToolbarDragReorder(){
   const row = document.getElementById("taskToolbarRow");
   if (!row) return;
   Array.from(row.children).forEach(child => {
+    // A engrenagem nao entra na ordem arrastavel: ela nao tem data-tkey, e arrastar
+    // um item sem chave nao faria nada alem de confundir.
+    if (!child.dataset.tkey) return;
     child.draggable = true;
     child.addEventListener("dragstart", (e) => {
       e.dataTransfer.setData("text/plain", child.dataset.tkey);
@@ -3279,6 +3347,7 @@ function taskSearchHaystack(task){
     task.items != null && task.items !== "" ? String(task.items) : "",
     task.dueDate ? formatDateBR(task.dueDate) : "",
     task.dueDate || "",
+    task.horario || "",
   ].filter(Boolean).join(" | "));
 }
 
@@ -3393,6 +3462,7 @@ const TASK_COLUMNS_DEF = [
   { key: "status", label: "Status" },
   { key: "priority", label: "Prioridade" },
   { key: "dueDate", label: "Vencimento" },
+  { key: "horario", label: "Horário" },
   { key: "company", label: "Empresa" },
   { key: "items", label: "Itens" },
   { key: "createdAt", label: "Criado em" },
@@ -3405,7 +3475,7 @@ const TASK_COLUMNS_DEF = [
 ];
 const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
-  title: 190, status: 130, priority: 110, dueDate: 130, company: 140, items: 80,
+  title: 190, status: 130, priority: 110, dueDate: 130, horario: 100, company: 140, items: 80,
   createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70, attach: 120
 };
 
@@ -3584,6 +3654,93 @@ function renderSelectAllHeaderCell(tasksList){
   });
   th.appendChild(cb);
 }
+
+/* Uma lista de caixas de selecao, usada pelas duas secoes do menu e pela
+   Administracao. `aoMudar` recebe a chave e se deve ficar visivel. */
+function listaVisibilidade(box, itens, estaVisivel, aoMudar){
+  box.innerHTML = "";
+  itens.forEach(it => {
+    const label = document.createElement("label");
+    label.className = "col-menu-item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = estaVisivel(it.key);
+    cb.addEventListener("change", async () => {
+      const querVisivel = cb.checked;
+      cb.checked = !querVisivel;                 // so confirma depois da senha
+      if (!(await requestEditPassword())) return;
+      cb.checked = querVisivel;
+      aoMudar(it.key, querVisivel, cb);
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + it.label));
+    box.appendChild(label);
+  });
+}
+
+function renderTaskViewMenu(){
+  const barra = document.getElementById("tvmBarra");
+  const colunas = document.getElementById("tvmColunas");
+  if (!barra || !colunas) return;
+
+  listaVisibilidade(barra,
+    DEFAULT_TOOLBAR_ORDER.map(k => ({ key: k, label: TOOLBAR_LABELS[k] || k })),
+    toolbarVisivel,
+    (k, visivel, cb) => {
+      /* Sem nenhum botao de visao a pessoa fica presa na visao em que estiver, e a
+         saida seria pela Administracao. Barra aqui, que e onde ela ia se perder. */
+      const visoes = ["tableView", "kanbanView"];
+      if (!visivel && visoes.includes(k) &&
+          !visoes.some(v => v !== k && toolbarVisivel(v))){
+        cb.checked = true;
+        setStatus("Deixe ao menos um botão de visão (Tabela ou Kanban).");
+        return;
+      }
+      toolbarVisibility[k] = visivel;
+      saveToolbarVisibility();
+      applyToolbarVisibility();
+    });
+
+  listaVisibilidade(colunas, TASK_COLUMNS_DEF, (k) => taskColVisibility[k] !== false,
+    (k, visivel) => {
+      taskColVisibility[k] = visivel;
+      saveTaskColVisibility();
+      renderTasks();
+    });
+}
+
+(function ligaMenuDeVisao(){
+  const btn = document.getElementById("taskViewMenuBtn");
+  const menu = document.getElementById("taskViewMenu");
+  if (!btn || !menu) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const abrir = menu.hidden;
+    if (abrir) renderTaskViewMenu();      // sempre com o estado do momento
+    menu.hidden = !abrir;
+  });
+  menu.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("click", () => { menu.hidden = true; });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") menu.hidden = true; });
+
+  const restaurar = document.getElementById("tvmRestaurar");
+  if (restaurar) restaurar.addEventListener("click", async () => {
+    if (!(await requestEditPassword())) return;
+    endActiveColumnResize();
+    toolbarVisibility = {};
+    saveToolbarVisibility();
+    applyToolbarVisibility();
+    taskColOrder = DEFAULT_COL_ORDER.slice();
+    taskColWidths = Object.assign({}, DEFAULT_COL_WIDTHS);
+    taskColVisibility = {};
+    saveTaskColOrder();
+    saveTaskColWidths();
+    saveTaskColVisibility();
+    renderTasks();
+    renderTaskViewMenu();
+    setStatus("Barra e colunas restauradas.");
+  });
+})();
 
 function renderTaskColumnsMenu(){
   const menu = document.getElementById("adminColumnsMenu");
@@ -4067,6 +4224,7 @@ document.getElementById("exportTasksBtn").addEventListener("click", () => {
     "Status": t.status || "",
     "Prioridade": t.priority || "",
     "Vencimento": t.dueDate ? formatDateBR(t.dueDate) : "",
+    "Horário": t.horario || "",
     "Empresa": t.company || "",
     "Itens": t.items != null && t.items !== "" ? t.items : "",
     "Criado em": formatDateTimeBR(t.createdAt),
@@ -4274,6 +4432,39 @@ function buildTitleCell(task){
   td.appendChild(el);
   return td;
 }
+/* Hora da reunião, quando o e-mail marca uma. Grava no `blur`, como o vencimento:
+   com a hora já preenchida, digitar só os minutos produz um horário completo e válido,
+   e o `change` dispararia a senha no meio da digitação. Foi exatamente o defeito do
+   campo de data, e a solução é a mesma. */
+function buildHorarioCell(task){
+  const td = document.createElement("td");
+  const input = document.createElement("input");
+  input.type = "time";
+  input.className = "task-horario";
+  input.value = task.horario || "";
+  input.disabled = !canEdit;
+  input.title = "Hora da reunião";
+
+  input.addEventListener("blur", async () => {
+    const novo = input.value;
+    const velho = task.horario || "";
+    if (novo === velho) return;
+    input.value = velho;
+    if (!(await guardTaskFieldEdit(task))) return;
+    input.value = novo;
+    task.horario = novo;
+    scheduleSavePage(currentPageId);
+  });
+  // Enter confirma sem esperar o blur; Esc desfaz.
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") input.blur();
+    else if (e.key === "Escape"){ input.value = task.horario || ""; input.blur(); }
+  });
+
+  td.appendChild(input);
+  return td;
+}
+
 function buildStatusCell(task){
   const td = document.createElement("td");
   td.appendChild(buildTaskSelect(task, "status", ["Pendente", "Iniciado", "Concluído", "Cancelado"], "status-pill"));
@@ -5073,6 +5264,7 @@ const TASK_CELL_BUILDERS = {
   status: (task) => buildStatusCell(task),
   priority: (task) => buildPriorityCell(task),
   dueDate: (task) => buildDueCell(task),
+  horario: (task) => buildHorarioCell(task),
   company: (task) => buildCompanyCell(task),
   items: (task) => buildItemsCell(task),
   createdAt: (task) => buildReadonlyDateCell(task.createdAt),
