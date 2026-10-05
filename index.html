@@ -282,6 +282,39 @@
   #emptyState button:hover{background:var(--accent-hover);transform:translateY(-1px);}
   #emptyState button[hidden]{display:none;}
   #pageView{max-width:760px;margin:0 auto;padding:60px 60px 200px;display:none;}
+  /* Painel do topo: saudacao, clima e hora. Encostado a direita, acima do titulo.
+     Todas as cores saem dos tokens, entao ele atravessa os tres fundos sem retoque. */
+  #painelTopo{
+    display:flex;align-items:center;gap:10px;float:right;margin:-28px 0 10px 16px;
+    padding:7px 14px;background:var(--surface);border:1px solid var(--sidebar-border);
+    border-radius:999px;box-shadow:var(--shadow-sm);font-size:12.5px;color:var(--text-light);
+    max-width:100%;flex-wrap:wrap;
+  }
+  #painelTopo[hidden]{display:none;}
+  #painelTopo b{color:var(--text);font-weight:600;}
+  #painelTopo small{font-size:11px;display:block;line-height:1.25;}
+  .pt-avatar{
+    width:26px;height:26px;border-radius:50%;flex:none;display:flex;align-items:center;
+    justify-content:center;background:var(--accent-btn);color:#fff;font-size:12px;font-weight:700;
+  }
+  .pt-saudacao b{color:var(--accent);}
+  .pt-sep{width:1px;height:22px;background:var(--divider);flex:none;}
+  .pt-clima{display:flex;align-items:center;gap:7px;}
+  .pt-clima[hidden]{display:none;}
+  .pt-icone{font-size:15px;line-height:1;}
+  .pt-relogio{text-align:right;}
+  .pt-relogio b{font-size:14px;letter-spacing:.02em;}
+  #ptAtualizar{
+    width:22px;height:22px;flex:none;padding:0;border-radius:50%;cursor:pointer;
+    background:transparent;border:1px solid var(--sidebar-border);color:var(--text-light);
+    font-size:11px;line-height:1;
+  }
+  #ptAtualizar:hover{background:var(--hover);color:var(--text);}
+  #ptAtualizar:disabled{opacity:.5;cursor:default;}
+  @media (max-width:768px){
+    /* No celular ele vira uma linha propria: flutuando, espremeria o titulo. */
+    #painelTopo{float:none;margin:0 0 12px;justify-content:flex-start;}
+  }
   #pageView.wide{max-width:none;margin:0;padding-left:40px;padding-right:40px;}
   #readOnlyBanner{
     display:none;background:#fff8e6;border:1px solid #f0dca0;color:#8a6d1e;font-size:12px;
@@ -1273,6 +1306,27 @@
       <button id="emptyCreateBtn">+ Criar primeira página</button>
     </div>
     <div id="pageView">
+      <!-- Saudacao, clima e hora. Fica acima do titulo, encostado a direita, no espaco
+           que ja estava vazio. -->
+      <div id="painelTopo" hidden>
+        <span class="pt-avatar" id="ptAvatar">?</span>
+        <span class="pt-saudacao">
+          <small id="ptSaudacao">Olá,</small>
+          <b id="ptNome">—</b>
+        </span>
+        <button type="button" id="ptAtualizar" title="Atualizar o tempo">↻</button>
+        <span class="pt-sep"></span>
+        <span class="pt-clima" id="ptClima" hidden>
+          <span class="pt-icone" id="ptIcone">·</span>
+          <b id="ptTemp">—</b>
+          <small id="ptLocal">📍 Recife</small>
+        </span>
+        <span class="pt-sep"></span>
+        <span class="pt-relogio">
+          <small id="ptData">—</small>
+          <b id="ptHora">--:--</b>
+        </span>
+      </div>
       <div id="readOnlyBanner">👁️ Você tem acesso de visualização — não pode editar esta página.</div>
       <input id="pageTitle" placeholder="Sem título">
       <div id="notesView">
@@ -1868,6 +1922,7 @@ async function afterLogin(){
   setSessionUI(true);
   document.getElementById("newPageBtn").hidden = !canEdit;
   document.getElementById("adminBtn").hidden = !isOwner;
+  ptLigaPainel();   // so aqui: antes do login nao se sabe o nome de ninguem
   document.getElementById("userEmailShort").textContent = "Olá " + firstNameFromEmail(currentUserEmail) + (canEdit ? "" : " (visualização)");
   document.getElementById("userAvatarBtn").title = currentUserEmail;
   document.getElementById("userAvatarInitial").textContent = (currentUserEmail[0] || "?").toUpperCase();
@@ -2402,6 +2457,101 @@ document.getElementById("mobileMenuBtn").addEventListener("click", () => {
 });
 document.getElementById("sidebarOverlay").addEventListener("click", closeMobileSidebar);
 
+/* ---------- Painel do topo: saudacao, clima e hora ----------
+   Relogio e saudacao nao dependem de rede e sao o que a pessoa mais olha: ficam de pe
+   mesmo sem internet. O clima e a unica parte que pode faltar, e quando falta ela some
+   em vez de mostrar erro — meia tarja de erro no alto da tela todo dia nao ajuda. */
+const PT_LOCAL = { nome: "Recife", lat: -8.0476, lon: -34.8770 };
+/* Codigos WMO do Open-Meteo, agrupados pelo que muda o icone. Sol e lua pela hora,
+   porque "limpo" as 19h nao e sol. */
+function ptIconeDoTempo(codigo, noite){
+  if (codigo === 0) return noite ? "\u263e" : "\u2600\ufe0f";             // limpo
+  if (codigo <= 2) return noite ? "\u2601\ufe0f" : "\u26c5";              // poucas nuvens
+  if (codigo === 3) return "\u2601\ufe0f";                                 // encoberto
+  if (codigo <= 48) return "\u2601\ufe0f";                                 // nevoeiro / neblina
+  if (codigo <= 67) return "\u2614";                                       // chuva
+  if (codigo <= 77) return "\u2744\ufe0f";                                 // neve
+  if (codigo <= 82) return "\u2614";                                       // pancadas
+  if (codigo <= 99) return "\u26c8\ufe0f";                                 // trovoada
+  return "\u00b7";
+}
+
+function ptSaudacaoDaHora(h){
+  // A madrugada ainda e noite: as 2h ninguem diz "bom dia". O dia comeca as 5.
+  if (h < 5) return "Boa noite,";
+  if (h < 12) return "Bom dia,";
+  if (h < 18) return "Boa tarde,";
+  return "Boa noite,";
+}
+
+function ptNomeBonito(email){
+  const bruto = firstNameFromEmail(email || "");
+  return bruto ? bruto.charAt(0).toUpperCase() + bruto.slice(1) : "";
+}
+
+function ptPintaRelogio(){
+  const agora = new Date();
+  const saud = document.getElementById("ptSaudacao");
+  const hora = document.getElementById("ptHora");
+  const data = document.getElementById("ptData");
+  if (!saud || !hora || !data) return;
+  saud.textContent = ptSaudacaoDaHora(agora.getHours());
+  hora.textContent = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  data.textContent = agora.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
+}
+
+let ptBuscandoTempo = false;
+async function ptAtualizaTempo(){
+  const caixa = document.getElementById("ptClima");
+  const btn = document.getElementById("ptAtualizar");
+  if (!caixa || ptBuscandoTempo) return;
+  ptBuscandoTempo = true;
+  if (btn) btn.disabled = true;
+  try{
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + PT_LOCAL.lat +
+      "&longitude=" + PT_LOCAL.lon + "&current=temperature_2m,weather_code&timezone=auto";
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("status " + res.status);
+    const dados = await res.json();
+    const atual = dados && dados.current;
+    if (!atual || atual.temperature_2m == null) throw new Error("sem leitura");
+    const h = new Date().getHours();
+    document.getElementById("ptIcone").textContent = ptIconeDoTempo(atual.weather_code, h < 6 || h >= 18);
+    document.getElementById("ptTemp").textContent = Math.round(atual.temperature_2m) + "\u00b0";
+    document.getElementById("ptLocal").textContent = "\ud83d\udccd " + PT_LOCAL.nome;
+    caixa.hidden = false;
+  }catch(e){
+    // Some em vez de avisar: o tempo e enfeite, e a tela nao e sobre ele.
+    caixa.hidden = true;
+  }finally{
+    ptBuscandoTempo = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
+function ptLigaPainel(){
+  const painel = document.getElementById("painelTopo");
+  if (!painel) return;
+  const nome = ptNomeBonito(currentUserEmail);
+  document.getElementById("ptNome").textContent = nome || "você";
+  document.getElementById("ptAvatar").textContent = (nome[0] || "?").toUpperCase();
+  ptPintaRelogio();
+  painel.hidden = false;
+
+  /* Alinhado na virada do minuto: um setInterval de 60s disparado em qualquer
+     instante ficaria ate 59 segundos atrasado em relacao ao relogio do computador. */
+  const faltaPraVirada = 60000 - (Date.now() % 60000);
+  setTimeout(() => {
+    ptPintaRelogio();
+    setInterval(ptPintaRelogio, 60000);
+  }, faltaPraVirada);
+
+  ptAtualizaTempo();
+  setInterval(ptAtualizaTempo, 30 * 60 * 1000);
+  const btn = document.getElementById("ptAtualizar");
+  if (btn) btn.addEventListener("click", ptAtualizaTempo);
+}
+
 /* ---------- Fundo da tela ----------
    Tres fundos, um botao que gira entre eles. A escolha e do aparelho e nao da
    conta: fica em localStorage, como o estado da barra lateral, e nao vai para o
@@ -2541,7 +2691,8 @@ async function scheduleTaskFromCalendar(dateStr){
   const now = new Date().toISOString();
   const novaId = genId("t");
   content.tasks.unshift({
-    id: novaId, title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
+    id: novaId, title: "", status: "Pendente", priority: "Média",
+    assignee: currentUserEmail || "", assignees: responsavelPadrao(), company: "",
     items: proximoNumeroRegistro(content.tasks),
     dueDate: dateStr, createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
@@ -3253,6 +3404,14 @@ setInterval(() => {
    Gravado em task.assignees (lista de e-mails). task.assignee continua
    espelhado com o primeiro, porque dados antigos e o script de alertas
    ainda entendem esse campo. */
+/* Quem cria a tarefa e o responsavel dela. "Nao atribuido" era um estado que so
+   aparecia porque o campo nascia vazio — ninguem escolhe nao ter dono, e tarefa sem
+   dono nao entra no alerta de vencimento nem no filtro por responsavel.
+   Lista vazia so se nao houver sessao, o que nao acontece com a tela aberta. */
+function responsavelPadrao(){
+  return currentUserEmail ? [currentUserEmail] : [];
+}
+
 function taskAssignees(task){
   if (!task) return [];
   if (Array.isArray(task.assignees)) return task.assignees.filter(Boolean);
@@ -5383,7 +5542,8 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
   const now = new Date().toISOString();
   const novaId = genId("t");
   content.tasks.unshift({
-    id: novaId, title: "", status: "Pendente", priority: "Média", assignee: "", assignees: [], company: "",
+    id: novaId, title: "", status: "Pendente", priority: "Média",
+    assignee: currentUserEmail || "", assignees: responsavelPadrao(), company: "",
     items: proximoNumeroRegistro(content.tasks),
     createdAt: now, statusChangedAt: now, timeSpentSeconds: 0, timerRunning: false, timerStartedAt: null
   });
