@@ -3512,8 +3512,29 @@ function stripAccents(v){
 function normalizeForSearch(v){
   return stripAccents(String(v || "")).toLowerCase();
 }
+/* Tira as tags da nota so para a busca, sem DOM. `noteHtmlToText` monta um
+   elemento e usa innerHTML — parse de HTML de verdade, que o navegador faria uma
+   vez por tarefa a cada tecla digitada. Para procurar palavra, regex basta; para
+   EXIBIR, `noteHtmlToText` continua sendo o certo, e ali roda uma vez, nao 114. */
+function notaParaBusca(html){
+  return String(html || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
+}
+
+/* O palheiro so muda quando a tarefa muda, mas era remontado a cada tecla para
+   todas as tarefas — 8,4 ms de texto por passada, medidos com 114 tarefas e notas
+   de 1,5 KB, sem contar o DOM. O cache guarda o resultado e so refaz quando algum
+   dos campos que entram nele muda.
+
+   WeakMap, e nao um campo na tarefa: campo iria junto no JSON gravado no OneDrive,
+   inchando o arquivo com dado derivado. E a entrada some sozinha quando a tarefa
+   deixa de existir. */
+const cacheBusca = new WeakMap();
+
 function taskSearchHaystack(task){
-  return normalizeForSearch([
+  const partes = [
     task.title,
     task.company,
     task.status,
@@ -3521,13 +3542,22 @@ function taskSearchHaystack(task){
     task.links,
     taskAssignees(task).join(" "),
     assigneesLabel(task),
-    noteHtmlToText(task.note),
+    task.note,
     attachName(task),
     task.items != null && task.items !== "" ? String(task.items) : "",
     task.dueDate ? formatDateBR(task.dueDate) : "",
     task.dueDate || "",
     task.horario || "",
-  ].filter(Boolean).join(" | "));
+  ];
+  // Assinatura barata: comparar treze strings custa muito menos que remontar.
+  const assinatura = partes.join("\u0000");
+  const guardado = cacheBusca.get(task);
+  if (guardado && guardado.assinatura === assinatura) return guardado.hay;
+
+  const hay = normalizeForSearch(partes.map((p, i) =>
+    i === 7 ? notaParaBusca(p) : p).filter(Boolean).join(" | "));
+  cacheBusca.set(task, { assinatura: assinatura, hay: hay });
+  return hay;
 }
 
 function taskMatchesCommonFilters(task){
@@ -4030,9 +4060,16 @@ document.getElementById("assigneeFilterSelect").addEventListener("change", (e) =
   taskAssigneeFilter = e.target.value;
   renderTasks();
 });
+/* Espera antes de redesenhar. Cada tecla disparava um render completo da tabela;
+   digitando "app" eram tres. O texto e guardado na hora — quem le `taskSearchText`
+   ve sempre o que esta no campo —, e so o desenho espera a pessoa parar.
+   160 ms: curto o bastante para parecer instantaneo, longo o bastante para uma
+   palavra inteira caber numa passada so. */
+let esperaBusca = null;
 document.getElementById("taskSearchInput").addEventListener("input", (e) => {
   taskSearchText = e.target.value;
-  renderTasks();
+  clearTimeout(esperaBusca);
+  esperaBusca = setTimeout(renderTasks, 160);
 });
 document.getElementById("dueFromFilter").addEventListener("change", (e) => {
   taskDueFromFilter = e.target.value;
