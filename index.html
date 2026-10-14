@@ -1515,6 +1515,14 @@
     </form>
     <div id="ownerContactMsg"></div>
 
+    <h3>Backup</h3>
+    <div class="sub">Baixa tudo num arquivo só: páginas, tarefas, blocos, eventos e a lista de
+      usuários. Os arquivos anexados não cabem aqui — vai a lista deles, com nome e endereço.</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <button type="button" id="backupBtn">⬇ Baixar backup</button>
+      <span id="backupMsg" style="font-size:12px;color:var(--text-light)"></span>
+    </div>
+
     <h3>Gestão de colunas (Banco de Tarefas)</h3>
     <div class="sub">Escolha quais colunas aparecem na tabela de tarefas (vale pra todos os bancos de tarefas).</div>
     <div id="adminColumnsMenu"></div>
@@ -2456,6 +2464,105 @@ document.getElementById("mobileMenuBtn").addEventListener("click", () => {
   else openMobileSidebar();
 });
 document.getElementById("sidebarOverlay").addEventListener("click", closeMobileSidebar);
+
+/* ---------- Backup ----------
+   Le direto do OneDrive, e nao do cache da sessao: backup do que esta na tela nao
+   serve se o que esta na tela estiver velho.
+
+   Os anexos nao entram. Sao binarios; em base64 virariam dezenas de megabytes num
+   JSON que o navegador talvez nem montasse na memoria. Entra a LISTA deles — nome,
+   tamanho, endereco —, e a tela avisa. Backup que parece completo e nao e e pior
+   do que backup nenhum. */
+async function listaDeAnexos(){
+  try{
+    const pasta = `${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(ATTACH_FOLDER)}:/children`;
+    const res = await graphFetch(pasta, { cache: "no-store" });
+    if (!res.ok) return [];
+    const dados = await res.json();
+    return (dados.value || []).map(f => ({
+      nome: f.name, tamanho: f.size, modificado: f.lastModifiedDateTime,
+      endereco: f.webUrl || "",
+    }));
+  }catch(e){ return []; }
+}
+
+async function montarBackup(aviso){
+  const pacote = {
+    formato: "roadmap-backup",
+    versao: 1,
+    gerado_em: new Date().toISOString(),
+    gerado_por: currentUserEmail || "",
+    indice: null,
+    usuarios: null,
+    paginas: {},
+    anexos: { observacao: "Os arquivos em si não estão neste backup — só a lista.", itens: [] },
+  };
+
+  if (aviso) aviso("Lendo o índice…");
+  pacote.indice = await getJsonByPath(INDEX_FILENAME);
+  pacote.usuarios = await getJsonByPath(USERS_FILENAME);
+
+  const paginas = (pacote.indice && pacote.indice.pages) || [];
+  for (let i = 0; i < paginas.length; i++){
+    const p = paginas[i];
+    if (aviso) aviso("Lendo página " + (i + 1) + " de " + paginas.length + "…");
+    try{
+      pacote.paginas[p.id] = await getJsonByPath("pagina_" + p.id + ".json");
+    }catch(e){
+      // Uma pagina ilegivel nao pode derrubar o backup das outras: registra e segue.
+      pacote.paginas[p.id] = { _erro_ao_ler: String(e && e.message ? e.message : e) };
+    }
+  }
+
+  if (aviso) aviso("Listando os anexos…");
+  pacote.anexos.itens = await listaDeAnexos();
+  return pacote;
+}
+
+function contaDoBackup(pacote){
+  let tarefas = 0, blocos = 0, eventos = 0;
+  Object.keys(pacote.paginas).forEach(id => {
+    const c = pacote.paginas[id] || {};
+    if (Array.isArray(c.tasks)) tarefas += c.tasks.length;
+    if (Array.isArray(c.blocks)) blocos += c.blocks.length;
+    if (Array.isArray(c.events)) eventos += c.events.length;
+  });
+  return { paginas: Object.keys(pacote.paginas).length, tarefas, blocos, eventos,
+           anexos: pacote.anexos.itens.length };
+}
+
+(function ligaBackup(){
+  const btn = document.getElementById("backupBtn");
+  const msg = document.getElementById("backupMsg");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const rotulo = btn.textContent;
+    btn.textContent = "Baixando…";
+    const aviso = (t) => { if (msg) msg.textContent = t; };
+    try{
+      const pacote = await montarBackup(aviso);
+      const n = contaDoBackup(pacote);
+      const texto = JSON.stringify(pacote, null, 2);
+      const url = URL.createObjectURL(new Blob([texto], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "roadmap-backup-" + formatDateISO(new Date()) + ".json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Solta a memoria do arquivo depois que o download pegou.
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      aviso("Pronto: " + n.paginas + " páginas, " + n.tarefas + " tarefas, " + n.blocos +
+            " blocos, " + n.eventos + " eventos · " + (texto.length / 1024).toFixed(0) + " KB. " +
+            n.anexos + " anexos listados (os arquivos continuam no OneDrive).");
+    }catch(e){
+      aviso("Não consegui fazer o backup: " + (e && e.message ? e.message : e));
+    }
+    btn.disabled = false;
+    btn.textContent = rotulo;
+  });
+})();
 
 /* ---------- Painel do topo: saudacao, clima e hora ----------
    Relogio e saudacao nao dependem de rede e sao o que a pessoa mais olha: ficam de pe
