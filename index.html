@@ -1508,6 +1508,11 @@
     <div id="adminMsg"></div>
 
     <h3>Meu contato (para eu também receber alertas)</h3>
+    <div class="sub">O WhatsApp precisa dos <b>dois</b> campos: o número e a API Key do CallMeBot.
+      Só o número não envia nada. A chave sai de uma conversa com o bot — mande
+      <b>"I allow callmebot to send me messages"</b> no WhatsApp para
+      <b>+34 644 51 95 23</b> e ele responde com a sua chave. O alerta por e-mail funciona
+      independente disso.</div>
     <form id="ownerContactForm">
       <input type="tel" id="ownerWhatsapp" placeholder="Seu WhatsApp (opcional, com DDI)">
       <input type="text" id="ownerApiKey" placeholder="Sua CallMeBot API Key (opcional)">
@@ -7352,8 +7357,23 @@ document.getElementById("ownerContactForm").addEventListener("submit", async (e)
   const msgEl = document.getElementById("ownerContactMsg");
   try{
     await putJsonByPath(USERS_FILENAME, usersData);
-    msgEl.textContent = "Salvo.";
-    msgEl.className = "ok";
+    /* Meio preenchido nao envia nada, e antes isso nao aparecia em lugar nenhum:
+       o alerta rodava, pulava o WhatsApp em silencio e terminava "sucesso". */
+    const tel = usersData.donoContato.telefone;
+    const key = usersData.donoContato.whatsappApiKey;
+    if (tel && !key){
+      msgEl.textContent = "Salvo — mas sem a API Key o WhatsApp não será enviado. Só o e-mail.";
+      msgEl.className = "err";
+    } else if (!tel && key){
+      msgEl.textContent = "Salvo — mas falta o número do WhatsApp. Só o e-mail será enviado.";
+      msgEl.className = "err";
+    } else if (tel && key){
+      msgEl.textContent = "Salvo. WhatsApp e e-mail configurados.";
+      msgEl.className = "ok";
+    } else {
+      msgEl.textContent = "Salvo. Sem WhatsApp configurado — você recebe só por e-mail.";
+      msgEl.className = "ok";
+    }
   }catch(err){
     msgEl.textContent = "Erro ao salvar.";
     msgEl.className = "err";

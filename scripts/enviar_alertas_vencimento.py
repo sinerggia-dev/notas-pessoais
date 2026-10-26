@@ -84,6 +84,24 @@ def montar_contatos(usuarios_doc):
     return contatos
 
 
+def motivo_sem_whatsapp(contato):
+    """Por que esta pessoa nao recebe WhatsApp, ou None quando recebe.
+
+    O CallMeBot precisa dos DOIS: numero e chave. A chave sai de uma conversa
+    com o bot, no proprio WhatsApp — numero sozinho nao envia nada.
+    """
+    telefone = (contato.get("telefone") or "").strip()
+    apikey = (contato.get("apikey") or "").strip()
+    if not telefone and not apikey:
+        return "sem telefone e sem API key do CallMeBot no cadastro"
+    if not telefone:
+        return "falta o telefone no cadastro"
+    if not apikey:
+        return ("falta a API key do CallMeBot no cadastro — o telefone sozinho nao envia; "
+                "a chave sai de uma conversa com o bot, no proprio WhatsApp")
+    return None
+
+
 def extrair_responsaveis(tarefa):
     """Responsaveis da tarefa, sem repeticao e em minusculas.
 
@@ -156,6 +174,19 @@ def enviar_email(token, destinatario, texto):
         print(f"E-mail enviado para {destinatario}")
 
 
+def whatsapp_recusado(corpo):
+    """O CallMeBot responde HTTP 200 mesmo quando recusa.
+
+    A recusa vem no corpo da resposta: chave invalida, telefone nao cadastrado,
+    limite estourado. Olhando so o status, chave errada passava por envio e
+    imprimia "WhatsApp enviado" — ninguem tinha como desconfiar.
+    """
+    baixo = (corpo or "").lower()
+    pistas = ("apikey", "api key", "invalid", "not valid", "error", "erro",
+              "not registered", "nao registrado", "limit")
+    return any(p in baixo for p in pistas)
+
+
 def enviar_whatsapp(destinatario, telefone, apikey, texto):
     call_url = (
         "https://api.callmebot.com/whatsapp.php"
@@ -164,8 +195,13 @@ def enviar_whatsapp(destinatario, telefone, apikey, texto):
         f"&apikey={urllib.parse.quote(apikey)}"
     )
     try:
-        urllib.request.urlopen(call_url, timeout=15)
-        print(f"WhatsApp enviado para {destinatario}")
+        with urllib.request.urlopen(call_url, timeout=15) as resposta:
+            corpo = resposta.read().decode("utf-8", "replace")
+        resumo = " ".join(corpo.split())[:200]
+        if whatsapp_recusado(corpo):
+            print(f"WhatsApp RECUSADO para {destinatario} — o CallMeBot respondeu: {resumo}")
+        else:
+            print(f"WhatsApp enviado para {destinatario}")
     except Exception as e:
         print(f"Falha ao enviar WhatsApp para {destinatario}: {e}")
 
@@ -202,8 +238,13 @@ def main():
 
         enviar_email(token, email, texto)
 
-        contato = contatos.get(email)
-        if contato and contato.get("telefone") and contato.get("apikey"):
+        contato = contatos.get(email) or {}
+        motivo = motivo_sem_whatsapp(contato)
+        if motivo:
+            # Pular em silencio era o pior dos mundos: o fluxo terminava "success"
+            # e o log nao citava WhatsApp, entao nao havia como descobrir o porque.
+            print(f"WhatsApp NAO enviado para {email}: {motivo}")
+        else:
             enviar_whatsapp(email, contato["telefone"], contato["apikey"], texto)
 
 
