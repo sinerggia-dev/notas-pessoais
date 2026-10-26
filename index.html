@@ -1525,6 +1525,11 @@
     </form>
     <div id="senhaAcoesMsg"></div>
 
+    <div class="sub" style="margin-top:14px">Onde a senha é pedida. Desmarque o que não
+      precisa de senha — as outras continuam protegidas.</div>
+    <div id="acoesSenhaLista"></div>
+    <div id="acoesSenhaMsg"></div>
+
     <h3>Backup</h3>
     <div class="sub">Baixa tudo num arquivo só: páginas, tarefas, blocos, eventos e a lista de
       usuários. Os arquivos anexados não cabem aqui — vai a lista deles, com nome e endereço.</div>
@@ -2120,7 +2125,7 @@ async function deletePage(id){
   if (!page) return;
   if (!confirm(`Excluir "${page.title || "Sem título"}" e todas as subpáginas dela?`)) return;
   // Apagar pagina leva embora blocos/tarefas/eventos junto — pede a senha, como na tarefa.
-  if (!(await requestDeletePassword(`a página "${page.title || "Sem título"}" e as subpáginas dela`))) return;
+  if (!(await requestDeletePassword(`a página "${page.title || "Sem título"}" e as subpáginas dela`, "excluirPagina"))) return;
 
   const toDelete = new Set([id]);
   let changed = true;
@@ -3013,7 +3018,7 @@ function initToolbarDragReorder(){
       const draggedKey = e.dataTransfer.getData("text/plain");
       const targetKey = child.dataset.tkey;
       if (!draggedKey || draggedKey === targetKey || !DEFAULT_TOOLBAR_ORDER.includes(draggedKey)) return;
-      if (!(await requestEditPassword())) return;
+      if (!(await requestEditPassword("layoutBarra"))) return;
       const order = toolbarOrder.slice();
       const from = order.indexOf(draggedKey);
       const to = order.indexOf(targetKey);
@@ -3789,7 +3794,33 @@ async function senhaAcoesConfere(tentativa){
   }
 }
 
-async function requestDeletePassword(alvo){
+/* Onde a senha e pedida. Sao 21 pontos no app, agrupados em sete: a pessoa pensa em
+   "excluir tarefa", e nao no blur do campo de titulo no quadro. Cada ponto declara a
+   que grupo pertence. */
+const ACOES_COM_SENHA = [
+  { key: "excluirTarefa",  label: "Excluir tarefa" },
+  { key: "excluirPagina",  label: "Excluir página (e as subpáginas dela)" },
+  { key: "editarTarefa",   label: "Alterar campos da tarefa — nome, empresa, vencimento, horário, responsável, links" },
+  { key: "editarNota",     label: "Alterar a nota da tarefa" },
+  { key: "anexo",          label: "Anexar e remover arquivo" },
+  { key: "layoutColunas",  label: "Mover, esconder e restaurar colunas" },
+  { key: "layoutBarra",    label: "Mover e esconder botões e filtros da barra" },
+];
+
+/* Ausente = exige. E o que faz quem nunca mexeu na lista continuar com a regra de
+   hoje, sem o deploy mudar o comportamento de ninguem.
+
+   Aceita uma lista: "Restaurar tudo" mexe em colunas E na barra, e so dispensa a
+   senha se as duas estiverem dispensadas. */
+function exigeSenhaPara(acao){
+  if (!acao) return true;
+  const chaves = Array.isArray(acao) ? acao : [acao];
+  const cfg = (usersData && usersData.acoesComSenha) || {};
+  return chaves.some(k => cfg[k] !== false);
+}
+
+async function requestDeletePassword(alvo, acao){
+  if (!exigeSenhaPara(acao)) return true;
   const pass = await askPassword("Digite a senha para excluir " + (alvo || "esta tarefa"));
   if (pass === null) return false;
   if (!(await senhaAcoesConfere(pass))){
@@ -3798,7 +3829,8 @@ async function requestDeletePassword(alvo){
   }
   return true;
 }
-async function requestEditPassword(){
+async function requestEditPassword(acao){
+  if (!exigeSenhaPara(acao)) return true;
   const pass = await askPassword("Digite a senha para confirmar a alteração");
   if (pass === null) return false;
   if (!(await senhaAcoesConfere(pass))){
@@ -3813,9 +3845,9 @@ function isTaskWithinGracePeriod(task){
   if (!task || !task.createdAt) return false;
   return (Date.now() - new Date(task.createdAt).getTime()) < TASK_EDIT_GRACE_MS;
 }
-async function guardTaskFieldEdit(task){
+async function guardTaskFieldEdit(task, acao){
   if (isTaskWithinGracePeriod(task)) return true;
-  return await requestEditPassword();
+  return await requestEditPassword(acao || "editarTarefa");
 }
 
 /* ---------- Colunas (ordem, largura, visibilidade) ---------- */
@@ -3928,7 +3960,7 @@ function renderTaskTableHead(){
       hideBtn.addEventListener("dragstart", (e) => { e.preventDefault(); e.stopPropagation(); });
       hideBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!(await requestEditPassword())) return;
+        if (!(await requestEditPassword("layoutColunas"))) return;
         taskColVisibility[key] = false;
         saveTaskColVisibility();
         renderTasks();
@@ -3976,7 +4008,7 @@ function renderTaskTableHead(){
         e.preventDefault();
         const draggedKey = e.dataTransfer.getData("text/plain");
         if (!draggedKey || draggedKey === key || !DEFAULT_COL_ORDER.includes(draggedKey)) return;
-        if (!(await requestEditPassword())) return;
+        if (!(await requestEditPassword("layoutColunas"))) return;
         const order = taskColOrder.slice();
         const from = order.indexOf(draggedKey);
         const to = order.indexOf(key);
@@ -4030,7 +4062,7 @@ function listaVisibilidade(box, itens, estaVisivel, aoMudar){
     cb.addEventListener("change", async () => {
       const querVisivel = cb.checked;
       cb.checked = !querVisivel;                 // so confirma depois da senha
-      if (!(await requestEditPassword())) return;
+      if (!(await requestEditPassword("layoutBarra"))) return;
       cb.checked = querVisivel;
       aoMudar(it.key, querVisivel, cb);
     });
@@ -4118,7 +4150,7 @@ function renderTaskViewMenu(){
 
   const restaurar = document.getElementById("tvmRestaurar");
   if (restaurar) restaurar.addEventListener("click", async () => {
-    if (!(await requestEditPassword())) return;
+    if (!(await requestEditPassword(["layoutBarra", "layoutColunas"]))) return;
     endActiveColumnResize();
     toolbarVisibility = {};
     saveToolbarVisibility();
@@ -4148,7 +4180,7 @@ function renderTaskColumnsMenu(){
     cb.addEventListener("change", async () => {
       if (!cb.checked){
         cb.checked = true;
-        if (!(await requestEditPassword())){ cb.checked = true; return; }
+        if (!(await requestEditPassword("layoutColunas"))){ cb.checked = true; return; }
         cb.checked = false;
       }
       taskColVisibility[col.key] = cb.checked;
@@ -4165,7 +4197,7 @@ function renderTaskColumnsMenu(){
   resetBtn.className = "col-menu-reset";
   resetBtn.textContent = "↺ Restaurar padrão";
   resetBtn.addEventListener("click", async () => {
-    if (!(await requestEditPassword())) return;
+    if (!(await requestEditPassword("layoutColunas"))) return;
     endActiveColumnResize();
     taskColOrder = DEFAULT_COL_ORDER.slice();
     taskColWidths = Object.assign({}, DEFAULT_COL_WIDTHS);
@@ -4686,7 +4718,7 @@ function renderKanbanCard(task, assigneeOptions){
     const oldVal = task.title || "";
     if (newVal === oldVal){ titleEl.textContent = oldVal; return; }
     titleEl.textContent = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ titleEl.textContent = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task, "editarTarefa"))){ titleEl.textContent = oldVal; return; }
     titleEl.textContent = newVal;
     task.title = newVal;
     scheduleSavePage(currentPageId);
@@ -4739,7 +4771,7 @@ function renderKanbanCard(task, assigneeOptions){
     const oldVal = task.company || "";
     if (newVal === oldVal){ companyInput.value = oldVal; return; }
     companyInput.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ companyInput.value = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task, "editarTarefa"))){ companyInput.value = oldVal; return; }
     companyInput.value = newVal;
     task.company = newVal;
     scheduleSavePage(currentPageId);
@@ -4824,7 +4856,7 @@ function buildTitleCell(task){
     // tela ainda e o que foi digitado.
     if (newVal === oldVal){ el.textContent = oldVal; return; }
     el.textContent = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ el.textContent = oldVal; return; }
+    if (!(await guardTaskFieldEdit(task, "editarTarefa"))){ el.textContent = oldVal; return; }
     el.textContent = newVal;
     task.title = newVal;
     scheduleSavePage(currentPageId);
@@ -4850,7 +4882,7 @@ function buildHorarioCell(task){
     const velho = task.horario || "";
     if (novo === velho) return;
     input.value = velho;
-    if (!(await guardTaskFieldEdit(task))) return;
+    if (!(await guardTaskFieldEdit(task, "editarTarefa"))) return;
     input.value = novo;
     task.horario = novo;
     scheduleSavePage(currentPageId);
@@ -4938,7 +4970,7 @@ function bindDueInput(input, task){
     gravando = true;
     try{
       input.value = antigo;
-      if (!(await guardTaskFieldEdit(task))) return;
+      if (!(await guardTaskFieldEdit(task, "editarTarefa"))) return;
       input.value = novo;
       task.dueDate = novo;
       refreshDueState(input, task);
@@ -5025,7 +5057,7 @@ function buildCompanyCell(task){
       novoVal = normalizeCompany(escolhido);
     }
     if (companyKey(novoVal) === companyKey(anterior)) return;
-    if (!(await guardTaskFieldEdit(task))) return;
+    if (!(await guardTaskFieldEdit(task, "editarTarefa"))) return;
 
     task.company = novoVal;
     scheduleSavePage(currentPageId);
@@ -5165,7 +5197,7 @@ function buildPeoplePicker(task, assigneeOptions){
     const antes = taskAssignees(task);
     const mudou = antes.length !== rascunho.length || antes.some(e => !rascunho.includes(e));
     if (!mudou) return;
-    if (!(await guardTaskFieldEdit(task))) return;
+    if (!(await guardTaskFieldEdit(task, "editarTarefa"))) return;
 
     setTaskAssignees(task, rascunho);
     pintar();
@@ -5280,7 +5312,7 @@ function buildLinksCell(task){
     const oldVal = task.links || "";
     if (newVal === oldVal){ showDisplayMode(); return; }
     input.value = oldVal;
-    if (!(await guardTaskFieldEdit(task))){ showDisplayMode(); return; }
+    if (!(await guardTaskFieldEdit(task, "editarTarefa"))){ showDisplayMode(); return; }
     task.links = newVal;
     input.value = newVal;
     scheduleSavePage(currentPageId);
@@ -5365,7 +5397,7 @@ function closeNoteModal(force){
 async function commitNoteModal(value){
   if (!noteModalTask) return;
   if (value === noteModalStored()){ closeNoteModal(true); return; }
-  if (!(await guardTaskFieldEdit(noteModalTask))) return;
+  if (!(await guardTaskFieldEdit(noteModalTask, "editarNota"))) return;
   noteModalTask.note = value;
   scheduleSavePage(currentPageId);
   if (noteModalRefreshCell) noteModalRefreshCell();
@@ -5623,7 +5655,7 @@ function buildAttachCell(task){
       alert("Arquivo muito grande. O limite é " + formatFileSize(ATTACH_MAX_BYTES) + ".");
       return;
     }
-    if (!(await guardTaskFieldEdit(task))) return;
+    if (!(await guardTaskFieldEdit(task, "anexo"))) return;
     enviando = true;
     refresh();
     try{
@@ -5640,7 +5672,7 @@ function buildAttachCell(task){
     const anexo = task.attachment;
     if (!anexo) return;
     if (!confirm(`Remover o anexo "${anexo.name}"?`)) return;
-    if (!(await guardTaskFieldEdit(task))) return;
+    if (!(await guardTaskFieldEdit(task, "anexo"))) return;
     if (anexo.id){
       // Vai pra lixeira do OneDrive; se falhar, tira a referencia de qualquer forma.
       try{ await graphFetch(`${itemsBase()}/${anexo.id}`, { method: "DELETE" }); }catch(e){}
@@ -5718,7 +5750,7 @@ function renderTaskRow(task, assigneeOptions){
 }
 
 async function deleteTask(taskId){
-  if (!(await requestDeletePassword())) return;
+  if (!(await requestDeletePassword(undefined, "excluirTarefa"))) return;
   const content = pageContentCache[currentPageId];
   content.tasks = content.tasks.filter(t => t.id !== taskId);
   renderTasks();
@@ -7117,7 +7149,9 @@ async function openAdminPanel(){
   document.getElementById("senhaAcoesNova").value = "";
   document.getElementById("senhaAcoesRepete").value = "";
   document.getElementById("senhaAcoesMsg").textContent = "";
+  document.getElementById("acoesSenhaMsg").textContent = "";
   pintaEstadoDaSenha();
+  renderAcoesComSenha();
   renderTaskColumnsMenu();
   renderAdminUserList();
 }
@@ -7152,6 +7186,42 @@ async function salvarSenhaAcoes(ev){
   }catch(e){
     diz("Não consegui salvar: " + (e && e.message ? e.message : e));
   }
+}
+
+/* A lista de acoes. Marcada = pede senha. Grava a cada clique, sem botao de salvar:
+   sao sete interruptores, e um "salvar" a mais so daria chance de a pessoa sair
+   achando que gravou. */
+function renderAcoesComSenha(){
+  const box = document.getElementById("acoesSenhaLista");
+  if (!box) return;
+  box.innerHTML = "";
+  ACOES_COM_SENHA.forEach(acao => {
+    const label = document.createElement("label");
+    label.className = "col-menu-item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = exigeSenhaPara(acao.key);
+    cb.addEventListener("change", async () => {
+      const msg = document.getElementById("acoesSenhaMsg");
+      const diz = (t) => { if (msg) msg.textContent = t; };
+      cb.disabled = true;
+      try{
+        // Relê antes de gravar: o painel pode estar aberto há um tempo.
+        await loadUsers();
+        if (!usersData.acoesComSenha) usersData.acoesComSenha = {};
+        usersData.acoesComSenha[acao.key] = cb.checked;
+        await putJsonByPath(USERS_FILENAME, usersData);
+        diz(acao.label + (cb.checked ? " — passa a pedir senha." : " — deixa de pedir senha."));
+      }catch(e){
+        cb.checked = !cb.checked;   // nao gravou: a tela nao pode dizer que sim
+        diz("Não consegui salvar: " + (e && e.message ? e.message : e));
+      }
+      cb.disabled = false;
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + acao.label));
+    box.appendChild(label);
+  });
 }
 
 function pintaEstadoDaSenha(){
