@@ -1515,6 +1515,16 @@
     </form>
     <div id="ownerContactMsg"></div>
 
+    <h3>Senha das ações protegidas</h3>
+    <div class="sub">É a senha pedida para alterar um campo de tarefa, excluir, mexer nas colunas
+      e na barra. Vale para todo mundo que edita. <b id="senhaAcoesEstado">—</b></div>
+    <form id="senhaAcoesForm">
+      <input type="password" id="senhaAcoesNova" placeholder="Senha nova (mínimo 4 caracteres)" autocomplete="new-password">
+      <input type="password" id="senhaAcoesRepete" placeholder="Repita a senha nova" autocomplete="new-password">
+      <button type="submit">Salvar senha</button>
+    </form>
+    <div id="senhaAcoesMsg"></div>
+
     <h3>Backup</h3>
     <div class="sub">Baixa tudo num arquivo só: páginas, tarefas, blocos, eventos e a lista de
       usuários. Os arquivos anexados não cabem aqui — vai a lista deles, com nome e endereço.</div>
@@ -3742,11 +3752,47 @@ document.getElementById("passwordOverlay").addEventListener("click", (e) => {
   if (e.target.id === "passwordOverlay") closePasswordModal(null);
 });
 
-const TASK_PASSWORD = "123456";
+/* Senha das acoes protegidas.
+
+   Valor de fabrica, usado so enquanto o dono nao define o dele. A senha de verdade
+   mora em `_usuarios.json`, no OneDrive, como hash com sal — ver `salvarSenhaAcoes`.
+
+   Isto e guarda contra acidente, nao seguranca: a conferencia acontece no navegador
+   e o hash esta num arquivo que todo editor le. Quem controla acesso de verdade e o
+   papel Editor/Visualizador mais a permissao da pasta. */
+const TASK_PASSWORD_PADRAO = "123456";
+
+/* SHA-256 com sal, pelo proprio navegador. Sal para que duas pessoas com a mesma
+   senha nao gerem o mesmo hash, e porque o arquivo entra no backup. */
+async function hashDaSenha(texto, sal){
+  const dados = new TextEncoder().encode(String(sal) + "|" + String(texto));
+  const buf = await crypto.subtle.digest("SHA-256", dados);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function senhaAcoesDefinida(){
+  const cfg = usersData && usersData.senhaAcoes;
+  return !!(cfg && cfg.hash && cfg.sal);
+}
+
+/* Le de `usersData` a cada conferencia, e nao de uma constante capturada: trocada a
+   senha, a aba que recarregar os usuarios ja cobra a nova. */
+async function senhaAcoesConfere(tentativa){
+  if (!senhaAcoesDefinida()) return String(tentativa) === TASK_PASSWORD_PADRAO;
+  try{
+    return (await hashDaSenha(tentativa, usersData.senhaAcoes.sal)) === usersData.senhaAcoes.hash;
+  }catch(e){
+    // Sem crypto.subtle (contexto nao seguro) nao da para conferir. Melhor recusar
+    // do que deixar passar: o pior caso e a pessoa nao conseguir editar, nao o
+    // contrario.
+    return false;
+  }
+}
+
 async function requestDeletePassword(alvo){
   const pass = await askPassword("Digite a senha para excluir " + (alvo || "esta tarefa"));
   if (pass === null) return false;
-  if (pass !== TASK_PASSWORD){
+  if (!(await senhaAcoesConfere(pass))){
     alert("Senha incorreta.");
     return false;
   }
@@ -3755,7 +3801,7 @@ async function requestDeletePassword(alvo){
 async function requestEditPassword(){
   const pass = await askPassword("Digite a senha para confirmar a alteração");
   if (pass === null) return false;
-  if (pass !== TASK_PASSWORD){
+  if (!(await senhaAcoesConfere(pass))){
     alert("Senha incorreta.");
     return false;
   }
@@ -7068,9 +7114,59 @@ async function openAdminPanel(){
   document.getElementById("ownerApiKey").value = (usersData.donoContato && usersData.donoContato.whatsappApiKey) || "";
   document.getElementById("ownerDriveIdText").textContent = ownerDriveIdDebug || "(não disponível)";
   document.getElementById("ownerFolderIdText").textContent = workspaceFolderId || "(não disponível)";
+  document.getElementById("senhaAcoesNova").value = "";
+  document.getElementById("senhaAcoesRepete").value = "";
+  document.getElementById("senhaAcoesMsg").textContent = "";
+  pintaEstadoDaSenha();
   renderTaskColumnsMenu();
   renderAdminUserList();
 }
+/* Grava a senha nova. Nao pede a atual de proposito: quem chegou aqui ja e o dono e
+   ja pode remover usuarios e ler os IDs do espaco — exigir a senha antiga so neste
+   campo seria teatro, e criaria um jeito de o dono se trancar para fora do proprio
+   espaco. */
+async function salvarSenhaAcoes(ev){
+  ev.preventDefault();
+  const nova = document.getElementById("senhaAcoesNova").value;
+  const repete = document.getElementById("senhaAcoesRepete").value;
+  const msg = document.getElementById("senhaAcoesMsg");
+  const diz = (t) => { if (msg) msg.textContent = t; };
+
+  if (String(nova).length < 4) return diz("A senha precisa de pelo menos 4 caracteres.");
+  if (nova !== repete) return diz("As duas senhas não são iguais.");
+
+  diz("Salvando…");
+  try{
+    const sal = Array.from(crypto.getRandomValues(new Uint8Array(12)))
+      .map(b => b.toString(16).padStart(2, "0")).join("");
+    const hash = await hashDaSenha(nova, sal);
+    // Relê antes de gravar: o painel pode estar aberto há um tempo, e outra aba
+    // pode ter mexido na lista de usuários nesse meio.
+    await loadUsers();
+    usersData.senhaAcoes = { sal: sal, hash: hash, trocada_em: new Date().toISOString() };
+    await putJsonByPath(USERS_FILENAME, usersData);
+    document.getElementById("senhaAcoesNova").value = "";
+    document.getElementById("senhaAcoesRepete").value = "";
+    pintaEstadoDaSenha();
+    diz("Senha trocada. Quem estiver com o ROADMAP aberto passa a usá-la ao recarregar a página.");
+  }catch(e){
+    diz("Não consegui salvar: " + (e && e.message ? e.message : e));
+  }
+}
+
+function pintaEstadoDaSenha(){
+  const el = document.getElementById("senhaAcoesEstado");
+  if (!el) return;
+  if (!senhaAcoesDefinida()){
+    el.textContent = "Hoje está valendo a senha de fábrica — defina a sua.";
+    return;
+  }
+  const q = usersData.senhaAcoes.trocada_em;
+  el.textContent = "Senha própria definida" + (q ? " em " + formatDateTimeBR(q) : "") + ".";
+}
+
+document.getElementById("senhaAcoesForm").addEventListener("submit", salvarSenhaAcoes);
+
 function closeAdminPanel(){
   document.getElementById("adminOverlay").classList.remove("visible");
 }
