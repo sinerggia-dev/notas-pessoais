@@ -3803,7 +3803,8 @@ const ACOES_COM_SENHA = [
   { key: "editarTarefa",   label: "Alterar campos da tarefa — nome, empresa, vencimento, horário, responsável, links" },
   { key: "editarNota",     label: "Alterar a nota da tarefa" },
   { key: "anexo",          label: "Anexar e remover arquivo" },
-  { key: "layoutColunas",  label: "Mover, esconder e restaurar colunas" },
+  { key: "moverColunas",   label: "Mover colunas de lugar (arrastar o cabeçalho)" },
+  { key: "layoutColunas",  label: "Esconder e restaurar colunas" },
   { key: "layoutBarra",    label: "Mover e esconder botões e filtros da barra" },
 ];
 
@@ -4008,7 +4009,7 @@ function renderTaskTableHead(){
         e.preventDefault();
         const draggedKey = e.dataTransfer.getData("text/plain");
         if (!draggedKey || draggedKey === key || !DEFAULT_COL_ORDER.includes(draggedKey)) return;
-        if (!(await requestEditPassword("layoutColunas"))) return;
+        if (!(await requestEditPassword("moverColunas"))) return;
         const order = taskColOrder.slice();
         const from = order.indexOf(draggedKey);
         const to = order.indexOf(key);
@@ -4150,7 +4151,7 @@ function renderTaskViewMenu(){
 
   const restaurar = document.getElementById("tvmRestaurar");
   if (restaurar) restaurar.addEventListener("click", async () => {
-    if (!(await requestEditPassword(["layoutBarra", "layoutColunas"]))) return;
+    if (!(await requestEditPassword(["layoutBarra", "layoutColunas", "moverColunas"]))) return;
     endActiveColumnResize();
     toolbarVisibility = {};
     saveToolbarVisibility();
