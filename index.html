@@ -634,6 +634,32 @@
   .task-attach-del:hover{color:var(--danger);}
   .task-attach-busy{font-size:11px;color:var(--text-light);}
   .task-attach-empty{font-size:12px;color:var(--text-dim);}
+  /* Documento do Office por atividade. */
+  .task-doc-wrap{display:flex;align-items:center;gap:6px;min-width:0;}
+  .task-doc-link{
+    display:inline-flex;align-items:center;gap:5px;min-width:0;
+    color:var(--accent);text-decoration:none;font-size:12px;
+  }
+  .task-doc-link:hover{text-decoration:underline;}
+  .task-doc-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .task-doc-novo{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:6px;
+    padding:3px 7px;font-size:11px;cursor:pointer;color:var(--text-light);
+  }
+  .task-doc-novo:hover{background:var(--hover);color:var(--text);}
+  .task-doc-novo:disabled{opacity:.6;cursor:default;}
+  /* O menu e position:fixed: a celula tem overflow escondido e cortaria um menu
+     posicionado por absolute — mesmo motivo do menu de responsaveis. */
+  .task-doc-menu{
+    position:fixed;z-index:220;background:var(--surface);border:1px solid var(--sidebar-border);
+    border-radius:8px;box-shadow:var(--shadow-md);padding:5px;min-width:150px;
+  }
+  .task-doc-menu button{
+    display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:none;
+    border:none;border-radius:6px;padding:6px 8px;font-size:12px;font-family:inherit;
+    color:var(--text);cursor:pointer;
+  }
+  .task-doc-menu button:hover{background:var(--hover);}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
   /* As pilhas sao 12px em negrito — texto normal para o WCAG, que pede 4,5:1. Quatro
      delas estavam entre 4,0 e 4,4. Os tons abaixo sao o menor escurecimento que alcanca
@@ -3808,6 +3834,7 @@ const ACOES_COM_SENHA = [
   { key: "editarTarefa",   label: "Alterar campos da tarefa — nome, empresa, vencimento, horário, responsável, links" },
   { key: "editarNota",     label: "Alterar a nota da tarefa" },
   { key: "anexo",          label: "Anexar e remover arquivo" },
+  { key: "documento",      label: "Criar e remover documento do Office" },
   { key: "moverColunas",   label: "Mover colunas de lugar (arrastar o cabeçalho)" },
   { key: "layoutColunas",  label: "Esconder e restaurar colunas" },
   { key: "layoutBarra",    label: "Mover e esconder botões e filtros da barra" },
@@ -3871,12 +3898,14 @@ const TASK_COLUMNS_DEF = [
   { key: "assignee", label: "Responsável" },
   { key: "links", label: "Links" },
   { key: "note", label: "Nota" },
+  { key: "documento", label: "Documento" },
   { key: "attach", label: "Anexo" },
 ];
 const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
   title: 190, status: 130, priority: 110, dueDate: 130, horario: 100, company: 140, items: 80,
-  createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70, attach: 120
+  createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70,
+  documento: 120, attach: 120
 };
 
 let taskColOrder = DEFAULT_COL_ORDER.slice();
@@ -5585,6 +5614,261 @@ async function uploadAttachment(file, task){
   return { id: item.id, name: file.name, url: item.webUrl || "", size: file.size || 0 };
 }
 
+/* ---------- Documento do Office por atividade ----------
+   Cria um arquivo vazio na pasta "Documentos" do mesmo espaco e guarda o endereco
+   na tarefa. Clicar abre no Office online; o que a pessoa escrever fica no arquivo.
+
+   Cada formato usa o que o app ja carrega, menos o Word:
+     .xlsx  SheetJS, que ja serve a exportacao
+     .pptx  PptxGenJS, que ja serve a Apresentacao
+     .docx  montado aqui — um .docx e um ZIP com tres XML, e escrever ZIP "stored"
+            sao poucas dezenas de linhas. Trazer uma biblioteca inteira para criar
+            um arquivo vazio seria caro. */
+const DOCS_FOLDER = "Documentos";
+const DOC_TIPOS = {
+  word:  { rotulo: "Word",       icone: "\ud83d\udcdd", ext: "docx",
+           mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  excel: { rotulo: "Excel",      icone: "\ud83d\udcca", ext: "xlsx",
+           mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  ppt:   { rotulo: "PowerPoint", icone: "\ud83d\udcd1", ext: "pptx",
+           mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+};
+
+function crc32Bytes(bytes){
+  let tabela = crc32Bytes.tabela;
+  if (!tabela){
+    tabela = crc32Bytes.tabela = new Int32Array(256);
+    for (let n = 0; n < 256; n++){
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      tabela[n] = c;
+    }
+  }
+  let c = -1;
+  for (let i = 0; i < bytes.length; i++) c = (c >>> 8) ^ tabela[(c ^ bytes[i]) & 0xFF];
+  return (c ^ -1) >>> 0;
+}
+
+/* ZIP com entradas "stored": sem compressao, sem dependencia. Data fixa de
+   proposito — o conteudo nao muda, entao o arquivo gerado e sempre o mesmo. */
+function montarZip(arquivos){
+  const enc = new TextEncoder();
+  const locais = [], centrais = [];
+  let deslocamento = 0;
+  const u16 = (v) => [v & 0xFF, (v >>> 8) & 0xFF];
+  const u32 = (v) => [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF];
+
+  arquivos.forEach(f => {
+    const nome = enc.encode(f.nome);
+    const dados = enc.encode(f.texto);
+    const crc = crc32Bytes(dados);
+    const cab = [].concat([0x50,0x4B,0x03,0x04], u16(20), u16(0), u16(0), u16(0), u16(33),
+      u32(crc), u32(dados.length), u32(dados.length), u16(nome.length), u16(0));
+    locais.push(new Uint8Array(cab), nome, dados);
+    centrais.push(new Uint8Array([].concat([0x50,0x4B,0x01,0x02], u16(20), u16(20),
+      u16(0), u16(0), u16(0), u16(33), u32(crc), u32(dados.length), u32(dados.length),
+      u16(nome.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(deslocamento))), nome);
+    deslocamento += cab.length + nome.length + dados.length;
+  });
+
+  let tamCentral = 0;
+  centrais.forEach(p => { tamCentral += p.length; });
+  const fim = new Uint8Array([].concat([0x50,0x4B,0x05,0x06], u16(0), u16(0),
+    u16(arquivos.length), u16(arquivos.length), u32(tamCentral), u32(deslocamento), u16(0)));
+
+  const saida = new Uint8Array(deslocamento + tamCentral + fim.length);
+  let p = 0;
+  locais.forEach(b => { saida.set(b, p); p += b.length; });
+  centrais.forEach(b => { saida.set(b, p); p += b.length; });
+  saida.set(fim, p);
+  return saida;
+}
+
+function escaparXml(t){
+  return String(t == null ? "" : t)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
+function docxEmBranco(titulo){
+  const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  return montarZip([
+    { nome: "[Content_Types].xml", texto:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+      '</Types>' },
+    { nome: "_rels/.rels", texto:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+      '</Relationships>' },
+    { nome: "word/document.xml", texto:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:document xmlns:w="' + W + '"><w:body>' +
+      '<w:p><w:r><w:t xml:space="preserve">' + escaparXml(titulo) + '</w:t></w:r></w:p>' +
+      '<w:sectPr/></w:body></w:document>' },
+  ]);
+}
+
+async function bytesDoDocumento(tipo, titulo){
+  if (tipo === "word") return docxEmBranco(titulo);
+  if (tipo === "excel"){
+    const ws = XLSX.utils.aoa_to_sheet([[titulo], []]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Notas");
+    return new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
+  }
+  const pptx = new window.PptxGenJS();
+  pptx.layout = "LAYOUT_16x9";
+  const sl = pptx.addSlide();
+  sl.addText(titulo, { x: 0.6, y: 0.6, w: 8.8, h: 1, fontSize: 24, bold: true });
+  const buf = await pptx.write({ outputType: "arraybuffer" });
+  return new Uint8Array(buf);
+}
+
+async function ensureDocsFolder(){
+  const caminho = `${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(DOCS_FOLDER)}`;
+  let res = await graphFetch(caminho);
+  if (res.status === 404){
+    res = await graphFetch(`${itemsBase()}/${workspaceFolderId}/children`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: DOCS_FOLDER, folder: {}, "@microsoft.graph.conflictBehavior": "fail" })
+    });
+    // Outra aba pode ter criado no meio do caminho — busca de novo em vez de estourar.
+    if (!res.ok) res = await graphFetch(caminho);
+  }
+  if (!res.ok) throw new Error("status " + res.status);
+  return (await res.json()).id;
+}
+
+async function criarDocumentoDaTarefa(task, tipo){
+  const def = DOC_TIPOS[tipo];
+  const titulo = (task.title || "Sem título").trim() || "Sem título";
+  const bytes = await bytesDoDocumento(tipo, titulo);
+  const folderId = await ensureDocsFolder();
+  // Prefixo com o id: duas tarefas de mesmo nome nao se atropelam.
+  const nome = task.id + "_" + safeFileName(titulo).slice(0, 60) + "." + def.ext;
+  const res = await graphFetch(`${itemsBase()}/${folderId}:/${encodeURIComponent(nome)}:/content`, {
+    method: "PUT",
+    headers: { "Content-Type": def.mime },
+    body: bytes
+  });
+  if (!res.ok) throw new Error("status " + res.status);
+  const item = await res.json();
+  return { tipo: tipo, id: item.id, nome: nome, url: item.webUrl || "" };
+}
+
+function buildDocumentoCell(task){
+  const td = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "task-doc-wrap";
+  td.appendChild(wrap);
+
+  function pintar(){
+    wrap.innerHTML = "";
+    const doc = task.documento;
+    if (doc && doc.url){
+      const def = DOC_TIPOS[doc.tipo] || DOC_TIPOS.word;
+      const a = document.createElement("a");
+      a.className = "task-doc-link";
+      a.href = doc.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.title = "Abrir no " + def.rotulo + " online";
+      a.innerHTML = '<span aria-hidden="true">' + def.icone + '</span><span>' +
+        escapeHtml(def.rotulo) + '</span>';
+      wrap.appendChild(a);
+
+      if (canEdit){
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "task-attach-del";
+        del.textContent = "\u00d7";
+        del.title = "Tirar o documento desta atividade";
+        del.addEventListener("click", async () => {
+          if (!confirm('Tirar o documento "' + def.rotulo + '" desta atividade?\n\n' +
+                       'O arquivo continua na pasta ' + DOCS_FOLDER + ' do OneDrive.')) return;
+          if (!(await guardTaskFieldEdit(task, "documento"))) return;
+          delete task.documento;
+          scheduleSavePage(currentPageId);
+          pintar();
+        });
+        wrap.appendChild(del);
+      }
+      return;
+    }
+
+    if (!canEdit){
+      const vazio = document.createElement("span");
+      vazio.className = "task-attach-empty";
+      vazio.textContent = "—";
+      wrap.appendChild(vazio);
+      return;
+    }
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "task-doc-novo";
+    btn.textContent = "+ Documento";
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      abrirMenuDocumento(btn, task, pintar);
+    });
+    wrap.appendChild(btn);
+  }
+
+  pintar();
+  return td;
+}
+
+function abrirMenuDocumento(btn, task, aoCriar){
+  document.querySelectorAll(".task-doc-menu").forEach(m => m.remove());
+  const menu = document.createElement("div");
+  menu.className = "task-doc-menu";
+
+  Object.keys(DOC_TIPOS).forEach(tipo => {
+    const def = DOC_TIPOS[tipo];
+    const b = document.createElement("button");
+    b.type = "button";
+    b.innerHTML = '<span aria-hidden="true">' + def.icone + '</span>' + escapeHtml(def.rotulo);
+    b.addEventListener("click", async () => {
+      menu.remove();
+      if (!(await guardTaskFieldEdit(task, "documento"))) return;
+      const rotulo = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Criando…";
+      try{
+        task.documento = await criarDocumentoDaTarefa(task, tipo);
+        scheduleSavePage(currentPageId);
+        aoCriar();
+        // Abre logo: quem pediu o documento quer escrever nele agora.
+        if (task.documento.url) window.open(task.documento.url, "_blank", "noopener");
+      }catch(e){
+        btn.disabled = false;
+        btn.textContent = rotulo;
+        alert("Não consegui criar o documento: " + (e && e.message ? e.message : e));
+      }
+    });
+    menu.appendChild(b);
+  });
+
+  const r = btn.getBoundingClientRect();
+  menu.style.left = Math.min(r.left, window.innerWidth - 170) + "px";
+  menu.style.top = (r.bottom + 4) + "px";
+  document.body.appendChild(menu);
+  menu.addEventListener("click", (e) => e.stopPropagation());
+  setTimeout(() => {
+    document.addEventListener("click", function fechar(){
+      menu.remove();
+      document.removeEventListener("click", fechar);
+    });
+  }, 0);
+}
+
 function buildAttachCell(task){
   const td = document.createElement("td");
   const wrap = document.createElement("div");
@@ -5713,6 +5997,7 @@ const TASK_CELL_BUILDERS = {
   assignee: (task, assigneeOptions) => buildAssigneeCell(task, assigneeOptions),
   links: (task) => buildLinksCell(task),
   note: (task) => buildNoteCell(task),
+  documento: (task) => buildDocumentoCell(task),
   attach: (task) => buildAttachCell(task),
 };
 
