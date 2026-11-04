@@ -115,6 +115,36 @@
     padding:24px;
   }
   #noAccessScreen{display:none;}
+  /* Tela entre o login e o app. Fica FORA do #app de proposito: o #app so
+     aparece quando tudo carregou, e e justamente a espera que precisa de cara. */
+  #bootScreen{
+    display:none;position:fixed;inset:0;z-index:120;background:var(--bg);
+    flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;
+  }
+  #bootScreen.visible{display:flex;}
+  #bootScreen h1{font-size:28px;margin:0;letter-spacing:-.01em;color:var(--text);}
+  #bootSpinner{
+    width:26px;height:26px;border-radius:50%;
+    border:2.5px solid var(--sidebar-border);border-top-color:var(--accent-btn);
+    animation:bootGira .8s linear infinite;
+  }
+  @keyframes bootGira{to{transform:rotate(360deg)}}
+  #bootStatusText{margin:0;font-size:13.5px;color:var(--text-light);text-align:center;}
+  #bootTempo{font-variant-numeric:tabular-nums;opacity:.7;}
+  #bootErro{display:none;flex-direction:column;align-items:center;gap:12px;max-width:460px;}
+  #bootErro.visible{display:flex;}
+  #bootErroMsg{
+    margin:0;font-size:13px;color:var(--text);text-align:center;line-height:1.5;
+    background:var(--surface);border:1px solid var(--danger);border-radius:10px;padding:14px 16px;
+    white-space:pre-wrap;overflow-wrap:break-word;
+  }
+  #bootErroAcoes{display:flex;gap:8px;}
+  #bootErroAcoes button{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:8px;
+    padding:9px 18px;font-size:13px;font-family:inherit;color:var(--text);cursor:pointer;
+  }
+  #bootErroAcoes button.principal{background:var(--accent-btn);border-color:var(--accent-btn);color:#fff;}
+  #bootErroAcoes button:hover{filter:brightness(1.1);}
   #loginScreen h1, #noAccessScreen h1{font-size:30px;margin:0;letter-spacing:-.01em;}
   #loginScreen p, #noAccessScreen p{color:var(--text-light);margin:0;max-width:380px;text-align:center;font-size:14px;line-height:1.5;}
   #loginBtn{
@@ -1445,6 +1475,19 @@
   <button id="noAccessLogoutBtn">Trocar de conta</button>
 </div>
 
+<div id="bootScreen">
+  <h1>📝 ROADMAP</h1>
+  <div id="bootSpinner"></div>
+  <p id="bootStatusText"><span id="bootPasso">Entrando…</span> <span id="bootTempo"></span></p>
+  <div id="bootErro">
+    <p id="bootErroMsg"></p>
+    <div id="bootErroAcoes">
+      <button type="button" id="bootRetryBtn" class="principal">Tentar de novo</button>
+      <button type="button" id="bootLogoutBtn">Trocar de conta</button>
+    </div>
+  </div>
+</div>
+
 <button id="mobileMenuBtn">☰</button>
 <div id="sidebarOverlay"></div>
 <button id="sidebarCollapseBtn" title="Recolher barra lateral">‹</button>
@@ -1979,6 +2022,7 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
 
 function doLogout(){
   const account = msalInstance ? msalInstance.getActiveAccount() : null;
+  if (typeof bootEsconder === "function") bootEsconder();
   indexData = { pages: [] };
   usersData = { usuarios: [] };
   pageContentCache = {};
@@ -2155,18 +2199,83 @@ document.addEventListener("keydown", (e) => {
 /* ==========================================================================
    INICIALIZAÇÃO APÓS LOGIN
    ========================================================================== */
+
+/* Entre o login e o app ha varias idas ao OneDrive. Sem esta tela, esse
+   intervalo era preto — e um erro no meio deixava preto para sempre. */
+let bootRelogio = null;
+
+function bootMostrar(texto){
+  const tela = document.getElementById("bootScreen");
+  document.getElementById("bootErro").classList.remove("visible");
+  document.getElementById("bootSpinner").style.display = "";
+  tela.classList.add("visible");
+  bootPasso(texto);
+  const comeco = Date.now();
+  clearInterval(bootRelogio);
+  bootRelogio = setInterval(() => {
+    const seg = Math.round((Date.now() - comeco) / 1000);
+    // So depois de 4s: antes disso o numero so faz a espera parecer maior.
+    document.getElementById("bootTempo").textContent = seg >= 4 ? "(" + seg + "s)" : "";
+  }, 500);
+}
+
+/* Elemento proprio para o texto: escrever no <p> inteiro apagaria o contador
+   de segundos, que e irmao dele. */
+function bootPasso(texto){
+  document.getElementById("bootPasso").textContent = texto;
+}
+
+function bootEsconder(){
+  clearInterval(bootRelogio);
+  bootRelogio = null;
+  document.getElementById("bootTempo").textContent = "";
+  document.getElementById("bootScreen").classList.remove("visible");
+}
+
+/* Erro na entrada nao pode virar tela preta: mostra o que houve e oferece sair
+   do lugar — tentar de novo ou trocar de conta. */
+function bootErro(e){
+  clearInterval(bootRelogio);
+  bootRelogio = null;
+  const msg = (e && e.message) ? e.message : String(e);
+  document.getElementById("bootScreen").classList.add("visible");
+  document.getElementById("bootSpinner").style.display = "none";
+  bootPasso("Não consegui abrir o espaço.");
+  document.getElementById("bootTempo").textContent = "";
+  document.getElementById("bootErroMsg").textContent = msg;
+  document.getElementById("bootErro").classList.add("visible");
+}
+
+document.getElementById("bootRetryBtn").addEventListener("click", () => { afterLogin(); });
+document.getElementById("bootLogoutBtn").addEventListener("click", () => {
+  bootEsconder();
+  doLogout();
+});
+
 async function afterLogin(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("noAccessScreen").style.display = "none";
+  bootMostrar("Procurando o espaço de notas…");
 
+  try{
+    await afterLoginPassos();
+  }catch(e){
+    bootErro(e);
+  }
+}
+
+async function afterLoginPassos(){
   setStatus("Carregando…");
   const ok = await resolveWorkspace();
   if (!ok){
+    bootEsconder();
     showNoAccess();
     return;
   }
 
+  bootPasso("Carregando as páginas…");
   document.getElementById("app").classList.add("visible");
+  bootEsconder();
   setSessionUI(true);
   document.getElementById("newPageBtn").hidden = !canEdit;
   document.getElementById("adminBtn").hidden = !isOwner;
@@ -2179,7 +2288,9 @@ async function afterLogin(){
   buildTree();
   if (indexData.pages.length){
     const firstRoot = indexData.pages.filter(p => !p.parentId).sort((a,b) => a.order - b.order)[0];
-    await openPage(firstRoot ? firstRoot.id : indexData.pages[0].id);
+    const alvo = firstRoot ? firstRoot.id : indexData.pages[0].id;
+    setStatus("Abrindo " + ((getPageMeta(alvo) || {}).title || "a página") + "…");
+    await openPage(alvo);
   } else {
     showEmptyState();
   }
