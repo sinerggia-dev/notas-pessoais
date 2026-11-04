@@ -668,6 +668,72 @@
   }
   .task-audio-btn:hover{background:var(--hover);color:var(--text);}
   .task-audio-btn:disabled{opacity:.6;cursor:default;}
+  /* Resumo da reuniao. */
+  .task-resumo-wrap{display:flex;align-items:center;gap:6px;min-width:0;}
+  .task-resumo-btn{
+    background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;
+    line-height:1;color:var(--text-light);
+  }
+  .task-resumo-btn.tem-resumo{font-size:14px;}
+  .task-resumo-btn.task-resumo-open-btn{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:6px;
+    font-size:12px;padding:1px 8px;
+  }
+  .task-resumo-btn:hover{color:var(--text);background:var(--hover);border-radius:6px;}
+  .task-resumo-empty{font-size:12px;color:var(--text-dim);}
+  #resumoOverlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:150;
+    align-items:center;justify-content:center;
+  }
+  #resumoOverlay.visible{display:flex;}
+  #resumoModal{
+    background:var(--surface);border-radius:12px;width:720px;max-width:94vw;padding:24px;
+    box-shadow:var(--shadow-md);animation:menuPopIn .12s ease-out;
+  }
+  #resumoCloseBtn{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-light);}
+  #resumoModal h2{margin:0 0 4px;font-size:16px;}
+  #resumoModalTaskTitle{margin:0 0 12px;font-size:12px;color:var(--text-light);overflow-wrap:break-word;}
+  /* Leitura: e para isso que a coluna existe. Altura generosa e texto confortavel. */
+  #resumoLeitura{
+    max-height:58vh;overflow:auto;font-size:13.5px;line-height:1.6;color:var(--text);
+    border:1px solid var(--sidebar-border);border-radius:8px;padding:16px 18px;
+    background:var(--sidebar-bg);
+  }
+  #resumoLeitura h3{font-size:14px;margin:18px 0 6px;color:var(--text);}
+  #resumoLeitura h3:first-child{margin-top:0;}
+  #resumoLeitura h4{font-size:12.5px;margin:14px 0 4px;color:var(--text-light);
+                    text-transform:uppercase;letter-spacing:.04em;}
+  #resumoLeitura p{margin:0 0 10px;}
+  #resumoLeitura ul{margin:0 0 10px;padding-left:20px;}
+  #resumoLeitura li{margin:3px 0;}
+  #resumoLeitura li.pendente{list-style:none;margin-left:-20px;}
+  #resumoLeitura li.pendente::before{content:"\2610  ";color:var(--text-light);}
+  #resumoLeitura li.feito{list-style:none;margin-left:-20px;color:var(--text-light);}
+  #resumoLeitura li.feito::before{content:"\2611  ";}
+  #resumoLeitura blockquote{
+    margin:0 0 10px;padding:4px 0 4px 12px;border-left:3px solid var(--sidebar-border);
+    color:var(--text-light);font-size:12.5px;
+  }
+  #resumoLeitura hr{border:none;border-top:1px solid var(--sidebar-border);margin:14px 0;}
+  #resumoLeitura .vazio{color:var(--text-dim);}
+  #resumoEditor{
+    display:none;width:100%;box-sizing:border-box;height:58vh;resize:vertical;
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px;line-height:1.55;
+    background:var(--sidebar-bg);color:var(--text);
+    border:1px solid var(--sidebar-border);border-radius:8px;padding:14px;
+  }
+  #resumoModal.editando #resumoLeitura{display:none;}
+  #resumoModal.editando #resumoEditor{display:block;}
+  #resumoModalHint{margin:10px 0 0;font-size:11.5px;color:var(--text-light);}
+  #resumoModalActions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;}
+  #resumoModalActionsRight{display:flex;gap:8px;}
+  #resumoModalActions button{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:7px;
+    padding:7px 14px;font-size:13px;font-family:inherit;color:var(--text);cursor:pointer;
+  }
+  #resumoModalActions button:hover{background:var(--hover);}
+  #resumoModalActions button.principal{background:var(--accent-btn);border-color:var(--accent-btn);color:#fff;}
+  #resumoDeleteBtn:hover{color:var(--danger);border-color:var(--danger);}
   .task-audio-dur{font-size:11px;color:var(--text-light);font-variant-numeric:tabular-nums;white-space:nowrap;flex:0 0 auto;}
   .task-audio-btn.tocando{background:var(--accent-btn);border-color:var(--accent-btn);color:#fff;}
   .task-audio-link{font-size:12px;color:var(--text-light);text-decoration:none;flex:0 0 auto;}
@@ -1657,6 +1723,25 @@
     <div id="passwordModalActions">
       <button type="button" id="passwordCancelBtn">Cancelar</button>
       <button type="button" id="passwordOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="resumoOverlay">
+  <div id="resumoModal">
+    <button type="button" id="resumoCloseBtn">&times;</button>
+    <h2>Resumo</h2>
+    <p id="resumoModalTaskTitle"></p>
+    <div id="resumoLeitura"></div>
+    <textarea id="resumoEditor" placeholder="Cole aqui o resumo da reunião.&#10;&#10;Aceita Markdown simples: ## título, - item, - [ ] pendência, **negrito**."></textarea>
+    <p id="resumoModalHint"></p>
+    <div id="resumoModalActions">
+      <button type="button" id="resumoDeleteBtn">Apagar resumo</button>
+      <div id="resumoModalActionsRight">
+        <button type="button" id="resumoEditBtn">Editar</button>
+        <button type="button" id="resumoCancelBtn">Fechar</button>
+        <button type="button" id="resumoSaveBtn" class="principal">Salvar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3787,8 +3872,9 @@ function taskSearchHaystack(task){
     task.dueDate ? formatDateBR(task.dueDate) : "",
     task.dueDate || "",
     task.horario || "",
+    task.resumo || "",
   ];
-  // Assinatura barata: comparar treze strings custa muito menos que remontar.
+  // Assinatura barata: comparar catorze strings custa muito menos que remontar.
   const assinatura = partes.join("\u0000");
   const guardado = cacheBusca.get(task);
   if (guardado && guardado.assinatura === assinatura) return guardado.hay;
@@ -3922,6 +4008,7 @@ const ACOES_COM_SENHA = [
   { key: "anexo",          label: "Anexar e remover arquivo" },
   { key: "documento",      label: "Criar e remover documento do Office" },
   { key: "audio",          label: "Gravar e remover áudio" },
+  { key: "resumo",         label: "Escrever e apagar resumo" },
   { key: "moverColunas",   label: "Mover colunas de lugar (arrastar o cabeçalho)" },
   { key: "layoutColunas",  label: "Esconder e restaurar colunas" },
   { key: "layoutBarra",    label: "Mover e esconder botões e filtros da barra" },
@@ -3987,13 +4074,14 @@ const TASK_COLUMNS_DEF = [
   { key: "note", label: "Nota" },
   { key: "documento", label: "Documento" },
   { key: "audio", label: "Áudio" },
+  { key: "resumo", label: "Resumo" },
   { key: "attach", label: "Anexo" },
 ];
 const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
   title: 190, status: 130, priority: 110, dueDate: 130, horario: 100, company: 140, items: 80,
   createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70,
-  documento: 120, audio: 175, attach: 120
+  documento: 120, audio: 175, resumo: 90, attach: 120
 };
 
 let taskColOrder = DEFAULT_COL_ORDER.slice();
@@ -5702,6 +5790,190 @@ async function uploadAttachment(file, task){
   return { id: item.id, name: file.name, url: item.webUrl || "", size: file.size || 0 };
 }
 
+/* ---------- Resumo da reuniao ----------
+   O resumo e texto para LER, nao para editar o tempo todo: a janela abre em
+   leitura, ja formatada, e o Editar fica a um clique. */
+function resumoVazio(t){ return !String(t == null ? "" : t).trim(); }
+
+/* Pedaco de Markdown que os resumos de reuniao usam.
+   O texto e escapado ANTES de qualquer coisa: colar um resumo com < ou & nao
+   pode virar HTML dentro da tabela de todo mundo. */
+function resumoParaHtml(texto){
+  const linhas = escapeHtml(String(texto == null ? "" : texto)).split(/\r?\n/);
+  const saida = [];
+  let lista = null;   // "ul" enquanto uma lista estiver aberta
+
+  function fechaLista(){ if (lista){ saida.push("</ul>"); lista = null; } }
+  function inline(t){
+    return t.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+            .replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+
+  linhas.forEach(bruta => {
+    const l = bruta.trim();
+    if (!l){ fechaLista(); return; }
+    if (/^(---+|___+|\*\*\*+)$/.test(l)){ fechaLista(); saida.push("<hr>"); return; }
+
+    let m;
+    if ((m = /^#{3,6}\s+(.*)$/.exec(l))){ fechaLista(); saida.push("<h4>" + inline(m[1]) + "</h4>"); return; }
+    if ((m = /^#{1,2}\s+(.*)$/.exec(l))){ fechaLista(); saida.push("<h3>" + inline(m[1]) + "</h3>"); return; }
+    if ((m = /^&gt;\s?(.*)$/.exec(l))){ fechaLista(); saida.push("<blockquote>" + inline(m[1]) + "</blockquote>"); return; }
+
+    // Pendencia marcada ou nao: "- [ ] fazer" / "- [x] feito"
+    if ((m = /^[-*]\s+\[([ xX])\]\s*(.*)$/.exec(l))){
+      if (!lista){ saida.push("<ul>"); lista = "ul"; }
+      const feito = m[1].toLowerCase() === "x";
+      saida.push('<li class="' + (feito ? "feito" : "pendente") + '">' + inline(m[2]) + "</li>");
+      return;
+    }
+    if ((m = /^[-*]\s+(.*)$/.exec(l))){
+      if (!lista){ saida.push("<ul>"); lista = "ul"; }
+      saida.push("<li>" + inline(m[1]) + "</li>");
+      return;
+    }
+    // Linha de tabela do Markdown: sem tabela aqui, mostra os campos separados.
+    if (/^\|.*\|$/.test(l)){
+      if (/^\|[\s:|-]+\|$/.test(l)) return;       // a linha de tracos nao diz nada
+      fechaLista();
+      saida.push("<p>" + inline(l.replace(/^\||\|$/g, "").split("|")
+                   .map(c => c.trim()).filter(Boolean).join(" \u00b7 ")) + "</p>");
+      return;
+    }
+    fechaLista();
+    saida.push("<p>" + inline(l) + "</p>");
+  });
+  fechaLista();
+  return saida.join("");
+}
+
+/* Para o botao da celula: as primeiras palavras, sem marcacao. */
+function resumoParaTexto(texto){
+  return String(texto == null ? "" : texto)
+    .replace(/^[#>\s|-]+/gm, " ")
+    .replace(/[*`\[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+let resumoTask = null, resumoAoFechar = null;
+
+function abrirResumo(task, aoFechar){
+  resumoTask = task;
+  resumoAoFechar = aoFechar || null;
+  const modal = document.getElementById("resumoModal");
+  document.getElementById("resumoModalTaskTitle").textContent = task.title || "Sem t\u00edtulo";
+  document.getElementById("resumoEditor").value = task.resumo || "";
+  pintaResumoLeitura();
+  // Vazio e com permissao: ja abre escrevendo, que e o que a pessoa quer ali.
+  modal.classList.toggle("editando", canEdit && resumoVazio(task.resumo));
+  atualizaBotoesResumo();
+  document.getElementById("resumoOverlay").classList.add("visible");
+  if (modal.classList.contains("editando")) document.getElementById("resumoEditor").focus();
+}
+
+function pintaResumoLeitura(){
+  const alvo = document.getElementById("resumoLeitura");
+  const t = document.getElementById("resumoEditor").value;
+  alvo.innerHTML = resumoVazio(t)
+    ? '<p class="vazio">Sem resumo ainda.</p>'
+    : resumoParaHtml(t);
+}
+
+function atualizaBotoesResumo(){
+  const modal = document.getElementById("resumoModal");
+  const editando = modal.classList.contains("editando");
+  const temTexto = !resumoVazio(document.getElementById("resumoEditor").value);
+  document.getElementById("resumoEditBtn").hidden = editando || !canEdit;
+  document.getElementById("resumoSaveBtn").hidden = !editando;
+  document.getElementById("resumoDeleteBtn").hidden = !canEdit || !temTexto;
+  const dica = document.getElementById("resumoModalHint");
+  if (editando){
+    dica.textContent = "Aceita Markdown simples: ## t\u00edtulo, - item, - [ ] pend\u00eancia, **negrito**.";
+  } else {
+    const n = resumoParaTexto(document.getElementById("resumoEditor").value).split(" ").filter(Boolean).length;
+    dica.textContent = temTexto ? (n + " palavras") : "";
+  }
+}
+
+function fecharResumo(){
+  document.getElementById("resumoOverlay").classList.remove("visible");
+  document.getElementById("resumoModal").classList.remove("editando");
+  resumoTask = null;
+  if (resumoAoFechar) resumoAoFechar();
+  resumoAoFechar = null;
+}
+
+document.getElementById("resumoEditBtn").addEventListener("click", () => {
+  document.getElementById("resumoModal").classList.add("editando");
+  atualizaBotoesResumo();
+  document.getElementById("resumoEditor").focus();
+});
+document.getElementById("resumoEditor").addEventListener("input", () => {
+  pintaResumoLeitura();
+  atualizaBotoesResumo();
+});
+document.getElementById("resumoSaveBtn").addEventListener("click", async () => {
+  if (!resumoTask) return;
+  if (!(await guardTaskFieldEdit(resumoTask, "resumo"))) return;
+  const t = document.getElementById("resumoEditor").value;
+  if (resumoVazio(t)) delete resumoTask.resumo; else resumoTask.resumo = t;
+  scheduleSavePage(currentPageId);
+  document.getElementById("resumoModal").classList.remove("editando");
+  pintaResumoLeitura();
+  atualizaBotoesResumo();
+});
+document.getElementById("resumoDeleteBtn").addEventListener("click", async () => {
+  if (!resumoTask) return;
+  if (!confirm("Apagar o resumo desta atividade?")) return;
+  if (!(await guardTaskFieldEdit(resumoTask, "resumo"))) return;
+  delete resumoTask.resumo;
+  scheduleSavePage(currentPageId);
+  document.getElementById("resumoEditor").value = "";
+  fecharResumo();
+});
+document.getElementById("resumoCancelBtn").addEventListener("click", fecharResumo);
+document.getElementById("resumoCloseBtn").addEventListener("click", fecharResumo);
+document.getElementById("resumoOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "resumoOverlay") fecharResumo();
+});
+
+function buildResumoCell(task){
+  const td = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "task-resumo-wrap";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  const vazioEl = document.createElement("span");
+  vazioEl.className = "task-resumo-empty";
+  vazioEl.textContent = "\u2014";
+
+  function refresh(){
+    if (!resumoVazio(task.resumo)){
+      btn.className = "task-resumo-btn tem-resumo";
+      btn.textContent = "\ud83d\udccb";
+      btn.title = resumoParaTexto(task.resumo).slice(0, 180);
+      btn.hidden = false; vazioEl.hidden = true;
+    } else if (canEdit){
+      btn.className = "task-resumo-btn task-resumo-open-btn";
+      btn.textContent = "+";
+      btn.title = "Escrever ou colar o resumo";
+      btn.hidden = false; vazioEl.hidden = true;
+    } else {
+      btn.hidden = true; vazioEl.hidden = false;
+    }
+  }
+
+  // Abrir para ler nunca pede senha — a senha fica so no Salvar e no Apagar.
+  btn.addEventListener("click", () => abrirResumo(task, refresh));
+
+  wrap.appendChild(btn);
+  wrap.appendChild(vazioEl);
+  td.appendChild(wrap);
+  refresh();
+  return td;
+}
+
 /* ---------- Gravar audio da reuniao ou da instrucao ----------
    Grava pelo navegador, manda para a pasta "Audios" do mesmo espaco e guarda o
    endereco na tarefa.
@@ -6478,6 +6750,7 @@ const TASK_CELL_BUILDERS = {
   note: (task) => buildNoteCell(task),
   documento: (task) => buildDocumentoCell(task),
   audio: (task) => buildAudioCell(task),
+  resumo: (task) => buildResumoCell(task),
   attach: (task) => buildAttachCell(task),
 };
 
