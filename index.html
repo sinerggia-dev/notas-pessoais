@@ -154,7 +154,17 @@
   }
   #loginBtn:hover{background:var(--accent-hover);transform:translateY(-1px);}
   #loginBtn:active{transform:translateY(0);}
-  #loginError{color:var(--danger);font-size:13px;max-width:400px;text-align:center;display:none;}
+  #loginError{
+    color:var(--danger);font-size:13px;max-width:460px;text-align:center;display:none;
+    line-height:1.5;white-space:pre-wrap;user-select:text;
+  }
+  #loginError .cod{display:block;margin-top:6px;font-size:11px;opacity:.75;}
+  #loginResetBtn{
+    background:none;border:1px solid var(--sidebar-border);border-radius:8px;
+    padding:8px 16px;font-size:12.5px;font-family:inherit;color:var(--text-light);cursor:pointer;
+  }
+  #loginResetBtn[hidden]{display:none;}
+  #loginResetBtn:hover{background:var(--hover);color:var(--text);}
   #noAccessScreen button{
     background:var(--surface);border:1px solid var(--sidebar-border);border-radius:8px;padding:9px 18px;font-size:13px;
     cursor:pointer;color:var(--text);box-shadow:var(--shadow-sm);transition:background .15s ease;
@@ -1476,6 +1486,7 @@
   <p>Espaço de notas compartilhado da Sinerggia. Entre com sua conta Microsoft corporativa para continuar.</p>
   <button id="loginBtn">Entrar com Microsoft</button>
   <div id="loginError"></div>
+  <button type="button" id="loginResetBtn" hidden>Limpar a entrada travada e tentar de novo</button>
 </div>
 
 <div id="noAccessScreen">
@@ -2015,18 +2026,92 @@ async function graphFetch(url, options = {}){
   return fetch(url, Object.assign({}, options, { headers }));
 }
 
+/* Cada erro de entrada tem uma saida diferente. Dizer qual e metade do
+   conserto; a frase generica de antes nao ajudava ninguem. */
+function recadoDoErroDeLogin(err){
+  const codigo = String((err && (err.errorCode || err.name)) || "");
+  const detalhe = String((err && (err.errorMessage || err.message)) || err || "");
+
+  if (codigo === "user_cancelled" || /user_cancelled/.test(detalhe))
+    return { texto: "Entrada cancelada. Clique em Entrar quando quiser.", destravar: false, codigo: "" };
+
+  if (/popup_window_error|empty_window_error|BrowserAuthError.*popup/i.test(codigo + " " + detalhe))
+    return { texto: "O navegador bloqueou a janela da Microsoft.\n" +
+                    "Libere os pop-ups para este site (o cadeado na barra de endere\u00e7os) e tente de novo.",
+             destravar: false, codigo: codigo };
+
+  if (/interaction_in_progress/.test(codigo + " " + detalhe))
+    return { texto: "Ficou uma entrada pela metade travando as pr\u00f3ximas.\n" +
+                    "Use o bot\u00e3o abaixo para limpar e tentar de novo.",
+             destravar: true, codigo: codigo };
+
+  if (/monitor_window_timeout|window_hash_timeout/.test(codigo + " " + detalhe))
+    return { texto: "A janela da Microsoft demorou demais para responder.\n" +
+                    "Verifique a conex\u00e3o e tente de novo.", destravar: true, codigo: codigo };
+
+  // Desconhecido: mostra o que veio, para dar para copiar e investigar.
+  return { texto: "N\u00e3o foi poss\u00edvel entrar: " + (detalhe || codigo || "erro desconhecido"),
+           destravar: true, codigo: codigo };
+}
+
+/* O MSAL guarda no armazenamento da aba que ha uma interacao em andamento.
+   Janela de login fechada no meio deixa esse estado preso, e toda tentativa
+   seguinte falha sem explicacao. Limpar as chaves dele destrava. */
+function limparEstadoDeLogin(){
+  let n = 0;
+  [sessionStorage, localStorage].forEach(loja => {
+    try{
+      Object.keys(loja).forEach(k => {
+        if (k.indexOf("msal") === 0 || k.indexOf("msal.") >= 0 || k.indexOf("interaction.status") >= 0){
+          loja.removeItem(k); n++;
+        }
+      });
+    }catch(e){}
+  });
+  return n;
+}
+
+function mostrarErroDeLogin(err){
+  const errEl = document.getElementById("loginError");
+  const reset = document.getElementById("loginResetBtn");
+  const r = recadoDoErroDeLogin(err);
+  errEl.textContent = r.texto;
+  if (r.codigo){
+    const cod = document.createElement("span");
+    cod.className = "cod";
+    cod.textContent = "(" + r.codigo + ")";
+    errEl.appendChild(cod);
+  }
+  errEl.style.display = "block";
+  reset.hidden = !r.destravar;
+}
+
 document.getElementById("loginBtn").addEventListener("click", async () => {
   const errEl = document.getElementById("loginError");
+  const btn = document.getElementById("loginBtn");
   errEl.style.display = "none";
+  document.getElementById("loginResetBtn").hidden = true;
+  btn.disabled = true;
   try{
     const resp = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
     msalInstance.setActiveAccount(resp.account);
     currentUserEmail = (resp.account.username || "").toLowerCase();
     await afterLogin();
   }catch(err){
-    errEl.textContent = "Não foi possível entrar com a Microsoft. Tente novamente.";
-    errEl.style.display = "block";
+    mostrarErroDeLogin(err);
+  }finally{
+    btn.disabled = false;
   }
+});
+
+document.getElementById("loginResetBtn").addEventListener("click", () => {
+  const n = limparEstadoDeLogin();
+  const errEl = document.getElementById("loginError");
+  errEl.textContent = n
+    ? "Pronto, limpei a entrada travada. Clique em Entrar com Microsoft."
+    : "Não havia nada travado. Tente entrar de novo.";
+  errEl.style.display = "block";
+  document.getElementById("loginResetBtn").hidden = true;
 });
 
 function doLogout(){
