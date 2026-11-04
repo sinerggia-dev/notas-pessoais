@@ -6279,7 +6279,33 @@ document.getElementById("importarResumosBtn").addEventListener("click", importar
 const RESUMO_MAX_CHARS = 300 * 1024;
 const RESUMO_RENDER_MAX = 120 * 1024;
 
-function problemaNoTextoDoResumo(texto){
+/* Pelo nome ja da para saber que nao serve — e um audio de 50 KB passaria
+   pelo limite de tamanho e viraria lixo do mesmo jeito. */
+const TIPOS_QUE_NAO_SAO_TEXTO = [
+  { ext: "webm|mp3|m4a|ogg|oga|wav|aac|flac|opus", diz: "um arquivo de \u00e1udio" },
+  { ext: "mp4|mov|avi|mkv|wmv",                    diz: "um arquivo de v\u00eddeo" },
+  { ext: "png|jpg|jpeg|gif|bmp|webp|tif|tiff|ico", diz: "uma imagem" },
+  { ext: "pdf",                                    diz: "um PDF" },
+  { ext: "docx|doc|xlsx|xls|pptx|ppt|odt|ods",     diz: "um documento do Office" },
+  { ext: "zip|rar|7z|gz|tar",                      diz: "um arquivo compactado" },
+  { ext: "exe|dll|bin|iso|db|sqlite",              diz: "um arquivo de programa" },
+];
+
+function tipoNaoTextual(nome){
+  const m = /\.([a-z0-9]+)$/i.exec(String(nome || ""));
+  if (!m) return null;
+  const ext = m[1].toLowerCase();
+  for (const t of TIPOS_QUE_NAO_SAO_TEXTO){
+    if (new RegExp("^(?:" + t.ext + ")$").test(ext)) return t.diz;
+  }
+  return null;
+}
+
+function problemaNoTextoDoResumo(texto, nome){
+  // O nome primeiro: e a resposta mais util, e vale em qualquer tamanho.
+  const tipo = tipoNaoTextual(nome);
+  if (tipo) return "\u00e9 " + tipo + ", e o resumo precisa ser texto";
+
   const t = String(texto == null ? "" : texto);
   if (t.length > RESUMO_MAX_CHARS)
     return "tem " + Math.round(t.length / 1024) + " KB, grande demais para um resumo " +
@@ -6511,7 +6537,7 @@ function escolherArquivosDeResumo(multiplo){
 /* Poe o texto na atividade, com as mesmas proteções em todos os caminhos.
    Devolve true quando o resumo entrou de fato. */
 async function aplicarResumoNaTask(task, texto, nomeArquivo, aoTerminar){
-  const problema = problemaNoTextoDoResumo(texto);
+  const problema = problemaNoTextoDoResumo(texto, nomeArquivo);
   if (problema){
     avisar('O arquivo "' + nomeArquivo + '" ' + problema + '.' + "\n\n" +
            "Escolha o arquivo de texto do resumo (.md ou .txt).",
