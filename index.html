@@ -6344,12 +6344,30 @@ function abrirResumo(task, aoFechar){
   const modal = document.getElementById("resumoModal");
   document.getElementById("resumoModalTaskTitle").textContent = task.title || "Sem t\u00edtulo";
   document.getElementById("resumoEditor").value = task.resumo || "";
-  pintaResumoLeitura();
   // Vazio e com permissao: ja abre escrevendo, que e o que a pessoa quer ali.
   modal.classList.toggle("editando", canEdit && resumoVazio(task.resumo));
   atualizaBotoesResumo();
+
+  /* A JANELA APARECE PRIMEIRO; o texto e montado logo depois.
+     Antes era tudo um bloco so: se a montagem demorasse, o clique parecia nao
+     ter feito nada. Agora o pior caso e uma janela aberta avisando. */
+  document.getElementById("resumoLeitura").innerHTML =
+    '<p class="vazio">Abrindo o resumo\u2026</p>';
   document.getElementById("resumoOverlay").classList.add("visible");
   if (modal.classList.contains("editando")) document.getElementById("resumoEditor").focus();
+
+  setTimeout(() => {
+    const agora = () => (window.performance && performance.now) ? performance.now() : Date.now();
+    const t0 = agora();
+    pintaResumoLeitura();
+    const ms = Math.round(agora() - t0);
+    // Numero em vez de palpite, se um dia voltar a demorar.
+    if (ms > 1000){
+      const dica = document.getElementById("resumoModalHint");
+      if (dica) dica.textContent = "O resumo levou " + ms + " ms para montar (" +
+        document.getElementById("resumoEditor").value.length + " caracteres).";
+    }
+  }, 0);
 }
 
 function pintaResumoLeitura(){
