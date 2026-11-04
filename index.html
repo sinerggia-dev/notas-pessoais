@@ -793,7 +793,10 @@
   #resumoDeleteBtn:hover{color:var(--danger);border-color:var(--danger);}
   .task-audio-dur{font-size:11px;color:var(--text-light);font-variant-numeric:tabular-nums;white-space:nowrap;flex:0 0 auto;}
   .task-audio-btn.tocando{background:var(--accent-btn);border-color:var(--accent-btn);color:#fff;}
-  .task-audio-link{font-size:12px;color:var(--text-light);text-decoration:none;flex:0 0 auto;}
+  .task-audio-link{
+    font-size:12px;color:var(--text-light);text-decoration:none;flex:0 0 auto;
+    background:none;border:none;cursor:pointer;padding:2px 3px;line-height:1;font-family:inherit;
+  }
   .task-audio-link:hover{color:var(--text);}
   /* Barra de progresso propria. O <audio controls> do navegador, na largura de
      uma coluna, vira um botao redondo gigante sem tempo nem barra. */
@@ -6597,6 +6600,38 @@ async function enderecoDoAudio(a){
   return endereco;
 }
 
+/* Baixar de verdade, em vez de abrir o SharePoint.
+
+   Nao da para apontar um <a download> direto para o endereco do OneDrive: o
+   atributo download e ignorado quando o arquivo vem de outro dominio, e o
+   navegador simplesmente abre a pagina dele. Buscando os bytes e criando um
+   endereco local, o download acontece com o nome certo. */
+async function baixarAudio(task, a, botao){
+  const rotulo = botao.textContent;
+  botao.textContent = "…";
+  try{
+    const endereco = await enderecoDoAudio(a);
+    const res = await fetch(endereco);
+    if (!res.ok) throw new Error("status " + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const ext = (String(a.nome || "").match(/\.[a-z0-9]+$/i) || [".webm"])[0];
+    const link = document.createElement("a");
+    link.href = url;
+    // Nome legivel, nao o codigo interno do arquivo.
+    link.download = safeFileName(task.title || "audio") + ext;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }catch(e){
+    avisar("Não consegui baixar: " + (e && e.message ? e.message : e),
+           { titulo: "Baixar áudio" });
+  }finally{
+    botao.textContent = rotulo;
+  }
+}
+
 function buildAudioCell(task){
   const td = document.createElement("td");
   const wrap = document.createElement("div");
@@ -6689,16 +6724,15 @@ function buildAudioCell(task){
         pintaTempo();
       });
 
-      if (a.url){
-        const abrir = document.createElement("a");
-        abrir.className = "task-audio-link";
-        abrir.href = a.url;
-        abrir.target = "_blank";
-        abrir.rel = "noopener";
-        abrir.textContent = "⤓";
-        abrir.title = "Abrir ou baixar no OneDrive";
-        wrap.appendChild(abrir);
-      }
+      // Botao, nao link: abrir o endereco do OneDrive levava para uma pagina do
+      // SharePoint com um tocador e nenhum jeito obvio de baixar.
+      const baixar = document.createElement("button");
+      baixar.type = "button";
+      baixar.className = "task-audio-link";
+      baixar.textContent = "⤓";
+      baixar.title = "Baixar o áudio para o computador";
+      baixar.addEventListener("click", () => baixarAudio(task, a, baixar));
+      wrap.appendChild(baixar);
 
       if (canEdit){
         const del = document.createElement("button");
