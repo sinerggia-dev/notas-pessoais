@@ -6117,7 +6117,7 @@ document.getElementById("dlgOverlay").addEventListener("click", (e) => {
    O numero no COMECO DO NOME do arquivo e o numero de registro da atividade
    (coluna ITENS). "158 - planejamento natal.md" vai para a atividade 158. */
 const IMPORT_FOLDER = "ROADMAP - Importar";
-const IMPORT_MAX_BYTES = 2 * 1024 * 1024;   // resumo e texto; acima disso e outra coisa
+const IMPORT_MAX_BYTES = 300 * 1024;   // resumo e texto; acima disso e outra coisa
 
 /* O numero tem de estar no comeco: "2026-11-04 reuniao.md" comecaria por 2026 e
    iria para a atividade 2026, que nao existe — por isso o nome manda, nao o
@@ -6274,6 +6274,34 @@ document.getElementById("importarResumosBtn").addEventListener("click", importar
 /* ---------- Resumo da reuniao ----------
    O resumo e texto para LER, nao para editar o tempo todo: a janela abre em
    leitura, ja formatada, e o Editar fica a um clique. */
+/* Resumo e texto. Audio, PDF, imagem ou .docx lidos como texto viram lixo e,
+   pior, travam o navegador ao desenhar megabytes de HTML. */
+const RESUMO_MAX_CHARS = 300 * 1024;
+const RESUMO_RENDER_MAX = 120 * 1024;
+
+function problemaNoTextoDoResumo(texto){
+  const t = String(texto == null ? "" : texto);
+  if (t.length > RESUMO_MAX_CHARS)
+    return "tem " + Math.round(t.length / 1024) + " KB, grande demais para um resumo " +
+           "(o limite \u00e9 " + Math.round(RESUMO_MAX_CHARS / 1024) + " KB)";
+
+  // Uma amostra basta: binario mostra a cara logo no comeco.
+  const amostra = t.slice(0, 4000);
+  if (amostra.indexOf("\u0000") >= 0)
+    return "parece um arquivo bin\u00e1rio, n\u00e3o um texto";
+
+  // U+FFFD e o que o navegador poe no lugar de byte que nao e texto valido.
+  let ruins = 0;
+  for (let i = 0; i < amostra.length; i++){
+    const c = amostra.charCodeAt(i);
+    if (c === 0xFFFD || (c < 32 && c !== 9 && c !== 10 && c !== 13)) ruins++;
+  }
+  if (amostra.length && ruins / amostra.length > 0.02)
+    return "parece um arquivo bin\u00e1rio (\u00e1udio, PDF, imagem), n\u00e3o um texto";
+
+  return null;
+}
+
 function resumoVazio(t){ return !String(t == null ? "" : t).trim(); }
 
 /* Pedaco de Markdown que os resumos de reuniao usam.
@@ -6373,9 +6401,30 @@ function abrirResumo(task, aoFechar){
 function pintaResumoLeitura(){
   const alvo = document.getElementById("resumoLeitura");
   const t = document.getElementById("resumoEditor").value;
-  alvo.innerHTML = resumoVazio(t)
-    ? '<p class="vazio">Sem resumo ainda.</p>'
-    : resumoParaHtml(t);
+  if (resumoVazio(t)){
+    alvo.innerHTML = '<p class="vazio">Sem resumo ainda.</p>';
+    return;
+  }
+  /* Nunca desenhar megabytes: medido, 1,4 MB leva quase 9 segundos e o
+     navegador declara a pagina sem resposta. Mostrando so o comeco, quem tem
+     lixo salvo ainda consegue abrir a janela e apagar. */
+  if (t.length > RESUMO_RENDER_MAX){
+    const aviso = document.createElement("p");
+    aviso.className = "vazio";
+    aviso.textContent = "Este resumo tem " + Math.round(t.length / 1024) +
+      " KB \u2014 grande demais para mostrar inteiro, e provavelmente n\u00e3o \u00e9 texto. " +
+      "Abaixo vai s\u00f3 o come\u00e7o. Use Apagar resumo para limpar.";
+    alvo.innerHTML = "";
+    alvo.appendChild(aviso);
+    const pre = document.createElement("pre");
+    pre.style.whiteSpace = "pre-wrap";
+    pre.style.overflowWrap = "break-word";
+    pre.style.fontSize = "11px";
+    pre.textContent = t.slice(0, 2000);
+    alvo.appendChild(pre);
+    return;
+  }
+  alvo.innerHTML = resumoParaHtml(t);
 }
 
 function atualizaBotoesResumo(){
@@ -6462,6 +6511,13 @@ function escolherArquivosDeResumo(multiplo){
 /* Poe o texto na atividade, com as mesmas proteções em todos os caminhos.
    Devolve true quando o resumo entrou de fato. */
 async function aplicarResumoNaTask(task, texto, nomeArquivo, aoTerminar){
+  const problema = problemaNoTextoDoResumo(texto);
+  if (problema){
+    avisar('O arquivo "' + nomeArquivo + '" ' + problema + '.' + "\n\n" +
+           "Escolha o arquivo de texto do resumo (.md ou .txt).",
+           { titulo: "Esse arquivo n\u00e3o serve" });
+    return false;
+  }
   if (resumoVazio(texto)){
     avisar('O arquivo "' + nomeArquivo + '" está vazio.', { titulo: "Arquivo vazio" });
     return false;
