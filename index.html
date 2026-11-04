@@ -668,7 +668,20 @@
   }
   .task-audio-btn:hover{background:var(--hover);color:var(--text);}
   .task-audio-btn:disabled{opacity:.6;cursor:default;}
-  .task-audio-dur{font-size:11px;color:var(--text-light);font-variant-numeric:tabular-nums;}
+  .task-audio-dur{font-size:11px;color:var(--text-light);font-variant-numeric:tabular-nums;white-space:nowrap;flex:0 0 auto;}
+  .task-audio-btn.tocando{background:var(--accent-btn);border-color:var(--accent-btn);color:#fff;}
+  .task-audio-link{font-size:12px;color:var(--text-light);text-decoration:none;flex:0 0 auto;}
+  .task-audio-link:hover{color:var(--text);}
+  /* Barra de progresso propria. O <audio controls> do navegador, na largura de
+     uma coluna, vira um botao redondo gigante sem tempo nem barra. */
+  .task-audio-bar{
+    position:relative;flex:1 1 34px;min-width:24px;height:5px;border-radius:3px;
+    background:var(--surface-2);cursor:pointer;
+  }
+  .task-audio-prog{
+    position:absolute;left:0;top:0;bottom:0;width:0;border-radius:3px;
+    background:var(--accent-btn);
+  }
   /* Painel de gravacao: fixo e fora da tabela, que se redesenha a cada filtro.
      Dentro da celula ele morreria no meio da reuniao. */
   #gravadorPainel{
@@ -3980,7 +3993,7 @@ const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
   title: 190, status: 130, priority: 110, dueDate: 130, horario: 100, company: 140, items: 80,
   createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70,
-  documento: 120, audio: 130, attach: 120
+  documento: 120, audio: 175, attach: 120
 };
 
 let taskColOrder = DEFAULT_COL_ORDER.slice();
@@ -5918,38 +5931,21 @@ document.getElementById("gravadorParar").addEventListener("click", () => {
 });
 document.getElementById("gravadorCancelar").addEventListener("click", cancelarGravacao);
 
-/* Toca pelo Graph, com autenticacao: o endereco do OneDrive abre a tela dele,
-   e aqui a pessoa quer ouvir sem sair da tabela. */
-async function tocarAudio(task, botao){
-  const a = task.audio;
-  if (!a) return;
-  const rotulo = botao.textContent;
-  botao.disabled = true;
-  botao.textContent = "…";
-  try{
-    // NAO usar /content aqui. Ele responde com um redirecionamento para outro
-    // servidor, e o cabecalho de autorizacao nao sobrevive ao salto: o navegador
-    // barra por CORS e o erro chega como "Failed to fetch".
-    // O que funciona e pedir o item e usar o endereco de download, que ja vem
-    // autenticado. De quebra o audio toca enquanto baixa, em vez de segurar uma
-    // reuniao inteira na memoria antes do primeiro som.
-    const res = await graphFetch(`${itemsBase()}/${a.id}`, { cache: "no-store" });
-    if (!res.ok) throw new Error("status " + res.status);
-    const item = await res.json();
-    const endereco = item["@microsoft.graph.downloadUrl"];
-    if (!endereco) throw new Error("o OneDrive nao devolveu endereco de download");
-    const player = document.createElement("audio");
-    player.controls = true;
-    player.preload = "metadata";
-    player.src = endereco;
-    player.style.maxWidth = "190px";
-    botao.replaceWith(player);
-    player.play().catch(() => {});
-  }catch(e){
-    botao.disabled = false;
-    botao.textContent = rotulo;
-    alert("Não consegui tocar o áudio: " + (e && e.message ? e.message : e));
-  }
+/* Pega o endereco do arquivo para tocar.
+
+   NAO usar /content aqui. Ele responde com um redirecionamento para outro
+   servidor, e o cabecalho de autorizacao nao sobrevive ao salto: o navegador
+   barra por CORS e o erro chega ao usuario como "Failed to fetch".
+   O que funciona e pedir o item e usar o endereco de download, que ja vem
+   autenticado. De quebra o audio toca enquanto baixa, em vez de segurar uma
+   reuniao inteira na memoria antes do primeiro som. */
+async function enderecoDoAudio(a){
+  const res = await graphFetch(`${itemsBase()}/${a.id}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("status " + res.status);
+  const item = await res.json();
+  const endereco = item["@microsoft.graph.downloadUrl"];
+  if (!endereco) throw new Error("o OneDrive não devolveu endereço de download");
+  return endereco;
 }
 
 function buildAudioCell(task){
@@ -5962,23 +5958,98 @@ function buildAudioCell(task){
     wrap.innerHTML = "";
     const a = task.audio;
     if (a && a.id){
+      // Controle proprio, nao o <audio controls> do navegador: espremido na
+      // largura de uma coluna ele vira um botao redondo gigante, sem tempo e sem
+      // barra, e a pessoa nao consegue dizer se esta tocando.
+      const total = a.segundos || 0;
+      let som = null;
+
       const play = document.createElement("button");
       play.type = "button";
       play.className = "task-audio-btn";
       play.textContent = "▶";
       play.title = "Ouvir aqui mesmo";
-      play.addEventListener("click", () => tocarAudio(task, play));
       wrap.appendChild(play);
 
-      // Com endereco no OneDrive, a duracao vira link (baixar, compartilhar);
-      // sem endereco, e so texto.
-      const dur = document.createElement(a.url ? "a" : "span");
+      const barra = document.createElement("div");
+      barra.className = "task-audio-bar";
+      barra.title = "Clique para pular para um ponto";
+      const prog = document.createElement("div");
+      prog.className = "task-audio-prog";
+      barra.appendChild(prog);
+      wrap.appendChild(barra);
+
+      const dur = document.createElement("span");
       dur.className = "task-audio-dur";
-      dur.textContent = formatarDuracao(a.segundos || 0);
-      dur.title = formatFileSize(a.tamanho || 0) + (a.url ? " · abrir no OneDrive" : "");
-      if (a.url){ dur.href = a.url; dur.target = "_blank"; dur.rel = "noopener";
-                  dur.style.textDecoration = "none"; }
+      dur.textContent = formatarDuracao(total);
+      dur.title = formatFileSize(a.tamanho || 0);
       wrap.appendChild(dur);
+
+      function pintaTempo(){
+        const t = som ? som.currentTime : 0;
+        const fim = (som && isFinite(som.duration) && som.duration) ? som.duration : total;
+        prog.style.width = fim ? Math.min(100, (t / fim) * 100) + "%" : "0%";
+        // Tocando, mostra onde esta; parado, mostra o tamanho da gravacao.
+        const tocando = !!(som && !som.paused);
+        dur.textContent = tocando
+          ? formatarDuracao(t) + " / " + formatarDuracao(fim)
+          : formatarDuracao(fim);
+        play.textContent = tocando ? "⏸" : "▶";
+        play.title = tocando ? "Pausar" : "Ouvir aqui mesmo";
+        play.classList.toggle("tocando", tocando);
+      }
+
+      play.addEventListener("click", async () => {
+        if (som){
+          if (som.paused) som.play().catch(() => {}); else som.pause();
+          pintaTempo();
+          return;
+        }
+        play.disabled = true;
+        play.textContent = "…";
+        try{
+          som = new Audio();
+          som.preload = "metadata";
+          som.src = await enderecoDoAudio(a);
+          som.addEventListener("timeupdate", pintaTempo);
+          som.addEventListener("play", pintaTempo);
+          som.addEventListener("pause", pintaTempo);
+          som.addEventListener("loadedmetadata", pintaTempo);
+          som.addEventListener("ended", () => { som.currentTime = 0; pintaTempo(); });
+          som.addEventListener("error", () => {
+            som = null;
+            play.disabled = false;
+            play.textContent = "▶";
+            alert("Não consegui tocar o áudio. Tente de novo.");
+          });
+          play.disabled = false;
+          await som.play();
+        }catch(e){
+          som = null;
+          play.disabled = false;
+          play.textContent = "▶";
+          alert("Não consegui tocar o áudio: " + (e && e.message ? e.message : e));
+        }
+        pintaTempo();
+      });
+
+      barra.addEventListener("click", (ev) => {
+        if (!som || !isFinite(som.duration) || !som.duration) return;
+        const r = barra.getBoundingClientRect();
+        som.currentTime = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * som.duration;
+        pintaTempo();
+      });
+
+      if (a.url){
+        const abrir = document.createElement("a");
+        abrir.className = "task-audio-link";
+        abrir.href = a.url;
+        abrir.target = "_blank";
+        abrir.rel = "noopener";
+        abrir.textContent = "⤓";
+        abrir.title = "Abrir ou baixar no OneDrive";
+        wrap.appendChild(abrir);
+      }
 
       if (canEdit){
         const del = document.createElement("button");
