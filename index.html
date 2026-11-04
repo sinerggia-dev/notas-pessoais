@@ -6077,6 +6077,9 @@ function casarResumos(arquivos, tasks){
 }
 
 async function textoDoArquivo(item){
+  // Arquivo escolhido no computador: ja esta na mao, nao precisa do OneDrive.
+  if (item.arquivoLocal) return await item.arquivoLocal.text();
+
   // Mesmo caminho do audio: /content redireciona e o cabecalho de autorizacao
   // nao sobrevive ao salto. O endereco de download ja vem autenticado.
   const res = await graphFetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, { cache: "no-store" });
@@ -6092,6 +6095,9 @@ async function textoDoArquivo(item){
 /* Marca como importado em vez de apagar: se o resumo entrou na atividade
    errada, o arquivo ainda esta la para conferir. */
 async function marcarComoImportado(item){
+  // Arquivo do computador nao e nosso para renomear.
+  if (item.arquivoLocal) return;
+
   const base = item.name.replace(/\.(md|markdown|txt)$/i, "");
   const ext = (item.name.match(/\.(md|markdown|txt)$/i) || [".md"])[0];
   const novo = base + ".importado" + ext;
@@ -6114,18 +6120,24 @@ async function importarResumos(){
   btn.disabled = true;
   btn.textContent = "Importando…";
   try{
-    const arquivos = await listarPastaDeImportacao();
-    if (arquivos === null){
-      avisar("A pasta \"" + IMPORT_FOLDER + "\" ainda não existe no seu OneDrive.\n\n" +
-            "Crie uma pasta com esse nome na raiz do OneDrive e coloque nela os arquivos " +
-            "de resumo, com o número da atividade no começo do nome. Exemplo:\n\n" +
-            "    158 - planejamento natal.md");
-      return;
-    }
-    if (!arquivos.length){
-      avisar("Nenhum arquivo novo em \"" + IMPORT_FOLDER + "\".\n\n" +
-            "Os já importados ficam com \".importado\" no nome e não entram de novo.");
-      return;
+    // A pasta e um atalho para quem tem sincronização ligada. Sem ela, não há
+    // erro: a pessoa escolhe os arquivos aqui do computador.
+    let arquivos = null;
+    try{ arquivos = await listarPastaDeImportacao(); }catch(e){ arquivos = null; }
+
+    let deEscolha = [];
+    if (!arquivos || !arquivos.length){
+      const motivo = (arquivos === null)
+        ? 'A pasta "' + IMPORT_FOLDER + '" não foi encontrada no seu OneDrive.'
+        : 'Nenhum arquivo novo em "' + IMPORT_FOLDER + '". Os já importados ficam com ".importado" no nome.';
+      if (!(await perguntar(motivo + "\n\n" +
+                            "Quer escolher os arquivos aqui do computador? Pode marcar vários.",
+                            { titulo: "Nenhum resumo novo", ok: "Escolher arquivos" }))) return;
+      deEscolha = await escolherArquivosDeResumo(true);
+      if (!deEscolha.length) return;
+      // Mesma forma dos itens da pasta, para o resto do codigo não precisar saber
+      // de onde vieram.
+      arquivos = deEscolha.map(f => ({ name: f.name, size: f.size, arquivoLocal: f }));
     }
 
     const tasks = pageContentCache[currentPageId].tasks || [];
@@ -6322,6 +6334,45 @@ document.getElementById("resumoOverlay").addEventListener("click", (e) => {
   if (e.target.id === "resumoOverlay") fecharResumo();
 });
 
+/* Abre o seletor do navegador. Nao depende de sincronização: funciona em
+   qualquer maquina, com ou sem OneDrive. Resolve com lista vazia quando a
+   pessoa desiste — sem tratar o cancelamento, a promessa ficaria pendurada. */
+function escolherArquivosDeResumo(multiplo){
+  return new Promise(resolve => {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = ".md,.markdown,.txt,text/plain,text/markdown";
+    inp.multiple = !!multiplo;
+    let resolvido = false;
+    const terminar = (lista) => { if (!resolvido){ resolvido = true; resolve(lista); } };
+    inp.addEventListener("change", () => terminar(Array.from(inp.files || [])));
+    inp.addEventListener("cancel", () => terminar([]));
+    // Rede de segurança: navegador sem o evento "cancel" deixaria a promessa
+    // pendurada. Ao voltar o foco para a janela, sem arquivo, desiste.
+    window.addEventListener("focus", () => {
+      setTimeout(() => { if (!inp.files || !inp.files.length) terminar([]); }, 400);
+    }, { once: true });
+    inp.click();
+  });
+}
+
+/* Poe o texto na atividade, com as mesmas proteções em todos os caminhos.
+   Devolve true quando o resumo entrou de fato. */
+async function aplicarResumoNaTask(task, texto, nomeArquivo, aoTerminar){
+  if (resumoVazio(texto)){
+    avisar('O arquivo "' + nomeArquivo + '" está vazio.', { titulo: "Arquivo vazio" });
+    return false;
+  }
+  if (!resumoVazio(task.resumo) &&
+      !(await perguntar('Esta atividade já tem resumo. Substituir pelo arquivo "' + nomeArquivo + '"?',
+                        { titulo: "Substituir resumo", ok: "Substituir", perigo: true }))) return false;
+  task.resumo = texto;
+  scheduleSavePage(currentPageId);
+  if (aoTerminar) aoTerminar();
+  return true;
+}
+
+
 /* Buscar o resumo de UMA atividade, sem importar a leva inteira.
 
    IMPORTANTE, e o motivo de este botao olhar a PASTA e nao o Plaud: a pagina
@@ -6341,36 +6392,31 @@ async function buscarResumoDaAtividade(task, botao, aoTerminar){
   botao.disabled = true;
   botao.textContent = "…";
   try{
-    const arquivos = await listarPastaDeImportacao();
-    if (arquivos === null){
-      avisar("A pasta \"" + IMPORT_FOLDER + "\" ainda não existe no seu OneDrive.",
-             { titulo: "Pasta não encontrada" });
-      return;
-    }
-    const meus = arquivos.filter(f => registroDoArquivo(f.name) === n);
-    if (!meus.length){
-      avisar("Nada esperando pela atividade " + n + " na pasta \"" + IMPORT_FOLDER + "\".\n\n" +
-             "O resumo entra aqui quando um arquivo começando por " + n + " aparecer nessa pasta.",
-             { titulo: "Nenhum resumo novo" });
-      return;
-    }
-    // Mais de um para a mesma atividade: vale o mais recente.
-    const alvo = meus.sort((a, b) =>
-      String(b.lastModifiedDateTime || "").localeCompare(String(a.lastModifiedDateTime || "")))[0];
+    // A pasta e so um atalho para quem tem sincronização ligada. Sem ela, o
+    // seletor de arquivo resolve — e por isso falhar aqui não é erro.
+    let arquivos = null;
+    try{ arquivos = await listarPastaDeImportacao(); }catch(e){ arquivos = null; }
+    const meus = (arquivos || []).filter(f => registroDoArquivo(f.name) === n);
 
-    if (!resumoVazio(task.resumo) &&
-        !(await perguntar("Esta atividade já tem resumo. Substituir pelo arquivo \"" + alvo.name + "\"?",
-                          { titulo: "Substituir resumo", ok: "Substituir", perigo: true }))) return;
-
-    const texto = await textoDoArquivo(alvo);
-    if (resumoVazio(texto)){
-      avisar("O arquivo \"" + alvo.name + "\" está vazio.", { titulo: "Arquivo vazio" });
+    if (meus.length){
+      // Mais de um para a mesma atividade: vale o mais recente.
+      const alvo = meus.sort((a, b) =>
+        String(b.lastModifiedDateTime || "").localeCompare(String(a.lastModifiedDateTime || "")))[0];
+      const texto = await textoDoArquivo(alvo);
+      if (await aplicarResumoNaTask(task, texto, alvo.name, aoTerminar)) await marcarComoImportado(alvo);
       return;
     }
-    task.resumo = texto;
-    scheduleSavePage(currentPageId);
-    await marcarComoImportado(alvo);
-    if (aoTerminar) aoTerminar();
+
+    const ondeNao = (arquivos === null)
+      ? 'A pasta "' + IMPORT_FOLDER + '" não foi encontrada no seu OneDrive.'
+      : "Nada esperando pela atividade " + n + ' na pasta "' + IMPORT_FOLDER + '".';
+    if (!(await perguntar(ondeNao + "\n\n" +
+                          "Quer escolher o arquivo do resumo aqui do computador?",
+                          { titulo: "Nenhum resumo novo", ok: "Escolher arquivo" }))) return;
+
+    const escolhidos = await escolherArquivosDeResumo(false);
+    if (!escolhidos.length) return;
+    await aplicarResumoNaTask(task, await escolhidos[0].text(), escolhidos[0].name, aoTerminar);
   }catch(e){
     avisar("Não consegui buscar: " + (e && e.message ? e.message : e), { titulo: "Buscar resumo" });
   }finally{
