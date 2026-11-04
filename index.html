@@ -5927,17 +5927,24 @@ async function tocarAudio(task, botao){
   botao.disabled = true;
   botao.textContent = "…";
   try{
-    const res = await graphFetch(`${itemsBase()}/${a.id}/content`);
+    // NAO usar /content aqui. Ele responde com um redirecionamento para outro
+    // servidor, e o cabecalho de autorizacao nao sobrevive ao salto: o navegador
+    // barra por CORS e o erro chega como "Failed to fetch".
+    // O que funciona e pedir o item e usar o endereco de download, que ja vem
+    // autenticado. De quebra o audio toca enquanto baixa, em vez de segurar uma
+    // reuniao inteira na memoria antes do primeiro som.
+    const res = await graphFetch(`${itemsBase()}/${a.id}`, { cache: "no-store" });
     if (!res.ok) throw new Error("status " + res.status);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    const item = await res.json();
+    const endereco = item["@microsoft.graph.downloadUrl"];
+    if (!endereco) throw new Error("o OneDrive nao devolveu endereco de download");
     const player = document.createElement("audio");
     player.controls = true;
-    player.src = url;
+    player.preload = "metadata";
+    player.src = endereco;
     player.style.maxWidth = "190px";
     botao.replaceWith(player);
     player.play().catch(() => {});
-    player.addEventListener("ended", () => setTimeout(() => URL.revokeObjectURL(url), 1000));
   }catch(e){
     botao.disabled = false;
     botao.textContent = rotulo;
