@@ -711,6 +711,12 @@
   }
   .task-resumo-btn:hover{color:var(--text);background:var(--hover);border-radius:6px;}
   .task-resumo-empty{font-size:12px;color:var(--text-dim);}
+  .task-resumo-sync{
+    background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;line-height:1;
+    color:var(--text-dim);font-family:inherit;flex:0 0 auto;
+  }
+  .task-resumo-sync:hover{color:var(--text);background:var(--hover);border-radius:6px;}
+  .task-resumo-sync:disabled{opacity:.6;cursor:default;}
   /* Janela de aviso e de confirmacao do app, no lugar do confirm()/alert() do
      navegador, que aparece grudado no topo e nao se pode estilizar. */
   #dlgOverlay{
@@ -4238,7 +4244,7 @@ const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
   title: 190, status: 130, priority: 110, dueDate: 130, horario: 100, company: 140, items: 80,
   createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70,
-  documento: 120, audio: 175, resumo: 90, attach: 120
+  documento: 120, audio: 175, resumo: 110, attach: 120
 };
 
 let taskColOrder = DEFAULT_COL_ORDER.slice();
@@ -6316,6 +6322,63 @@ document.getElementById("resumoOverlay").addEventListener("click", (e) => {
   if (e.target.id === "resumoOverlay") fecharResumo();
 });
 
+/* Buscar o resumo de UMA atividade, sem importar a leva inteira.
+
+   IMPORTANTE, e o motivo de este botao olhar a PASTA e nao o Plaud: a pagina
+   nao consegue falar com o Plaud. Nao ha API publica, e uma pagina estatica nao
+   pode guardar chave sem mostra-la a quem abrir o codigo-fonte. Quem busca no
+   Plaud deixa o arquivo na pasta; este botao olha se ja chegou. */
+async function buscarResumoDaAtividade(task, botao, aoTerminar){
+  const n = Number(task.items);
+  if (!n){
+    avisar("Esta atividade ainda não tem número de registro, e o número é o que liga " +
+           "o arquivo à atividade.", { titulo: "Sem número de registro" });
+    return;
+  }
+  if (!(await requestEditPassword("importarResumos"))) return;
+
+  const rotulo = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = "…";
+  try{
+    const arquivos = await listarPastaDeImportacao();
+    if (arquivos === null){
+      avisar("A pasta \"" + IMPORT_FOLDER + "\" ainda não existe no seu OneDrive.",
+             { titulo: "Pasta não encontrada" });
+      return;
+    }
+    const meus = arquivos.filter(f => registroDoArquivo(f.name) === n);
+    if (!meus.length){
+      avisar("Nada esperando pela atividade " + n + " na pasta \"" + IMPORT_FOLDER + "\".\n\n" +
+             "O resumo entra aqui quando um arquivo começando por " + n + " aparecer nessa pasta.",
+             { titulo: "Nenhum resumo novo" });
+      return;
+    }
+    // Mais de um para a mesma atividade: vale o mais recente.
+    const alvo = meus.sort((a, b) =>
+      String(b.lastModifiedDateTime || "").localeCompare(String(a.lastModifiedDateTime || "")))[0];
+
+    if (!resumoVazio(task.resumo) &&
+        !(await perguntar("Esta atividade já tem resumo. Substituir pelo arquivo \"" + alvo.name + "\"?",
+                          { titulo: "Substituir resumo", ok: "Substituir", perigo: true }))) return;
+
+    const texto = await textoDoArquivo(alvo);
+    if (resumoVazio(texto)){
+      avisar("O arquivo \"" + alvo.name + "\" está vazio.", { titulo: "Arquivo vazio" });
+      return;
+    }
+    task.resumo = texto;
+    scheduleSavePage(currentPageId);
+    await marcarComoImportado(alvo);
+    if (aoTerminar) aoTerminar();
+  }catch(e){
+    avisar("Não consegui buscar: " + (e && e.message ? e.message : e), { titulo: "Buscar resumo" });
+  }finally{
+    botao.disabled = false;
+    botao.textContent = rotulo;
+  }
+}
+
 function buildResumoCell(task){
   const td = document.createElement("td");
   const wrap = document.createElement("div");
@@ -6348,6 +6411,16 @@ function buildResumoCell(task){
 
   wrap.appendChild(btn);
   wrap.appendChild(vazioEl);
+
+  if (canEdit){
+    const atualizar = document.createElement("button");
+    atualizar.type = "button";
+    atualizar.className = "task-resumo-sync";
+    atualizar.textContent = "↻";
+    atualizar.title = "Procurar o resumo desta atividade na pasta " + IMPORT_FOLDER;
+    atualizar.addEventListener("click", () => buscarResumoDaAtividade(task, atualizar, refresh));
+    wrap.appendChild(atualizar);
+  }
   td.appendChild(wrap);
   refresh();
   return td;
