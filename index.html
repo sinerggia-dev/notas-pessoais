@@ -660,6 +660,47 @@
     color:var(--text);cursor:pointer;
   }
   .task-doc-menu button:hover{background:var(--hover);}
+  /* Audio da atividade. */
+  .task-audio-wrap{display:flex;align-items:center;gap:6px;min-width:0;}
+  .task-audio-btn{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:6px;
+    padding:3px 7px;font-size:11px;cursor:pointer;color:var(--text-light);white-space:nowrap;
+  }
+  .task-audio-btn:hover{background:var(--hover);color:var(--text);}
+  .task-audio-btn:disabled{opacity:.6;cursor:default;}
+  .task-audio-dur{font-size:11px;color:var(--text-light);font-variant-numeric:tabular-nums;}
+  /* Painel de gravacao: fixo e fora da tabela, que se redesenha a cada filtro.
+     Dentro da celula ele morreria no meio da reuniao. */
+  #gravadorPainel{
+    position:fixed;right:18px;bottom:18px;z-index:400;width:260px;
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:12px;
+    box-shadow:var(--shadow-md);padding:12px 14px;
+  }
+  #gravadorPainel[hidden]{display:none;}
+  #gravadorPainel .gr-tarefa{
+    font-size:11px;color:var(--text-light);margin-bottom:6px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  #gravadorPainel .gr-tempo{
+    font-size:26px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;
+    display:flex;align-items:center;gap:8px;
+  }
+  #gravadorPainel .gr-bolinha{
+    width:10px;height:10px;border-radius:50%;background:var(--danger);flex:none;
+    animation:grPulsa 1.4s ease-in-out infinite;
+  }
+  #gravadorPainel.pausado .gr-bolinha{animation:none;opacity:.45;}
+  @keyframes grPulsa{0%,100%{opacity:1}50%{opacity:.25}}
+  #gravadorPainel .gr-botoes{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+  #gravadorPainel button{
+    flex:1 1 auto;background:var(--surface);border:1px solid var(--sidebar-border);
+    border-radius:7px;padding:6px 8px;font-size:12px;font-family:inherit;
+    color:var(--text);cursor:pointer;
+  }
+  #gravadorPainel button:hover{background:var(--hover);}
+  #gravadorPainel button.principal{background:var(--accent-btn);border-color:var(--accent-btn);color:#fff;}
+  #gravadorPainel button:disabled{opacity:.6;cursor:default;}
+  #gravadorMsg{font-size:11.5px;color:var(--text-light);margin-top:8px;line-height:1.4;}
   .status-pill, .priority-pill{border:none;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;}
   /* As pilhas sao 12px em negrito — texto normal para o WCAG, que pede 4,5:1. Quatro
      delas estavam entre 4,0 e 4,4. Os tons abaixo sao o menor escurecimento que alcanca
@@ -1301,6 +1342,21 @@
 <button id="mobileMenuBtn">☰</button>
 <div id="sidebarOverlay"></div>
 <button id="sidebarCollapseBtn" title="Recolher barra lateral">‹</button>
+
+<!-- Gravador. Fica fora da tabela de proposito: ela se redesenha a cada filtro
+     digitado, e um gravador dentro da celula morreria no meio da reuniao. -->
+<div id="gravadorPainel" hidden>
+  <div class="gr-tarefa" id="gravadorTarefa">—</div>
+  <div class="gr-tempo"><span class="gr-bolinha" aria-hidden="true"></span><span id="gravadorTempo">00:00</span></div>
+  <div class="gr-botoes">
+    <button type="button" id="gravadorPausar">Pausar</button>
+    <button type="button" id="gravadorParar" class="principal">Parar e salvar</button>
+  </div>
+  <div class="gr-botoes">
+    <button type="button" id="gravadorCancelar">Cancelar</button>
+  </div>
+  <div id="gravadorMsg"></div>
+</div>
 
 <div id="app">
   <aside id="sidebar">
@@ -2519,17 +2575,34 @@ document.getElementById("sidebarOverlay").addEventListener("click", closeMobileS
    JSON que o navegador talvez nem montasse na memoria. Entra a LISTA deles — nome,
    tamanho, endereco —, e a tela avisa. Backup que parece completo e nao e e pior
    do que backup nenhum. */
-async function listaDeAnexos(){
+// Os arquivos do espaco ficam espalhados em tres pastas: anexos, documentos do
+// Office e audios de reuniao. Um backup que so listasse a primeira daria a falsa
+// impressao de estar completo — e e justamente numa emergencia que ele e lido.
+// Funcao, nao constante: os nomes das pastas sao declarados bem mais abaixo no
+// arquivo, e ler um `const` antes da declaracao derruba o app inteiro no load.
+// Dentro de funcao, a leitura so acontece quando o backup roda.
+function pastasDeArquivo(){ return [ATTACH_FOLDER, DOCS_FOLDER, AUDIO_FOLDER]; }
+
+async function listaDeUmaPasta(nome){
   try{
-    const pasta = `${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(ATTACH_FOLDER)}:/children`;
+    const pasta = `${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(nome)}:/children`;
     const res = await graphFetch(pasta, { cache: "no-store" });
     if (!res.ok) return [];
     const dados = await res.json();
     return (dados.value || []).map(f => ({
-      nome: f.name, tamanho: f.size, modificado: f.lastModifiedDateTime,
-      endereco: f.webUrl || "",
+      pasta: nome, nome: f.name, tamanho: f.size,
+      modificado: f.lastModifiedDateTime, endereco: f.webUrl || "",
     }));
   }catch(e){ return []; }
+}
+
+async function listaDeAnexos(){
+  const tudo = [];
+  for (const nome of pastasDeArquivo()){
+    // Uma pasta que ainda nao existe devolve lista vazia, sem derrubar as outras.
+    tudo.push.apply(tudo, await listaDeUmaPasta(nome));
+  }
+  return tudo;
 }
 
 async function montarBackup(aviso){
@@ -2560,7 +2633,7 @@ async function montarBackup(aviso){
     }
   }
 
-  if (aviso) aviso("Listando os anexos…");
+  if (aviso) aviso("Listando os arquivos…");
   pacote.anexos.itens = await listaDeAnexos();
   return pacote;
 }
@@ -3835,6 +3908,7 @@ const ACOES_COM_SENHA = [
   { key: "editarNota",     label: "Alterar a nota da tarefa" },
   { key: "anexo",          label: "Anexar e remover arquivo" },
   { key: "documento",      label: "Criar e remover documento do Office" },
+  { key: "audio",          label: "Gravar e remover áudio" },
   { key: "moverColunas",   label: "Mover colunas de lugar (arrastar o cabeçalho)" },
   { key: "layoutColunas",  label: "Esconder e restaurar colunas" },
   { key: "layoutBarra",    label: "Mover e esconder botões e filtros da barra" },
@@ -3899,13 +3973,14 @@ const TASK_COLUMNS_DEF = [
   { key: "links", label: "Links" },
   { key: "note", label: "Nota" },
   { key: "documento", label: "Documento" },
+  { key: "audio", label: "Áudio" },
   { key: "attach", label: "Anexo" },
 ];
 const DEFAULT_COL_ORDER = TASK_COLUMNS_DEF.map(c => c.key);
 const DEFAULT_COL_WIDTHS = {
   title: 190, status: 130, priority: 110, dueDate: 130, horario: 100, company: 140, items: 80,
   createdAt: 150, statusChangedAt: 150, timer: 100, assignee: 150, links: 70, note: 70,
-  documento: 120, attach: 120
+  documento: 120, audio: 130, attach: 120
 };
 
 let taskColOrder = DEFAULT_COL_ORDER.slice();
@@ -5614,6 +5689,332 @@ async function uploadAttachment(file, task){
   return { id: item.id, name: file.name, url: item.webUrl || "", size: file.size || 0 };
 }
 
+/* ---------- Gravar audio da reuniao ou da instrucao ----------
+   Grava pelo navegador, manda para a pasta "Audios" do mesmo espaco e guarda o
+   endereco na tarefa.
+
+   A preocupacao que molda este codigo e NAO PERDER GRAVACAO: uma reuniao de uma
+   hora que se perde num piscar da rede nao tem segunda chance. Por isso o audio
+   so e descartado depois que a pessoa decide o que fazer com ele, e falha de
+   envio vira oferta de baixar o arquivo. */
+const AUDIO_FOLDER = "Audios";
+const AUDIO_MAX_BYTES = ATTACH_MAX_BYTES;
+
+/* O formato depende do navegador. Opus no WebM e o mais leve e o que Chrome e
+   Edge gravam; Safari so faz mp4. Pergunta em vez de supor. */
+function formatoDeAudio(){
+  const tentativas = [
+    { mime: "audio/webm;codecs=opus", ext: "webm" },
+    { mime: "audio/webm",             ext: "webm" },
+    { mime: "audio/mp4",              ext: "m4a"  },
+    { mime: "audio/ogg;codecs=opus",  ext: "ogg"  },
+  ];
+  if (typeof MediaRecorder === "undefined") return null;
+  // Navegador que nao sabe dizer o que aceita: nao adianta chutar um mime, o
+  // construtor recusa e a gravacao nem comeca. Melhor deixar ele escolher.
+  if (!MediaRecorder.isTypeSupported) return { mime: "", ext: "webm" };
+  for (const t of tentativas){
+    if (MediaRecorder.isTypeSupported(t.mime)) return t;
+  }
+  return { mime: "", ext: "webm" };   // deixa o navegador escolher
+}
+
+function formatarDuracao(seg){
+  seg = Math.max(0, Math.round(seg));
+  const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s2 = seg % 60;
+  const dois = (n) => String(n).padStart(2, "0");
+  return (h ? h + ":" : "") + dois(m) + ":" + dois(s2);
+}
+
+let gravacao = null;   // { task, rec, pedacos, inicio, pausadoEm, pausado, timer, formato }
+
+function gravadorPinta(){
+  const painel = document.getElementById("gravadorPainel");
+  if (!gravacao){ painel.hidden = true; return; }
+  painel.hidden = false;
+  painel.classList.toggle("pausado", gravacao.pausado);
+  document.getElementById("gravadorTarefa").textContent =
+    (gravacao.task.title || "Sem título").slice(0, 60);
+  document.getElementById("gravadorTempo").textContent = formatarDuracao(gravadorSegundos());
+  document.getElementById("gravadorPausar").textContent = gravacao.pausado ? "Continuar" : "Pausar";
+}
+
+function gravadorSegundos(){
+  if (!gravacao) return 0;
+  const fim = gravacao.pausado ? gravacao.pausadoEm : Date.now();
+  return (fim - gravacao.inicio - gravacao.parado) / 1000;
+}
+
+/* Fechar a aba gravando perde tudo — o navegador avisa antes. */
+window.addEventListener("beforeunload", (e) => {
+  if (!gravacao) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
+
+async function ensureAudioFolder(){
+  const caminho = `${itemsBase()}/${workspaceFolderId}:/${encodeURIComponent(AUDIO_FOLDER)}`;
+  let res = await graphFetch(caminho);
+  if (res.status === 404){
+    res = await graphFetch(`${itemsBase()}/${workspaceFolderId}/children`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: AUDIO_FOLDER, folder: {}, "@microsoft.graph.conflictBehavior": "fail" })
+    });
+    if (!res.ok) res = await graphFetch(caminho);
+  }
+  if (!res.ok) throw new Error("status " + res.status);
+  return (await res.json()).id;
+}
+
+async function iniciarGravacao(task, aoTerminar){
+  if (gravacao){ alert("Já existe uma gravação em andamento."); return; }
+  const formato = formatoDeAudio();
+  if (!formato){ alert("Este navegador não grava áudio. Use o Chrome ou o Edge."); return; }
+
+  let fluxo;
+  try{
+    fluxo = await navigator.mediaDevices.getUserMedia({ audio: true });
+  }catch(e){
+    alert("Não consegui usar o microfone. Verifique a permissão do navegador para este site.");
+    return;
+  }
+
+  let rec;
+  try{
+    rec = new MediaRecorder(fluxo, formato.mime ? { mimeType: formato.mime } : undefined);
+  }catch(e){
+    // O navegador disse que aceitava e recusou na hora. Em vez de perder a
+    // reuniao por causa do formato, grava no que ele quiser.
+    try{
+      rec = new MediaRecorder(fluxo);
+      formato.mime = "";
+    }catch(e2){
+      fluxo.getTracks().forEach(t => t.stop());
+      alert("Este navegador não conseguiu iniciar a gravação.");
+      return;
+    }
+  }
+  gravacao = { task, rec, fluxo, formato, pedacos: [], inicio: Date.now(),
+               pausadoEm: 0, parado: 0, pausado: false, aoTerminar, timer: null };
+  rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) gravacao.pedacos.push(ev.data); };
+  rec.onstop = () => finalizarGravacao();
+  // Pedaco a cada segundo: se o navegador fechar no meio, o que ja veio esta na mao.
+  rec.start(1000);
+  gravacao.timer = setInterval(gravadorPinta, 500);
+  document.getElementById("gravadorMsg").textContent = "";
+  gravadorPinta();
+}
+
+function pausarGravacao(){
+  if (!gravacao) return;
+  if (gravacao.pausado){
+    gravacao.parado += Date.now() - gravacao.pausadoEm;
+    gravacao.pausado = false;
+    gravacao.rec.resume();
+  } else {
+    gravacao.pausadoEm = Date.now();
+    gravacao.pausado = true;
+    gravacao.rec.pause();
+  }
+  gravadorPinta();
+}
+
+function soltarMicrofone(){
+  if (gravacao && gravacao.fluxo){
+    gravacao.fluxo.getTracks().forEach(t => t.stop());
+  }
+}
+
+async function finalizarGravacao(){
+  if (!gravacao) return;
+  const g = gravacao;
+  clearInterval(g.timer);
+  soltarMicrofone();
+  const segundos = Math.round(gravadorSegundos());
+  const blob = new Blob(g.pedacos, { type: g.formato.mime || "audio/webm" });
+  const msg = document.getElementById("gravadorMsg");
+  const parar = document.getElementById("gravadorParar");
+  const pausar = document.getElementById("gravadorPausar");
+  parar.disabled = true; pausar.disabled = true;
+
+  if (!blob.size){
+    msg.textContent = "Nada foi gravado.";
+    gravacao = null;
+    setTimeout(() => { document.getElementById("gravadorPainel").hidden = true;
+                       parar.disabled = false; pausar.disabled = false; }, 1500);
+    return;
+  }
+
+  /* Guarda a gravacao na mao antes de tentar a rede: se o envio falhar, ela ainda
+     existe e da para baixar. Descartar aqui seria perder a reuniao. */
+  function ofereceBaixar(motivo){
+    msg.innerHTML = escapeHtml(motivo) + " <b>A gravação não se perdeu.</b> ";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "⬇ Baixar o áudio";
+    b.addEventListener("click", () => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "audio-" + g.task.id + "-" + formatDateISO(new Date()) + "." + g.formato.ext;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    });
+    msg.appendChild(b);
+    const f = document.createElement("button");
+    f.type = "button";
+    f.textContent = "Fechar";
+    f.addEventListener("click", () => {
+      document.getElementById("gravadorPainel").hidden = true;
+      parar.disabled = false; pausar.disabled = false;
+    });
+    msg.appendChild(f);
+    gravacao = null;
+  }
+
+  if (blob.size > AUDIO_MAX_BYTES){
+    ofereceBaixar("A gravação ficou maior que " + formatFileSize(AUDIO_MAX_BYTES) + " e não cabe no envio.");
+    return;
+  }
+
+  msg.textContent = "Enviando " + formatFileSize(blob.size) + "…";
+  try{
+    const folderId = await ensureAudioFolder();
+    const nome = g.task.id + "_" + formatDateISO(new Date()) + "_" +
+                 formatarDuracao(segundos).replace(/:/g, "-") + "." + g.formato.ext;
+    const res = await graphFetch(`${itemsBase()}/${folderId}:/${encodeURIComponent(nome)}:/content`, {
+      method: "PUT",
+      headers: { "Content-Type": blob.type || "application/octet-stream" },
+      body: blob
+    });
+    if (!res.ok) throw new Error("status " + res.status);
+    const item = await res.json();
+    g.task.audio = { id: item.id, nome: nome, url: item.webUrl || "",
+                     segundos: segundos, tamanho: blob.size };
+    scheduleSavePage(currentPageId);
+    gravacao = null;
+    document.getElementById("gravadorPainel").hidden = true;
+    parar.disabled = false; pausar.disabled = false;
+    if (g.aoTerminar) g.aoTerminar();
+  }catch(e){
+    ofereceBaixar("Não consegui enviar (" + (e && e.message ? e.message : e) + ").");
+  }
+}
+
+function cancelarGravacao(){
+  if (!gravacao) return;
+  if (!confirm("Descartar esta gravação? Ela não será salva em lugar nenhum.")) return;
+  clearInterval(gravacao.timer);
+  soltarMicrofone();
+  try{ gravacao.rec.onstop = null; gravacao.rec.stop(); }catch(e){}
+  gravacao = null;
+  document.getElementById("gravadorPainel").hidden = true;
+}
+
+document.getElementById("gravadorPausar").addEventListener("click", pausarGravacao);
+document.getElementById("gravadorParar").addEventListener("click", () => {
+  if (gravacao) try{ gravacao.rec.stop(); }catch(e){ finalizarGravacao(); }
+});
+document.getElementById("gravadorCancelar").addEventListener("click", cancelarGravacao);
+
+/* Toca pelo Graph, com autenticacao: o endereco do OneDrive abre a tela dele,
+   e aqui a pessoa quer ouvir sem sair da tabela. */
+async function tocarAudio(task, botao){
+  const a = task.audio;
+  if (!a) return;
+  const rotulo = botao.textContent;
+  botao.disabled = true;
+  botao.textContent = "…";
+  try{
+    const res = await graphFetch(`${itemsBase()}/${a.id}/content`);
+    if (!res.ok) throw new Error("status " + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const player = document.createElement("audio");
+    player.controls = true;
+    player.src = url;
+    player.style.maxWidth = "190px";
+    botao.replaceWith(player);
+    player.play().catch(() => {});
+    player.addEventListener("ended", () => setTimeout(() => URL.revokeObjectURL(url), 1000));
+  }catch(e){
+    botao.disabled = false;
+    botao.textContent = rotulo;
+    alert("Não consegui tocar o áudio: " + (e && e.message ? e.message : e));
+  }
+}
+
+function buildAudioCell(task){
+  const td = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "task-audio-wrap";
+  td.appendChild(wrap);
+
+  function pintar(){
+    wrap.innerHTML = "";
+    const a = task.audio;
+    if (a && a.id){
+      const play = document.createElement("button");
+      play.type = "button";
+      play.className = "task-audio-btn";
+      play.textContent = "▶";
+      play.title = "Ouvir aqui mesmo";
+      play.addEventListener("click", () => tocarAudio(task, play));
+      wrap.appendChild(play);
+
+      // Com endereco no OneDrive, a duracao vira link (baixar, compartilhar);
+      // sem endereco, e so texto.
+      const dur = document.createElement(a.url ? "a" : "span");
+      dur.className = "task-audio-dur";
+      dur.textContent = formatarDuracao(a.segundos || 0);
+      dur.title = formatFileSize(a.tamanho || 0) + (a.url ? " · abrir no OneDrive" : "");
+      if (a.url){ dur.href = a.url; dur.target = "_blank"; dur.rel = "noopener";
+                  dur.style.textDecoration = "none"; }
+      wrap.appendChild(dur);
+
+      if (canEdit){
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "task-attach-del";
+        del.textContent = "×";
+        del.title = "Tirar o áudio desta atividade";
+        del.addEventListener("click", async () => {
+          if (!confirm("Tirar o áudio desta atividade?\n\nO arquivo continua na pasta " +
+                       AUDIO_FOLDER + " do OneDrive.")) return;
+          if (!(await guardTaskFieldEdit(task, "audio"))) return;
+          delete task.audio;
+          scheduleSavePage(currentPageId);
+          pintar();
+        });
+        wrap.appendChild(del);
+      }
+      return;
+    }
+
+    if (!canEdit){
+      const vazio = document.createElement("span");
+      vazio.className = "task-attach-empty";
+      vazio.textContent = "—";
+      wrap.appendChild(vazio);
+      return;
+    }
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "task-audio-btn";
+    btn.textContent = "🎙 Gravar";
+    btn.addEventListener("click", async () => {
+      if (!(await guardTaskFieldEdit(task, "audio"))) return;
+      iniciarGravacao(task, pintar);
+    });
+    wrap.appendChild(btn);
+  }
+
+  pintar();
+  return td;
+}
+
 /* ---------- Documento do Office por atividade ----------
    Cria um arquivo vazio na pasta "Documentos" do mesmo espaco e guarda o endereco
    na tarefa. Clicar abre no Office online; o que a pessoa escrever fica no arquivo.
@@ -5998,6 +6399,7 @@ const TASK_CELL_BUILDERS = {
   links: (task) => buildLinksCell(task),
   note: (task) => buildNoteCell(task),
   documento: (task) => buildDocumentoCell(task),
+  audio: (task) => buildAudioCell(task),
   attach: (task) => buildAttachCell(task),
 };
 
