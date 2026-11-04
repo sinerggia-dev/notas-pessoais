@@ -681,6 +681,33 @@
   }
   .task-resumo-btn:hover{color:var(--text);background:var(--hover);border-radius:6px;}
   .task-resumo-empty{font-size:12px;color:var(--text-dim);}
+  /* Janela de aviso e de confirmacao do app, no lugar do confirm()/alert() do
+     navegador, que aparece grudado no topo e nao se pode estilizar. */
+  #dlgOverlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;
+    align-items:center;justify-content:center;padding:16px;
+  }
+  #dlgOverlay.visible{display:flex;}
+  #dlgModal{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:12px;
+    width:460px;max-width:100%;padding:22px 24px;box-shadow:var(--shadow-md);
+    animation:menuPopIn .12s ease-out;
+  }
+  #dlgTitulo{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--text);}
+  /* pre-wrap: as mensagens tem quebra de linha e precisam dela para respirar. */
+  #dlgTexto{
+    font-size:13.5px;line-height:1.55;color:var(--text-light);white-space:pre-wrap;
+    max-height:52vh;overflow:auto;overflow-wrap:break-word;
+  }
+  #dlgAcoes{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;}
+  #dlgAcoes button{
+    background:var(--surface);border:1px solid var(--sidebar-border);border-radius:7px;
+    padding:7px 16px;font-size:13px;font-family:inherit;color:var(--text);cursor:pointer;
+  }
+  #dlgAcoes button:hover{background:var(--hover);}
+  #dlgAcoes button.principal{background:var(--accent-btn);border-color:var(--accent-btn);color:#fff;}
+  #dlgAcoes button.perigo{background:var(--danger);border-color:var(--danger);color:#fff;}
+  #dlgAcoes button:focus-visible{outline:2px solid var(--accent-btn);outline-offset:2px;}
   #resumoOverlay{
     display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:150;
     align-items:center;justify-content:center;
@@ -1729,6 +1756,17 @@
   </div>
 </div>
 
+<div id="dlgOverlay">
+  <div id="dlgModal" role="dialog" aria-modal="true" aria-labelledby="dlgTitulo">
+    <h2 id="dlgTitulo"></h2>
+    <div id="dlgTexto"></div>
+    <div id="dlgAcoes">
+      <button type="button" id="dlgCancelar">Cancelar</button>
+      <button type="button" id="dlgOk" class="principal">OK</button>
+    </div>
+  </div>
+</div>
+
 <div id="resumoOverlay">
   <div id="resumoModal">
     <button type="button" id="resumoCloseBtn">&times;</button>
@@ -2310,7 +2348,8 @@ async function deletePage(id){
   if (!canEdit) return;
   const page = getPageMeta(id);
   if (!page) return;
-  if (!confirm(`Excluir "${page.title || "Sem título"}" e todas as subpáginas dela?`)) return;
+  if (!(await perguntar(`Excluir "${page.title || "Sem título"}" e todas as subpáginas dela?`,
+      { titulo: "Excluir página", ok: "Excluir", perigo: true }))) return;
   // Apagar pagina leva embora blocos/tarefas/eventos junto — pede a senha, como na tarefa.
   if (!(await requestDeletePassword(`a página "${page.title || "Sem título"}" e as subpáginas dela`, "excluirPagina"))) return;
 
@@ -3010,7 +3049,7 @@ function showScheduleMenu(dateStr, anchorEl){
 // Agenda uma tarefa com vencimento na data escolhida, sempre na página ROADMAP (banco de tarefas).
 async function scheduleTaskFromCalendar(dateStr){
   const roadmap = indexData.pages.find(p => p.kind === "tarefas");
-  if (!roadmap){ alert("Nenhum banco de tarefas encontrado pra agendar."); return; }
+  if (!roadmap){ avisar("Nenhum banco de tarefas encontrado pra agendar."); return; }
   if (currentPageId !== roadmap.id) await openPage(roadmap.id);
   const content = pageContentCache[roadmap.id];
   if (!content.tasks) content.tasks = [];
@@ -3039,7 +3078,7 @@ async function scheduleTaskFromCalendar(dateStr){
 // Agenda um evento na data escolhida, sempre na página Calendário.
 async function scheduleEventFromCalendar(dateStr){
   const calPage = indexData.pages.find(p => p.kind === "calendario");
-  if (!calPage){ alert("Nenhuma página de calendário encontrada pra agendar."); return; }
+  if (!calPage){ avisar("Nenhuma página de calendário encontrada pra agendar."); return; }
   if (currentPageId !== calPage.id) await openPage(calPage.id);
   // openPage sempre abre o mês atual — pula pro mês da data escolhida pra o evento já nascer visível.
   const [y, m] = dateStr.split("-").map(Number);
@@ -4035,7 +4074,7 @@ async function requestDeletePassword(alvo, acao){
   const pass = await askPassword("Digite a senha para excluir " + (alvo || "esta tarefa"));
   if (pass === null) return false;
   if (!(await senhaAcoesConfere(pass))){
-    alert("Senha incorreta.");
+    avisar("Senha incorreta.");
     return false;
   }
   return true;
@@ -4045,7 +4084,7 @@ async function requestEditPassword(acao){
   const pass = await askPassword("Digite a senha para confirmar a alteração");
   if (pass === null) return false;
   if (!(await senhaAcoesConfere(pass))){
-    alert("Senha incorreta.");
+    avisar("Senha incorreta.");
     return false;
   }
   return true;
@@ -5599,9 +5638,10 @@ function openNoteModal(task, refreshCell){
   if (canEdit) setTimeout(() => editor.focus(), 30);
 }
 
-function closeNoteModal(force){
+async function closeNoteModal(force){
   if (!force && noteModalTask && canEdit && noteModalTyped() !== noteModalStored()){
-    if (!confirm("Descartar as alterações da nota?")) return;
+    if (!(await perguntar("Descartar as alterações da nota?",
+      { titulo: "Sair sem salvar", ok: "Descartar", perigo: true }))) return;
   }
   document.getElementById("noteOverlay").classList.remove("visible");
   noteModalTask = null;
@@ -5649,8 +5689,9 @@ bindNoteFormatBtn("noteFmtLink", "createLink", () => prompt("Digite o endereço 
 document.getElementById("noteSaveBtn").addEventListener("click", () => {
   commitNoteModal(noteModalTyped());
 });
-document.getElementById("noteDeleteBtn").addEventListener("click", () => {
-  if (!confirm("Excluir a nota desta tarefa?")) return;
+document.getElementById("noteDeleteBtn").addEventListener("click", async () => {
+  if (!(await perguntar("Excluir a nota desta tarefa?",
+      { titulo: "Excluir nota", ok: "Excluir", perigo: true }))) return;
   commitNoteModal("");
 });
 document.getElementById("noteCancelBtn").addEventListener("click", () => closeNoteModal(false));
@@ -5794,6 +5835,73 @@ async function uploadAttachment(file, task){
   return { id: item.id, name: file.name, url: item.webUrl || "", size: file.size || 0 };
 }
 
+/* ---------- Avisar e perguntar, sem o visual do navegador ----------
+
+   O confirm() e o alert() do navegador aparecem grudados no topo, com a cara do
+   navegador e o endereco do site escrito em cima, e nao se pode mudar nada
+   neles. Estes ficam no centro, no tema do app.
+
+   Uma fila garante que dois avisos seguidos nao atropelem um ao outro: o
+   segundo espera o primeiro fechar, em vez de roubar a janela. */
+let dlgFila = Promise.resolve();
+let dlgFechar = null;
+
+function dlgMostrar(texto, opcoes){
+  const o = opcoes || {};
+  return new Promise(resolve => {
+    const overlay = document.getElementById("dlgOverlay");
+    const btnOk = document.getElementById("dlgOk");
+    const btnCancelar = document.getElementById("dlgCancelar");
+
+    document.getElementById("dlgTitulo").textContent = o.titulo || (o.pergunta ? "Confirmar" : "Aviso");
+    // textContent, nunca innerHTML: a mensagem costuma trazer nome de arquivo e
+    // texto de erro vindos de fora.
+    document.getElementById("dlgTexto").textContent = String(texto == null ? "" : texto);
+    btnOk.textContent = o.ok || (o.pergunta ? "Confirmar" : "OK");
+    btnOk.className = o.perigo ? "perigo" : "principal";
+    btnCancelar.textContent = o.cancelar || "Cancelar";
+    btnCancelar.hidden = !o.pergunta;
+    overlay.classList.add("visible");
+    btnOk.focus();
+
+    dlgFechar = (valor) => {
+      overlay.classList.remove("visible");
+      document.removeEventListener("keydown", aoTeclar, true);
+      dlgFechar = null;
+      resolve(valor);
+    };
+    function aoTeclar(e){
+      if (e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); if (dlgFechar) dlgFechar(false); }
+      else if (e.key === "Enter"){ e.preventDefault(); e.stopPropagation(); if (dlgFechar) dlgFechar(true); }
+    }
+    // Na captura: senao o Esc fecharia tambem a janela que esta por baixo.
+    document.addEventListener("keydown", aoTeclar, true);
+  });
+}
+
+function dlgNaFila(texto, opcoes){
+  const proxima = dlgFila.then(() => dlgMostrar(texto, opcoes));
+  dlgFila = proxima.catch(() => {});
+  return proxima;
+}
+
+/** Aviso de uma via. Devolve promessa, mas da para chamar sem esperar. */
+function avisar(texto, opcoes){
+  return dlgNaFila(texto, Object.assign({ pergunta: false }, opcoes || {}));
+}
+
+/** Pergunta de sim ou nao. SEMPRE com await: sem ele, segue como se fosse sim. */
+function perguntar(texto, opcoes){
+  return dlgNaFila(texto, Object.assign({ pergunta: true }, opcoes || {}));
+}
+
+document.getElementById("dlgOk").addEventListener("click", () => { if (dlgFechar) dlgFechar(true); });
+document.getElementById("dlgCancelar").addEventListener("click", () => { if (dlgFechar) dlgFechar(false); });
+document.getElementById("dlgOverlay").addEventListener("click", (e) => {
+  // Clicar fora so cancela; nunca confirma por acidente.
+  if (e.target.id === "dlgOverlay" && dlgFechar) dlgFechar(false);
+});
+
 /* ---------- Importar resumos de uma pasta do OneDrive ----------
 
    O ROADMAP nao consegue falar com o Plaud: nao ha API publica, e uma pagina
@@ -5877,7 +5985,7 @@ async function marcarComoImportado(item){
 async function importarResumos(){
   const btn = document.getElementById("importarResumosBtn");
   if (!currentPageId || !pageContentCache[currentPageId]){
-    alert("Abra uma página de atividades primeiro.");
+    avisar("Abra uma página de atividades primeiro.");
     return;
   }
   if (!(await requestEditPassword("importarResumos"))) return;
@@ -5888,14 +5996,14 @@ async function importarResumos(){
   try{
     const arquivos = await listarPastaDeImportacao();
     if (arquivos === null){
-      alert("A pasta \"" + IMPORT_FOLDER + "\" ainda não existe no seu OneDrive.\n\n" +
+      avisar("A pasta \"" + IMPORT_FOLDER + "\" ainda não existe no seu OneDrive.\n\n" +
             "Crie uma pasta com esse nome na raiz do OneDrive e coloque nela os arquivos " +
             "de resumo, com o número da atividade no começo do nome. Exemplo:\n\n" +
             "    158 - planejamento natal.md");
       return;
     }
     if (!arquivos.length){
-      alert("Nenhum arquivo novo em \"" + IMPORT_FOLDER + "\".\n\n" +
+      avisar("Nenhum arquivo novo em \"" + IMPORT_FOLDER + "\".\n\n" +
             "Os já importados ficam com \".importado\" no nome e não entram de novo.");
       return;
     }
@@ -5904,10 +6012,11 @@ async function importarResumos(){
     const { casados, sobrou } = casarResumos(arquivos, tasks);
 
     const jaTinham = casados.filter(c => !resumoVazio(c.task.resumo));
-    if (jaTinham.length && !confirm(
+    if (jaTinham.length && !(await perguntar(
         jaTinham.length + " atividade(s) já têm resumo e serão substituídas:\n\n" +
         jaTinham.map(c => "  " + c.registro + " — " + (c.task.title || "sem título")).join("\n") +
-        "\n\nContinuar?")) return;
+        "\n\nContinuar?",
+        { titulo: "Substituir resumos", ok: "Substituir", perigo: true }))) return;
 
     const feitos = [], falhas = [];
     for (const c of casados){
@@ -5934,9 +6043,9 @@ async function importarResumos(){
     if (sobrou.length) partes.push("\nNão entraram:\n  " +
       sobrou.map(x => x.nome + " — " + x.motivo).join("\n  "));
     if (falhas.length) partes.push("\nDeram erro:\n  " + falhas.join("\n  "));
-    alert(partes.join("\n"));
+    avisar(partes.join("\n"));
   }catch(e){
-    alert("Não consegui importar: " + (e && e.message ? e.message : e));
+    avisar("Não consegui importar: " + (e && e.message ? e.message : e));
   }finally{
     btn.disabled = false;
     btn.textContent = rotulo;
@@ -6079,7 +6188,8 @@ document.getElementById("resumoSaveBtn").addEventListener("click", async () => {
 });
 document.getElementById("resumoDeleteBtn").addEventListener("click", async () => {
   if (!resumoTask) return;
-  if (!confirm("Apagar o resumo desta atividade?")) return;
+  if (!(await perguntar("Apagar o resumo desta atividade?",
+      { titulo: "Apagar resumo", ok: "Apagar", perigo: true }))) return;
   if (!(await guardTaskFieldEdit(resumoTask, "resumo"))) return;
   delete resumoTask.resumo;
   scheduleSavePage(currentPageId);
@@ -6208,15 +6318,15 @@ async function ensureAudioFolder(){
 }
 
 async function iniciarGravacao(task, aoTerminar){
-  if (gravacao){ alert("Já existe uma gravação em andamento."); return; }
+  if (gravacao){ avisar("Já existe uma gravação em andamento."); return; }
   const formato = formatoDeAudio();
-  if (!formato){ alert("Este navegador não grava áudio. Use o Chrome ou o Edge."); return; }
+  if (!formato){ avisar("Este navegador não grava áudio. Use o Chrome ou o Edge."); return; }
 
   let fluxo;
   try{
     fluxo = await navigator.mediaDevices.getUserMedia({ audio: true });
   }catch(e){
-    alert("Não consegui usar o microfone. Verifique a permissão do navegador para este site.");
+    avisar("Não consegui usar o microfone. Verifique a permissão do navegador para este site.");
     return;
   }
 
@@ -6231,7 +6341,7 @@ async function iniciarGravacao(task, aoTerminar){
       formato.mime = "";
     }catch(e2){
       fluxo.getTracks().forEach(t => t.stop());
-      alert("Este navegador não conseguiu iniciar a gravação.");
+      avisar("Este navegador não conseguiu iniciar a gravação.");
       return;
     }
   }
@@ -6342,9 +6452,10 @@ async function finalizarGravacao(){
   }
 }
 
-function cancelarGravacao(){
+async function cancelarGravacao(){
   if (!gravacao) return;
-  if (!confirm("Descartar esta gravação? Ela não será salva em lugar nenhum.")) return;
+  if (!(await perguntar("Descartar esta gravação? Ela não será salva em lugar nenhum.",
+      { titulo: "Descartar gravação", ok: "Descartar", perigo: true }))) return;
   clearInterval(gravacao.timer);
   soltarMicrofone();
   try{ gravacao.rec.onstop = null; gravacao.rec.stop(); }catch(e){}
@@ -6447,7 +6558,7 @@ function buildAudioCell(task){
             som = null;
             play.disabled = false;
             play.textContent = "▶";
-            alert("Não consegui tocar o áudio. Tente de novo.");
+            avisar("Não consegui tocar o áudio. Tente de novo.");
           });
           play.disabled = false;
           await som.play();
@@ -6455,7 +6566,7 @@ function buildAudioCell(task){
           som = null;
           play.disabled = false;
           play.textContent = "▶";
-          alert("Não consegui tocar o áudio: " + (e && e.message ? e.message : e));
+          avisar("Não consegui tocar o áudio: " + (e && e.message ? e.message : e));
         }
         pintaTempo();
       });
@@ -6485,8 +6596,9 @@ function buildAudioCell(task){
         del.textContent = "×";
         del.title = "Tirar o áudio desta atividade";
         del.addEventListener("click", async () => {
-          if (!confirm("Tirar o áudio desta atividade?\n\nO arquivo continua na pasta " +
-                       AUDIO_FOLDER + " do OneDrive.")) return;
+          if (!(await perguntar("Tirar o áudio desta atividade?\n\nO arquivo continua na pasta " +
+                                AUDIO_FOLDER + " do OneDrive.",
+                                { titulo: "Tirar áudio", ok: "Tirar", perigo: true }))) return;
           if (!(await guardTaskFieldEdit(task, "audio"))) return;
           delete task.audio;
           scheduleSavePage(currentPageId);
@@ -6696,8 +6808,8 @@ function buildDocumentoCell(task){
         del.textContent = "\u00d7";
         del.title = "Tirar o documento desta atividade";
         del.addEventListener("click", async () => {
-          if (!confirm('Tirar o documento "' + def.rotulo + '" desta atividade?\n\n' +
-                       'O arquivo continua na pasta ' + DOCS_FOLDER + ' do OneDrive.')) return;
+          if (!(await perguntar('Tirar o documento "' + def.rotulo + '" desta atividade?\n\n' +
+                       'O arquivo continua na pasta ' + DOCS_FOLDER + ' do OneDrive.', { titulo: "Tirar documento", ok: "Tirar", perigo: true }))) return;
           if (!(await guardTaskFieldEdit(task, "documento"))) return;
           delete task.documento;
           scheduleSavePage(currentPageId);
@@ -6756,7 +6868,7 @@ function abrirMenuDocumento(btn, task, aoCriar){
       }catch(e){
         btn.disabled = false;
         btn.textContent = rotulo;
-        alert("Não consegui criar o documento: " + (e && e.message ? e.message : e));
+        avisar("Não consegui criar o documento: " + (e && e.message ? e.message : e));
       }
     });
     menu.appendChild(b);
@@ -6848,7 +6960,7 @@ function buildAttachCell(task){
     const file = picker.files && picker.files[0];
     if (!file) return;
     if (file.size > ATTACH_MAX_BYTES){
-      alert("Arquivo muito grande. O limite é " + formatFileSize(ATTACH_MAX_BYTES) + ".");
+      avisar("Arquivo muito grande. O limite é " + formatFileSize(ATTACH_MAX_BYTES) + ".");
       return;
     }
     if (!(await guardTaskFieldEdit(task, "anexo"))) return;
@@ -6858,7 +6970,7 @@ function buildAttachCell(task){
       task.attachment = await uploadAttachment(file, task);
       scheduleSavePage(currentPageId);
     }catch(err){
-      alert("Não foi possível anexar o arquivo. Tente de novo.");
+      avisar("Não foi possível anexar o arquivo. Tente de novo.");
     }
     enviando = false;
     refresh();
@@ -6867,7 +6979,8 @@ function buildAttachCell(task){
   delBtn.addEventListener("click", async () => {
     const anexo = task.attachment;
     if (!anexo) return;
-    if (!confirm(`Remover o anexo "${anexo.name}"?`)) return;
+    if (!(await perguntar(`Remover o anexo "${anexo.name}"?`,
+          { titulo: "Remover anexo", ok: "Remover", perigo: true }))) return;
     if (!(await guardTaskFieldEdit(task, "anexo"))) return;
     if (anexo.id){
       // Vai pra lixeira do OneDrive; se falhar, tira a referencia de qualquer forma.
@@ -8465,7 +8578,8 @@ function renderAdminUserRow(u){
     await changeUserRole(u.email, e.target.value);
   });
   row.querySelector(".remove-btn").addEventListener("click", async () => {
-    if (!confirm(`Remover o acesso de ${u.email}?`)) return;
+    if (!(await perguntar(`Remover o acesso de ${u.email}?`,
+          { titulo: "Remover acesso", ok: "Remover", perigo: true }))) return;
     await revokeUser(u.email);
   });
   return row;
