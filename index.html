@@ -1538,6 +1538,8 @@
           <button type="button" id="clearFiltersBtn" data-tkey="clear">✕ Limpar filtros</button>
           <button type="button" id="exportTasksBtn" data-tkey="export">⬇️ Exportar</button>
           <button type="button" id="printTasksBtn" data-tkey="print">🖨️ Imprimir</button>
+          <button type="button" id="importarResumosBtn" data-tkey="importar"
+                  title="Trazer resumos da pasta do OneDrive para a coluna Resumo">⬇ Importar resumos</button>
           <!-- Sem data-tkey de proposito: fica fora da ordem arrastavel e da lista de
                esconder, porque e por aqui que se traz de volta o que foi escondido. -->
           <div id="taskViewMenuWrap">
@@ -3167,6 +3169,7 @@ const TOOLBAR_LABELS = {
   status: "Status", dueState: "Vencimento", company: "Empresa",
   assignee: "Responsável", due: "Período", search: "Buscar",
   clear: "Limpar filtros", export: "Exportar", print: "Imprimir",
+  importar: "Importar resumos",
 };
 let toolbarVisibility = {};
 try{
@@ -4009,6 +4012,7 @@ const ACOES_COM_SENHA = [
   { key: "documento",      label: "Criar e remover documento do Office" },
   { key: "audio",          label: "Gravar e remover áudio" },
   { key: "resumo",         label: "Escrever e apagar resumo" },
+  { key: "importarResumos", label: "Importar resumos do OneDrive" },
   { key: "moverColunas",   label: "Mover colunas de lugar (arrastar o cabeçalho)" },
   { key: "layoutColunas",  label: "Esconder e restaurar colunas" },
   { key: "layoutBarra",    label: "Mover e esconder botões e filtros da barra" },
@@ -5789,6 +5793,157 @@ async function uploadAttachment(file, task){
   const item = await res.json();
   return { id: item.id, name: file.name, url: item.webUrl || "", size: file.size || 0 };
 }
+
+/* ---------- Importar resumos de uma pasta do OneDrive ----------
+
+   O ROADMAP nao consegue falar com o Plaud: nao ha API publica, e uma pagina
+   estatica nao pode guardar chave sem expo-la a quem abrir o codigo-fonte.
+   A ponte e esta pasta: um arquivo cai nela (vindo do Claude, do celular, de
+   onde for) e entra na coluna Resumo com um clique.
+
+   O numero no COMECO DO NOME do arquivo e o numero de registro da atividade
+   (coluna ITENS). "158 - planejamento natal.md" vai para a atividade 158. */
+const IMPORT_FOLDER = "ROADMAP - Importar";
+const IMPORT_MAX_BYTES = 2 * 1024 * 1024;   // resumo e texto; acima disso e outra coisa
+
+/* O numero tem de estar no comeco: "2026-11-04 reuniao.md" comecaria por 2026 e
+   iria para a atividade 2026, que nao existe — por isso o nome manda, nao o
+   primeiro numero que aparecer em qualquer lugar. */
+function registroDoArquivo(nome){
+  const m = /^\s*(\d{1,6})\b/.exec(String(nome || ""));
+  return m ? Number(m[1]) : null;
+}
+
+function ehArquivoDeResumo(nome){
+  return /\.(md|markdown|txt)$/i.test(String(nome || "")) && !/\.importado\./i.test(nome);
+}
+
+async function listarPastaDeImportacao(){
+  const caminho = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(IMPORT_FOLDER)}:/children`;
+  const res = await graphFetch(caminho, { cache: "no-store" });
+  if (res.status === 404) return null;            // pasta ainda nao existe
+  if (!res.ok) throw new Error("status " + res.status);
+  const dados = await res.json();
+  return (dados.value || []).filter(f => f.file && ehArquivoDeResumo(f.name));
+}
+
+/* Casa o arquivo com a atividade pelo numero de registro.
+   Devolve o porque quando nao casa, para a tela poder dizer o que houve em vez
+   de sumir com o arquivo em silencio. */
+function casarResumos(arquivos, tasks){
+  const porRegistro = new Map();
+  tasks.forEach(t => {
+    const n = Number(t.items);
+    if (n) porRegistro.set(n, t);
+  });
+  const casados = [], sobrou = [];
+  arquivos.forEach(f => {
+    const n = registroDoArquivo(f.name);
+    if (n == null){ sobrou.push({ nome: f.name, motivo: "o nome não começa com o número da atividade" }); return; }
+    const t = porRegistro.get(n);
+    if (!t){ sobrou.push({ nome: f.name, motivo: "não há atividade com o número " + n + " nesta página" }); return; }
+    if (f.size > IMPORT_MAX_BYTES){ sobrou.push({ nome: f.name, motivo: "arquivo grande demais para um resumo" }); return; }
+    casados.push({ arquivo: f, task: t, registro: n });
+  });
+  return { casados, sobrou };
+}
+
+async function textoDoArquivo(item){
+  // Mesmo caminho do audio: /content redireciona e o cabecalho de autorizacao
+  // nao sobrevive ao salto. O endereco de download ja vem autenticado.
+  const res = await graphFetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("status " + res.status);
+  const meta = await res.json();
+  const endereco = meta["@microsoft.graph.downloadUrl"];
+  if (!endereco) throw new Error("sem endereço de download");
+  const arq = await fetch(endereco);
+  if (!arq.ok) throw new Error("download status " + arq.status);
+  return await arq.text();
+}
+
+/* Marca como importado em vez de apagar: se o resumo entrou na atividade
+   errada, o arquivo ainda esta la para conferir. */
+async function marcarComoImportado(item){
+  const base = item.name.replace(/\.(md|markdown|txt)$/i, "");
+  const ext = (item.name.match(/\.(md|markdown|txt)$/i) || [".md"])[0];
+  const novo = base + ".importado" + ext;
+  await graphFetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: novo })
+  });
+}
+
+async function importarResumos(){
+  const btn = document.getElementById("importarResumosBtn");
+  if (!currentPageId || !pageContentCache[currentPageId]){
+    alert("Abra uma página de atividades primeiro.");
+    return;
+  }
+  if (!(await requestEditPassword("importarResumos"))) return;
+
+  const rotulo = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Importando…";
+  try{
+    const arquivos = await listarPastaDeImportacao();
+    if (arquivos === null){
+      alert("A pasta \"" + IMPORT_FOLDER + "\" ainda não existe no seu OneDrive.\n\n" +
+            "Crie uma pasta com esse nome na raiz do OneDrive e coloque nela os arquivos " +
+            "de resumo, com o número da atividade no começo do nome. Exemplo:\n\n" +
+            "    158 - planejamento natal.md");
+      return;
+    }
+    if (!arquivos.length){
+      alert("Nenhum arquivo novo em \"" + IMPORT_FOLDER + "\".\n\n" +
+            "Os já importados ficam com \".importado\" no nome e não entram de novo.");
+      return;
+    }
+
+    const tasks = pageContentCache[currentPageId].tasks || [];
+    const { casados, sobrou } = casarResumos(arquivos, tasks);
+
+    const jaTinham = casados.filter(c => !resumoVazio(c.task.resumo));
+    if (jaTinham.length && !confirm(
+        jaTinham.length + " atividade(s) já têm resumo e serão substituídas:\n\n" +
+        jaTinham.map(c => "  " + c.registro + " — " + (c.task.title || "sem título")).join("\n") +
+        "\n\nContinuar?")) return;
+
+    const feitos = [], falhas = [];
+    for (const c of casados){
+      btn.textContent = "Importando " + (feitos.length + falhas.length + 1) + "/" + casados.length + "…";
+      try{
+        const texto = await textoDoArquivo(c.arquivo);
+        if (resumoVazio(texto)){ falhas.push(c.arquivo.name + ": arquivo vazio"); continue; }
+        c.task.resumo = texto;
+        feitos.push(c.registro + " — " + (c.task.title || "sem título"));
+        await marcarComoImportado(c.arquivo);
+      }catch(e){
+        falhas.push(c.arquivo.name + ": " + (e && e.message ? e.message : e));
+      }
+    }
+
+    if (feitos.length){
+      scheduleSavePage(currentPageId);
+      renderTasks();
+    }
+
+    const partes = [];
+    partes.push(feitos.length ? feitos.length + " resumo(s) importado(s):\n  " + feitos.join("\n  ")
+                              : "Nenhum resumo importado.");
+    if (sobrou.length) partes.push("\nNão entraram:\n  " +
+      sobrou.map(x => x.nome + " — " + x.motivo).join("\n  "));
+    if (falhas.length) partes.push("\nDeram erro:\n  " + falhas.join("\n  "));
+    alert(partes.join("\n"));
+  }catch(e){
+    alert("Não consegui importar: " + (e && e.message ? e.message : e));
+  }finally{
+    btn.disabled = false;
+    btn.textContent = rotulo;
+  }
+}
+
+document.getElementById("importarResumosBtn").addEventListener("click", importarResumos);
 
 /* ---------- Resumo da reuniao ----------
    O resumo e texto para LER, nao para editar o tempo todo: a janela abre em
